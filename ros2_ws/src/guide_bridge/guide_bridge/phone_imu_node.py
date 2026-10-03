@@ -14,11 +14,12 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import rclpy
 from rclpy.node import Node
+from nav_msgs.msg import Odometry
 from rclpy.time import Time
 from sensor_msgs.msg import Imu, MagneticField, NavSatFix, NavSatStatus
 from std_msgs.msg import Bool
 
-from .phone_imu import ClockOffset, Liveness, parse_payload
+from .phone_imu import ClockOffset, GyroBias, Liveness, parse_payload
 
 MAX_BODY = 2_000_000
 
@@ -38,11 +39,18 @@ class PhoneImuNode(Node):
         self.fix_pub = self.create_publisher(NavSatFix, "phone/fix", 10)
         self.alive_pub = self.create_publisher(Bool, "phone/alive", 10)
         self.clock_offset = ClockOffset()
+        self.gyro_bias = GyroBias()
+        self.vo_time = -1e9
+        self.create_subscription(Odometry, "vo", self.on_vo, 20)
         self.live = Liveness(self.declare_parameter("timeout", 1.0).value)
         self.inbox: queue.Queue = queue.Queue(maxsize=200)
         self.create_timer(0.005, self.drain)
         self.create_timer(0.2, self.publish_alive)
         self._start_server()
+
+    def on_vo(self, msg: Odometry):
+        self.vo_time = self.now()
+        self.gyro_bias.odometry(self.vo_time, msg.twist.twist.linear.x, msg.twist.twist.angular.z)
 
     def now(self) -> float:
         return self.get_clock().now().nanoseconds * 1e-9
@@ -129,7 +137,10 @@ class PhoneImuNode(Node):
         else:
             m.orientation_covariance[0] = -1.0
         if s.gyro is not None:
-            m.angular_velocity.x, m.angular_velocity.y, m.angular_velocity.z = s.gyro
+            gx, gy, gz = s.gyro
+            t = m.header.stamp.sec + m.header.stamp.nanosec * 1e-9  # the sample's own time: pushes come in batches
+            gz = self.gyro_bias.gyro(t, gz, self.now() - self.vo_time)
+            m.angular_velocity.x, m.angular_velocity.y, m.angular_velocity.z = gx, gy, gz
             m.angular_velocity_covariance = [self.gyro_var, 0.0, 0.0, 0.0, self.gyro_var, 0.0, 0.0, 0.0, self.gyro_var]
         else:
             m.angular_velocity_covariance[0] = -1.0

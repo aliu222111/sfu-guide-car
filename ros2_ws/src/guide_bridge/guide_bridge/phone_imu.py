@@ -199,3 +199,37 @@ class Liveness:
 
     def alive(self, now: float) -> bool:
         return now - self.last <= self.timeout
+
+
+class GyroBias:
+    """The phone gyro's yaw-rate bias, learned while the car stands still.
+
+    robot_localization's filters have no gyro bias state: a phone gyro off by
+    0.1 deg/s (typical, and it changes with temperature) turns the car's heading
+    by 6 deg a minute wherever the cameras give weak turn information. Whenever
+    visual odometry has said "not moving" for ``settle`` seconds, the yaw rate
+    the gyro reads is bias; it is averaged slowly (``tau``) and subtracted.
+    """
+
+    def __init__(self, settle: float = 2.0, tau: float = 10.0, limit: float = 0.05):
+        self.settle, self.tau, self.limit = settle, tau, limit
+        self.bias = 0.0
+        self.still_since: float | None = None
+        self.last: float | None = None
+
+    def odometry(self, t: float, speed: float, turn_rate: float):
+        """A visual odometry reading (m/s, rad/s) at time t."""
+        still = abs(speed) < 0.01 and abs(turn_rate) < 0.005
+        if not still:
+            self.still_since = None
+        elif self.still_since is None:
+            self.still_since = t
+
+    def gyro(self, t: float, wz: float, odometry_age: float) -> float:
+        """The bias-corrected yaw rate; learns from ``wz`` when the car has been still."""
+        dt = 0.0 if self.last is None else max(0.0, min(0.1, t - self.last))
+        self.last = t
+        if self.still_since is not None and t - self.still_since >= self.settle and odometry_age < 0.5:
+            self.bias += (wz - self.bias) * min(1.0, dt / self.tau)
+            self.bias = max(-self.limit, min(self.limit, self.bias))
+        return wz - self.bias

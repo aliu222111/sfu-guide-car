@@ -81,3 +81,30 @@ def test_malformed_pushes_are_ignored():
                 {"payload": [{"name": "location", "time": T, "values": {"latitude": 999, "longitude": 0}}]},
                 {"payload": [{"name": "orientation", "time": T, "values": {"qx": 0, "qy": 0, "qz": 0, "qw": 0}}]}):
         assert parse_payload(doc) == ([], [], [])
+
+
+def test_gyro_bias_learned_while_still_and_not_while_turning():
+    from guide_bridge.phone_imu import GyroBias
+
+    b = GyroBias(settle=2.0, tau=5.0)
+    t = 0.0
+    for _ in range(3000):  # 30 s standing still, the gyro reading 0.004 rad/s of bias
+        t += 0.01
+        b.odometry(t, 0.0, 0.0)
+        out = b.gyro(t, 0.004, 0.0)
+    assert b.bias == pytest.approx(0.004, abs=2e-4) and abs(out) < 2e-4
+    for _ in range(500):  # turning: a real 0.3 rad/s is not bias
+        t += 0.01
+        b.odometry(t, 0.5, 0.3)
+        out = b.gyro(t, 0.304, 0.0)
+    assert b.bias == pytest.approx(0.004, abs=2e-4) and out == pytest.approx(0.3, abs=1e-3)
+
+
+def test_gyro_bias_needs_fresh_odometry():
+    from guide_bridge.phone_imu import GyroBias
+
+    b = GyroBias(settle=1.0, tau=1.0)
+    b.odometry(0.0, 0.0, 0.0)
+    for k in range(500):
+        b.gyro(0.01 * k, 0.02, odometry_age=5.0)  # the cameras stopped reporting: learn nothing
+    assert b.bias == 0.0

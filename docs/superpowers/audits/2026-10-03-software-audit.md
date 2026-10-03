@@ -159,6 +159,27 @@ Open, from the same runs:
   heading tolerance wider than the pivot overshoot, or a slower minimum pivot on a grippier floor,
   should fix it; tune on the real car.
 
+Sensor fusion review (robot_localization, two EKFs), from the simulator traces:
+
+| Camera setup | position error median / p95 | heading error median / p95 | mostly |
+|---|---|---|---|
+| stereo (RTAB-Map) | 0.18 / 0.86 m | 1.0 / 4.9 deg | balanced |
+| one camera (sign fixes) | 0.41 / 1.18 m | 2.0 / 10.8 deg | along the corridor: distance drift between signs |
+| iPhone (ARKit, RTAB-Map) | 0.57 / 1.02 m | 1.5 / 27 deg | heading before the first fix (no compass) |
+
+- **Gyro bias, fixed.** The EKFs have no gyro bias state; a phone gyro is typically 0.1 to 1 deg/s
+  off. The phone bridge now learns the yaw-rate bias whenever visual odometry has reported the car
+  still for 2 s and subtracts it (`GyroBias`).
+- **Kept as is.** An EKF, not a UKF: the motion is planar and gently non-linear, so a UKF costs CPU
+  for nothing measurable. Visual odometry is fused as velocity (vx, vy, yaw rate), so the filters
+  never see its drifting position; vy is fused because the car cannot slide sideways and the
+  cameras confirm it. No IMU accelerations: a phone's are too noisy to integrate.
+- **Open.** With one camera, error grows along the corridor between sign reads: more sign reads
+  (the student can now say a door number) or wheel speed would bound it. The commanded speed is not
+  used as a control input: the RC throttle is open loop, so it would be a poor measurement of speed.
+  In iPhone mode there is no heading until the first RTAB-Map match; ARKit's heading-aligned mode
+  (compass) is not exposed by Record3D.
+
 Not fixed, by decision:
 
 - **Nav2 death watchdog.** If Nav2 crashes mid-trip the mission waits for its action timeout.
