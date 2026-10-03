@@ -102,8 +102,14 @@ def test_waypoints_sparse_but_keep_turns_and_goal(campus):
     wp = waypoints(campus, path)
     assert wp[0] == path[0] and wp[-1] == path[-1]
     assert len(wp) < len(path) / 2
-    turns = {t.node for t in find_turns(campus, path)}
-    assert turns <= set(wp) | {path[0]}  # every turn far enough from the last waypoint is kept
+    # Every turn far enough (min_gap, 6 m) from the waypoint kept before it is kept.
+    kept = set(wp)
+    for t in find_turns(campus, path):
+        if t.node in kept or t.node == path[0]:
+            continue
+        before = [n for n in path[: path.index(t.node)] if n in kept][-1]
+        a, b = campus.nodes[before], campus.nodes[t.node]
+        assert math.hypot(b["x"] - a["x"], b["y"] - a["y"]) < 6.0, f"turn {t.node} dropped"
     pts = [campus.nodes[n] for n in wp]
     for a, b in zip(pts, pts[1:]):
         assert math.hypot(b["x"] - a["x"], b["y"] - a["y"]) <= 25.0
