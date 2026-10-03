@@ -35,7 +35,7 @@ class CameraModel:
     x: float = 0.30
     z: float = 0.45
     pitch: float = 0.20  # rad, nose down
-    baseline: float = 0.12
+    baseline: float = 0.10
     noise: float = 3.0  # grey levels of sensor noise
 
     @property

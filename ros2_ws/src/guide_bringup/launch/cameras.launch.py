@@ -55,7 +55,7 @@ def cameras(context):
                 "namespace": "stereo",
                 "approximate_sync": "True",   # the webcams are not hardware synchronised
                 "stereo_algorithm": "1",      # 1 = SGBM
-                "disparity_range": "64",
+                "disparity_range": "128",     # nearest depth = fx * baseline / 128: 0.54 m at 10 cm
                 "correlation_window_size": "7",
                 "use_color": "False",
             }.items(),

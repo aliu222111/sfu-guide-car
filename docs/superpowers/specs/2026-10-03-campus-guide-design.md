@@ -48,7 +48,7 @@ Required additions:
 
 - Old phone as IMU: any Android or iPhone, rigidly mounted flat on the chassis, screen up, pointing forward. It runs a sensor streaming app (Sensor Logger, free on both platforms, HTTP push at up to 100 Hz) that posts gyro, accelerometer, orientation, magnetometer and GPS to the laptop over campus WiFi. A browser page using device motion events is the alternative but needs HTTPS, so the app is the default. The phone's compass is used outdoors only; indoors steel and concrete distort it.
 - External active GPS antenna on the uFL socket, mounted on top of the car. The car sits low next to concrete and the on-board patch antenna will lose lock.
-- Stereo mount: the two webcams rigidly fixed 10 to 15 cm apart, level, facing forward, on a plate that does not flex. Any flex invalidates the calibration.
+- Stereo mount: the two webcams rigidly fixed 10 cm apart (lens centres), level, at the same height, facing forward, on a plate that does not flex. Any flex invalidates the calibration. With the 50 deg webcams (fx about 690 px at 640 x 360) and a 128-disparity search, stereo sees from 0.54 m out, with about 6 cm depth error at 4 m; at 12 cm and 64 disparities nothing nearer than 1.3 m showed.
 - Microcontroller (Arduino, ESP32 or the Pi 4) that takes velocity commands over USB serial and drives the motors.
 - Speaker and USB microphone on the laptop for the voice agent.
 
