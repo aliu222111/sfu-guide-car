@@ -86,6 +86,10 @@ def nodes(context):
             # which skips frames when slower than the cameras, so the lookup would
             # fail and RTAB-Map would drop almost every frame.
             "odom_sensor_sync": not handheld,
+            # Only real matches against the map: by default RTAB-Map also republishes
+            # odometry as a "localization" pose before it has matched anything, which
+            # the localization manager would take as a fix (found in the HIL simulation).
+            "pub_loc_pose_only_when_localizing": True,
             "Mem/IncrementalMemory": "false" if localization else "true",
             "Mem/InitWMWithAllNodes": "true" if localization else "false",
             "RGBD/OptimizeMaxError": "3.0",

@@ -145,7 +145,8 @@ def main(argv=None):
             doc.get("state", ""), doc.get("detail", ""),
             *(round(v, 3) for name in ("vo", "local", "global") for v in odo.get(name, (math.nan,) * 3)),
             round(vp.get("yaw", math.nan), 3) if state["sim_t"] - vp.get("t", -9) < 0.5 else "",
-            round(vp.get("axis", math.nan), 3))))
+            round(vp.get("axis", math.nan), 3),
+            cmd.get("gate", ""), *(round(v, 3) for k in ("nav", "out") for v in cmd.get(k, (math.nan, math.nan))))))
 
     from nav_msgs.msg import Odometry
 
@@ -158,6 +159,14 @@ def main(argv=None):
 
     from sensor_msgs.msg import Imu
     from std_msgs.msg import Float64
+
+    from geometry_msgs.msg import Twist
+
+    # What each layer asked for: Nav2's controller, then the velocity gate's output and reason.
+    cmd: dict = {}
+    node.create_subscription(Twist, "/cmd_vel_nav", lambda m: cmd.update(nav=(m.linear.x, m.angular.z)), 10)
+    node.create_subscription(Twist, "/cmd_vel", lambda m: cmd.update(out=(m.linear.x, m.angular.z)), 10)
+    node.create_subscription(String, "/guide/gate_reason", lambda m: cmd.update(gate=m.data), 10)
 
     vp: dict = {}
     node.create_subscription(Imu, "/guide/vp_heading", lambda m: vp.update(yaw=yaw_of(m.orientation), t=state["sim_t"]), 10)
@@ -226,7 +235,7 @@ def main(argv=None):
     if args.trace:
         with open(args.trace, "w") as f:
             f.write("t,x,y,yaw,est_x,est_y,est_yaw,v,w,state,detail,vo_v,vo_w,vo_cov,local_v,local_w,local_cov,"
-                    "global_v,global_w,global_cov,vp_yaw,corridor_axis\n" + "\n".join(trace) + "\n")
+                    "global_v,global_w,global_cov,vp_yaw,corridor_axis,gate,nav_v,nav_w,out_v,out_w\n" + "\n".join(trace) + "\n")
     if args.report:
         with open(args.report, "w") as f:
             json.dump({**report, "log": log_lines}, f, indent=2)

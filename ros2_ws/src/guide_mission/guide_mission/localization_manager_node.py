@@ -86,6 +86,10 @@ class LocalizationManager(Node):
         self.vo_was_ok = False
         self.reset_time = 0.0  # floor switch or visual odometry loss: needs a new fix
         self.last_fix = -math.inf
+        # A cold start trusts no single match: two in a row that agree (spec section 6).
+        self.agree_dist = float(self.declare_parameter("relocalize_agree_m", 0.5).value)
+        self.agree_window = float(self.declare_parameter("relocalize_window_s", 5.0).value)
+        self.candidate = None  # (time, x, y) of the last unconfirmed relocalization
 
         pub = self.create_publisher
         self.indoor_pose_pub = pub(PoseWithCovarianceStamped, "guide/indoor_pose", 10)
@@ -222,10 +226,19 @@ class LocalizationManager(Node):
         pose = transform_pose(msg, sim, self.map_frame)
         if not self.localized():
             # First relocalization after a cold start, a floor change or odometry
-            # loss: the EKF would reject a pose this far from its guess, so reset it.
+            # loss: the EKF would reject a pose this far from its guess, so reset it,
+            # but only once a second match agrees with the first. A lone match in an
+            # open space (little within the depth range) can be metres off.
+            if not self.confirmed(pose):
+                return
             self.set_pose_pub.publish(pose)
         self.last_fix = self.now()
         self.indoor_pose_pub.publish(pose)
+
+    def confirmed(self, pose: PoseWithCovarianceStamped) -> bool:
+        now, p = self.now(), pose.pose.pose.position
+        c, self.candidate = self.candidate, (now, p.x, p.y)
+        return c is not None and now - c[0] <= self.agree_window and math.hypot(p.x - c[1], p.y - c[2]) <= self.agree_dist
 
     def on_sign_fix(self, msg: PoseWithCovarianceStamped):
         if self.outdoor:
