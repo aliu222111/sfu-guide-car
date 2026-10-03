@@ -88,7 +88,7 @@ class HilSim(Node):
         self.rig = None
 
         # Hardware ----------------------------------------------------------------
-        cp = ChassisParams(understeer=float(P("understeer", 1.1)), speed_at_limit=float(P("speed_at_limit", 1.5)))
+        cp = ChassisParams(understeer=float(P("understeer", 1.1)), speed_at_ref=float(P("speed_at_ref", 1.5)))
         self.chassis = Chassis(cp)
         yaw = P("start_yaw", float("nan"))
         if not math.isfinite(yaw):
@@ -362,7 +362,7 @@ class HilSim(Node):
             "t": round(self.t, 2), "floor": self.world.floor, "x": round(s.x, 2), "y": round(s.y, 2),
             "yaw": round(s.yaw, 3), "v": round(s.v, 3), "w": round(s.w, 3), "collisions": s.collisions,
             "collision_at": s.history[-5:], "bumper_m": None if not math.isfinite(self.echo_m) else round(self.echo_m, 2),
-            "servo_us": [self.fw.servo_us(self.chassis.wiring.steer), self.fw.servo_us(self.chassis.wiring.esc)],
+            "controller_pwm": [self.fw.pwm(self.chassis.wiring.steer), self.fw.pwm(self.chassis.wiring.throttle)],
             "steer": round(s.steer, 3),
             "phone_posts": self.phone.posted, "phone_failures": self.phone.failed,
             "rig_done": None if self.rig is None else self.rig["done"],

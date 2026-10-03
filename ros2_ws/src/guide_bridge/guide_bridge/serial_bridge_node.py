@@ -1,4 +1,10 @@
-"""Velocity commands to the motor microcontroller over USB serial (spec section 10)."""
+"""Velocity commands to the RC car, through the microcontroller that works its hand
+controller, over USB serial (spec section 10).
+
+/cmd_vel (after the velocity gate) becomes steering and throttle (ackermann.py,
+calibrated in guide.yaml), with the open-loop throttle trimmed on the measured
+speed (speed.py). The microcontroller centres both if the lines stop.
+"""
 
 from __future__ import annotations
 
@@ -7,9 +13,10 @@ from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from rclpy.node import Node
 from sensor_msgs.msg import Range
-from std_msgs.msg import Bool, Int32MultiArray
+from std_msgs.msg import Bool
 
-from .protocol import Button, Encoders, LineBuffer, Ultrasonic, format_velocity, parse_line
+from .ackermann import Ackermann, CarConfig
+from .protocol import Button, LineBuffer, Ultrasonic, format_drive, parse_line
 from .speed import SpeedTrim
 
 
@@ -23,6 +30,10 @@ class SerialBridge(Node):
         # The RC throttle is open loop: trim it on the measured speed (speed.py).
         self.trim = SpeedTrim(gain=float(self.declare_parameter("speed_trim_gain", 0.8).value),
                               limit=float(self.declare_parameter("speed_trim_limit", 0.3).value))
+        cfg = CarConfig()
+        for name, default in vars(CarConfig()).items():
+            setattr(cfg, name, type(default)(self.declare_parameter(name, default).value))
+        self.car = Ackermann(cfg)
         self.period = 1.0 / rate
         self.measured = None  # (forward speed m/s, time)
         self.linear = 0.0
@@ -32,7 +43,6 @@ class SerialBridge(Node):
         self.buf = LineBuffer()
         self.create_subscription(Twist, "cmd_vel", self.on_cmd, 10)
         self.create_subscription(Odometry, "odometry/local", self.on_odom, 10)
-        self.enc_pub = self.create_publisher(Int32MultiArray, "encoders", 10)
         self.ptt_pub = self.create_publisher(Bool, "voice/ptt", 10)
         self.range_pub = self.create_publisher(Range, "bumper/range", 10)
         self.create_timer(1.0 / rate, self.tick)
@@ -69,7 +79,7 @@ class SerialBridge(Node):
         speed, age = (self.measured[0], self.now() - self.measured[1]) if self.measured else (None, 0.0)
         lin, ang = self.trim.command(lin, ang, speed, age, self.period)
         try:
-            self.serial.write(format_velocity(lin, ang))
+            self.serial.write(format_drive(*self.car.command(lin, ang)))
             data = self.serial.read(256)
         except Exception as e:
             self.get_logger().error(f"serial error, reopening: {e}")
@@ -80,9 +90,7 @@ class SerialBridge(Node):
             return
         for line in self.buf.feed(data):
             item = parse_line(line)
-            if isinstance(item, Encoders):
-                self.enc_pub.publish(Int32MultiArray(data=[item.left, item.right]))
-            elif isinstance(item, Button):
+            if isinstance(item, Button):
                 self.ptt_pub.publish(Bool(data=item.pressed))
             elif isinstance(item, Ultrasonic):
                 r = Range()
@@ -94,7 +102,7 @@ class SerialBridge(Node):
     def stop(self):
         if self.serial is not None:
             try:
-                self.serial.write(format_velocity(0.0, 0.0))
+                self.serial.write(format_drive(0.0, 0.0))
             except Exception:
                 pass
 

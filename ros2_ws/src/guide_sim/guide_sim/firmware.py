@@ -30,7 +30,7 @@ def default_ino() -> Path:
 def build(ino: Path, defines: tuple[str, ...] = ()) -> Path:
     """Compile ``ino`` into a shared library; returns its path (cached)."""
     ino = Path(ino).resolve()
-    sources = [HERE / "Arduino.h", HERE / "Servo.h", HERE / "arduino_host.cpp", HERE / "firmware_main.cpp", ino]
+    sources = [HERE / "Arduino.h", HERE / "arduino_host.cpp", HERE / "firmware_main.cpp", ino]
     h = hashlib.sha256()
     for s in sources:
         h.update(s.read_bytes())
@@ -100,10 +100,6 @@ class Firmware:
 
     def pwm(self, pin: int) -> int:
         return self.lib.host_pwm(pin)
-
-    def servo_us(self, pin: int) -> int:
-        """The pulse width the firmware sends a servo or ESC on ``pin``, 0 if none."""
-        return self.lib.host_servo_us(pin)
 
     def digital(self, pin: int) -> int:
         return self.lib.host_digital(pin)

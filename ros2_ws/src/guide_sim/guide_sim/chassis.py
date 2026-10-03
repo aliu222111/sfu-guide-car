@@ -1,13 +1,16 @@
-"""The car's hardware below the microcontroller: steering servo, ESC, motor, body.
+"""The car's hardware below the microcontroller: hand controller, radio, servo, ESC, body.
 
-The RC car has Ackermann steering and four-wheel drive. The simulator reads the
-firmware's two servo pulses through ``Wiring``: the steering servo turns its
-pulse into a front-wheel angle (at a finite slew rate), the ESC turns its pulse
-into wheel speed (a deadband around neutral, a time constant). The body moves
-with the bicycle model, yaw rate = v tan(steer) / wheelbase, with a little
-understeer. The true full-lock angle and speed are deliberately not quite what
-the firmware's constants say, as on a real car before calibration. Nothing here
-knows about ROS.
+The RC car has Ackermann steering and four-wheel drive and is driven through
+its stock hand controller, whose wheel and trigger potentiometer wires the
+microcontroller drives (PWM through an RC filter). The simulator reads the
+firmware's two output pins through ``Wiring`` as wiper voltages, turns them
+into the controller's wheel and trigger positions, and the car's receiver into
+a front-wheel angle (the servo slews at a finite rate) and throttle (the ESC
+has a deadband around neutral and a time constant). The body moves with the
+bicycle model, yaw rate = v tan(steer) / wheelbase, with a little understeer.
+The true steering trim, full-lock angle, deadband and speed are deliberately
+not quite what guide.yaml says, as on a real car before calibration. Nothing
+here knows about ROS.
 """
 
 from __future__ import annotations
@@ -18,28 +21,30 @@ from dataclasses import dataclass, field
 
 @dataclass
 class Wiring:
-    """Pins as wired on the car (match guide_motor.ino) and how the servo and ESC respond."""
+    """Pins as wired (match guide_motor.ino) and the controller's potentiometer voltages."""
 
     steer: int = 9
-    esc: int = 10
+    throttle: int = 10
     button: int = 2
     us_trig: int = 11
     us_echo: int = 12
-    steer_center_us: int = 1500  # the pulse at which the wheels point straight
-    steer_lock_us: int = 400  # pulse change for full lock
-    steer_left_longer: bool = False  # a shorter pulse steers left (STEER_REVERSED false)
-    esc_neutral_us: int = 1500
-    esc_forward_longer: bool = True  # a longer pulse drives forwards (ESC_REVERSED false)
+    vref: float = 3.3
+    steer_center_v: float = 1.65  # the controller's wheel at rest
+    steer_left_v: float = 0.35  # at full left
+    throttle_center_v: float = 1.65
+    throttle_full_v: float = 2.95  # trigger pulled fully
 
 
 @dataclass
 class ChassisParams:
     wheelbase: float = 0.48  # m, front to rear axle (WHEELBASE_M)
-    max_steer: float = 0.50  # rad at full lock: the firmware assumes 0.52
+    max_steer: float = 0.50  # rad at full lock: guide.yaml assumes 0.52
+    steer_offset: float = 0.03  # wheel position at which it rolls straight: guide.yaml assumes 0
     steer_rate: float = 4.0  # rad/s servo slew
-    esc_start_us: int = 70  # beyond neutral before the wheels turn: the firmware assumes 60
-    esc_limit_us: int = 180
-    speed_at_limit: float = 1.5  # m/s at esc_limit_us: the firmware assumes 1.6
+    throttle_start: float = 0.17  # trigger before the wheels turn: guide.yaml assumes 0.15
+    throttle_ref: float = 0.40
+    speed_at_ref: float = 1.5  # m/s at throttle_ref: guide.yaml assumes 1.6
+    top_speed: float = 8.0  # m/s at full trigger (an RC car)
     motor_tau: float = 0.25  # s, speed response time constant (a heavier car than the tank)
     understeer: float = 1.1  # actual yaw rate = geometric / understeer
     length: float = 0.75  # the RC car body, matches nav2.yaml
@@ -70,18 +75,16 @@ class Chassis:
         self.s.v = self.s.w = 0.0
 
     def targets(self, fw) -> tuple[float, float]:
-        """(wheel speed m/s, steering angle rad) the servo and ESC are being told to reach."""
+        """(wheel speed m/s, steering angle rad) the radio is telling the servo and ESC."""
         w, p = self.wiring, self.p
-        steer_us, esc_us = fw.servo_us(w.steer), fw.servo_us(w.esc)
-        steer = 0.0
-        if steer_us:
-            frac = (steer_us - w.steer_center_us) / w.steer_lock_us
-            steer = max(-1.0, min(1.0, frac if w.steer_left_longer else -frac)) * p.max_steer
+        volts = lambda pin: max(0, fw.pwm(pin)) / 255.0 * w.vref  # noqa: E731 (the RC filter averages the PWM)
+        wheel = max(-1.0, min(1.0, (volts(w.steer) - w.steer_center_v) / (w.steer_left_v - w.steer_center_v)))
+        trigger = max(-1.0, min(1.0, (volts(w.throttle) - w.throttle_center_v) / (w.throttle_full_v - w.throttle_center_v)))
+        steer = max(-1.0, min(1.0, wheel - p.steer_offset)) * p.max_steer
         speed = 0.0
-        step = esc_us - w.esc_neutral_us if esc_us else 0  # no pulse: the ESC is disarmed
-        if abs(step) > p.esc_start_us:
-            frac = min(1.0, (abs(step) - p.esc_start_us) / (p.esc_limit_us - p.esc_start_us))
-            speed = math.copysign(frac * p.speed_at_limit, step if w.esc_forward_longer else -step)
+        if abs(trigger) > p.throttle_start:
+            speed = (abs(trigger) - p.throttle_start) / (p.throttle_ref - p.throttle_start) * p.speed_at_ref
+            speed = math.copysign(min(speed, p.top_speed), trigger)
         return speed, steer
 
     def step(self, dt: float, target_speed: float, target_steer: float, blocked=None):

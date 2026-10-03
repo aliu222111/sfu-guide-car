@@ -1,49 +1,43 @@
-// Motor controller for the SFU guide car (spec section 10).
+// Works the RC car's hand controller for the laptop (spec section 10).
 //
-// The car is an RC car with Ackermann steering and four-wheel drive: a steering
-// servo and an ESC, each driven by a standard 50 Hz servo pulse (Servo library).
-// Reads "V <linear m/s> <angular rad/s>\n" over USB serial at 115200 baud and
-// turns it into a throttle pulse and a steering angle with the bicycle model,
-// steer = atan(WHEELBASE * angular / linear). A car cannot turn without moving:
-// asked to turn while stopped, it points the wheels and waits. Goes to neutral
-// if no V line arrives for 500 ms. Sends "B <0|1>\n" when the push-to-talk
-// button changes. With an HC-SR04 ultrasonic sensor on the front bumper
-// (required with one camera, spec section 18), define HAVE_ULTRASONIC and it
-// sends "U <cm>\n" at 10 Hz: 0 when nothing is within 4 m, -1 when the sensor
-// gives no echo pulse at all (dead or unplugged; the laptop then treats the
-// bumper as silent and the car creeps).
+// The car is a stock RC car (Ackermann steering, four-wheel drive) and its
+// stock pistol-grip controller. This board stands in for the controller's
+// steering wheel and trigger: their potentiometer wipers are disconnected and
+// these two outputs drive the wiper wires instead, so the controller radios the
+// car as if someone held it. Reads "C <steering -1..1> <throttle -1..1>\n" over
+// USB serial at 115200 baud (positive: left, forward); the laptop does all the
+// car's maths. Centres both (straight, no throttle) if no C line arrives for
+// 300 ms. Sends "B <0|1>\n" when the push-to-talk button changes. With an
+// HC-SR04 ultrasonic sensor on the front bumper (required with one camera,
+// spec section 18), define HAVE_ULTRASONIC and it sends "U <cm>\n" at 10 Hz:
+// 0 when nothing is within 4 m, -1 when the sensor gives no echo at all.
+// (Sensors on the car need the board on the car; the controller can ride on
+// the car too, its antenna clear of the laptop.)
 //
-// Measure on the floor (spec section 10, README runbook):
-// - STEER_CENTER_US: the pulse at which the car rolls straight (trim).
-// - MAX_STEER_RAD and STEER_LOCK_US: drive a slow full-lock circle; its radius
-//   R gives MAX_STEER_RAD = atan(WHEELBASE_M / R).
-// - ESC_START_US: the smallest step from neutral at which the car rolls.
-// - SPEED_AT_LIMIT: its speed at ESC_LIMIT_US (time it over 5 m).
-// RC cars are fast: ESC_LIMIT_US caps the throttle, whatever the laptop asks.
-// Power the servo from the ESC's BEC or a 6 V supply, never the Arduino's 5 V
-// pin; tie the grounds together.
+// Outputs: an ESP32's DAC pins (define USE_DAC, pins 25 and 26), or on any
+// board a PWM pin through an RC filter (10 kOhm, 10 uF) to the wiper wire.
+// Measure on the controller with a multimeter, powered, the wiper connected:
+// - the wiper voltage with the wheel and trigger at rest (STEER_CENTER_V,
+//   THROTTLE_CENTER_V);
+// - at full left and full trigger (STEER_LEFT_V, THROTTLE_FULL_V).
+// Then set the trims, deadband and speed in guide.yaml (README, "The RC car").
+// Tie the board's ground to the controller's ground; never feed more than
+// the controller's own supply voltage into it.
 
-#include <Servo.h>
-
-// ---- Configure for the chassis --------------------------------------------
-const float WHEELBASE_M = 0.48;        // front to rear axle: measure yours
-const float MAX_STEER_RAD = 0.52;      // front wheel angle at full lock (about 30 deg): measure
-const int STEER_CENTER_US = 1500;      // trim: the car rolls straight
-const int STEER_LOCK_US = 400;         // pulse change from centre to full lock
-const bool STEER_REVERSED = false;     // true if a longer pulse steers right
-const int ESC_NEUTRAL_US = 1500;
-const int ESC_START_US = 60;           // beyond neutral: the car just starts to roll
-const int ESC_LIMIT_US = 180;          // never further from neutral than this
-const float SPEED_AT_LIMIT = 1.6;      // m/s at ESC_LIMIT_US on the floor
-const bool ESC_REVERSED = false;       // true if a longer pulse drives backwards
-const float STOP_SPEED = 0.02;         // m/s: slower requests are a stop
-const unsigned long WATCHDOG_MS = 500;
-const int STEER_PIN = 9, ESC_PIN = 10; // any pins; the Servo library uses Timer1
+// ---- Configure for the controller -------------------------------------------
+const float VREF = 3.3;                // the board's output range, 0..VREF
+const float STEER_CENTER_V = 1.65;     // wheel at rest
+const float STEER_LEFT_V = 0.35;       // wheel at full left
+const float THROTTLE_CENTER_V = 1.65;  // trigger at rest
+const float THROTTLE_FULL_V = 2.95;    // trigger pulled fully (forward)
+const unsigned long WATCHDOG_MS = 300;
 const int BUTTON_PIN = 2;              // to ground, internal pull-up
-// Many car ESCs brake on the first reverse pulse and reverse only after a
-// return to neutral. Define this for those (not for crawler ESCs in
-// forward/reverse mode): reversing then starts with brake, neutral, reverse.
-// #define ESC_BRAKE_BEFORE_REVERSE
+// #define USE_DAC
+#ifdef USE_DAC
+const int STEER_PIN = 25, THROTTLE_PIN = 26;  // ESP32 DAC1, DAC2
+#else
+const int STEER_PIN = 9, THROTTLE_PIN = 10;   // PWM, through an RC filter
+#endif
 // #define HAVE_ULTRASONIC
 #ifdef HAVE_ULTRASONIC
 const int US_TRIG = 11, US_ECHO = 12;
@@ -53,82 +47,52 @@ const unsigned long US_TIMEOUT_US = 40000;
 const unsigned long US_MAX_ECHO_US = 23200;  // 4 m: longer pulses mean nothing in range
 unsigned long lastUs = 0;
 #endif
-// ---------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
-Servo steer, esc;
 char line[48];
 uint8_t len = 0;
 unsigned long lastCmd = 0;
 bool discarding = false;  // inside an overlong line: ignore until its newline
 bool lastButton = false;
-float targetV = 0, targetW = 0;
-float steerRad = 0;       // held while stopped, so the car starts into a turn
-#ifdef ESC_BRAKE_BEFORE_REVERSE
-bool reverseReady = false;
-unsigned long reverseAskedAt = 0;
-#endif
 
-int escPulse(float v) {
-  float f = fabs(v) / SPEED_AT_LIMIT;
-  if (f > 1) f = 1;
-  int step = ESC_START_US + (int)(f * (ESC_LIMIT_US - ESC_START_US));
-  bool forward = (v > 0) != ESC_REVERSED;
-  return ESC_NEUTRAL_US + (forward ? step : -step);
+float clamp1(float v) { return v > 1 ? 1 : v < -1 ? -1 : v; }
+
+void writeVolts(int pin, float volts) {
+  if (volts < 0) volts = 0;
+  if (volts > VREF) volts = VREF;
+  int level = (int)(volts / VREF * 255 + 0.5);
+#ifdef USE_DAC
+  dacWrite(pin, level);
+#else
+  analogWrite(pin, level);
+#endif
 }
 
-void setThrottle(float v) {
-  if (fabs(v) < STOP_SPEED) {
-    esc.writeMicroseconds(ESC_NEUTRAL_US);
-    return;
-  }
-#ifdef ESC_BRAKE_BEFORE_REVERSE
-  if (v > 0) {
-    reverseReady = false;
-  } else if (!reverseReady) {
-    if (reverseAskedAt == 0) reverseAskedAt = millis() | 1;
-    unsigned long t = millis() - reverseAskedAt;
-    if (t < 150) { esc.writeMicroseconds(escPulse(-STOP_SPEED)); return; }  // brake
-    if (t < 300) { esc.writeMicroseconds(ESC_NEUTRAL_US); return; }        // back to neutral
-    reverseReady = true;
-    reverseAskedAt = 0;
-  }
-#endif
-  esc.writeMicroseconds(escPulse(v));
-}
-
-void setSteering(float v, float w) {
-  if (fabs(v) >= STOP_SPEED) {
-    steerRad = atan(WHEELBASE_M * w / v);  // reversing: the same formula steers the right way
-  } else if (fabs(w) > 0.05) {
-    steerRad = w > 0 ? MAX_STEER_RAD : -MAX_STEER_RAD;  // asked to turn on the spot: point the wheels
-  }
-  if (steerRad > MAX_STEER_RAD) steerRad = MAX_STEER_RAD;
-  if (steerRad < -MAX_STEER_RAD) steerRad = -MAX_STEER_RAD;
-  int us = (int)(steerRad / MAX_STEER_RAD * STEER_LOCK_US);  // positive steers left
-  steer.writeMicroseconds(STEER_CENTER_US + (STEER_REVERSED ? us : -us));
+void drive(float steering, float throttle) {
+  // Linear between the measured end points; the far side mirrors them.
+  writeVolts(STEER_PIN, STEER_CENTER_V + clamp1(steering) * (STEER_LEFT_V - STEER_CENTER_V));
+  writeVolts(THROTTLE_PIN, THROTTLE_CENTER_V + clamp1(throttle) * (THROTTLE_FULL_V - THROTTLE_CENTER_V));
 }
 
 void handleLine() {
   line[len] = 0;
-  if (line[0] == 'V' && line[1] == ' ') {
+  if (line[0] == 'C' && line[1] == ' ') {
     char *end;
-    float v = strtod(line + 2, &end);
+    float s = strtod(line + 2, &end);
     if (end == line + 2) return;
     char *end2;
-    float w = strtod(end, &end2);
+    float t = strtod(end, &end2);
     if (end2 == end) return;
-    targetV = v;
-    targetW = w;
+    drive(s, t);
     lastCmd = millis();
   }
 }
 
 void setup() {
   Serial.begin(115200);
-  steer.attach(STEER_PIN);
-  esc.attach(ESC_PIN);
-  steer.writeMicroseconds(STEER_CENTER_US);
-  esc.writeMicroseconds(ESC_NEUTRAL_US);  // ESCs arm on a steady neutral pulse
+  pinMode(STEER_PIN, OUTPUT);
+  pinMode(THROTTLE_PIN, OUTPUT);
+  drive(0, 0);  // centred before the controller is switched on
   pinMode(BUTTON_PIN, INPUT_PULLUP);
 #ifdef HAVE_ULTRASONIC
   pinMode(US_TRIG, OUTPUT); digitalWrite(US_TRIG, LOW);
@@ -152,9 +116,7 @@ void loop() {
       discarding = true;
     }
   }
-  if (millis() - lastCmd > WATCHDOG_MS) targetV = targetW = 0;
-  setSteering(targetV, targetW);
-  setThrottle(targetV);
+  if (millis() - lastCmd > WATCHDOG_MS) drive(0, 0);
 
   bool b = digitalRead(BUTTON_PIN) == LOW;
   if (b != lastButton) {

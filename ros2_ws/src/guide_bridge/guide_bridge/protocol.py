@@ -1,8 +1,9 @@
-"""Line protocol to the motor microcontroller (spec section 10).
+"""Line protocol to the microcontroller that works the RC hand controller (spec section 10).
 
-Downlink, 20 Hz:  ``V <linear m/s> <angular rad/s>\\n``
-Uplink, optional: ``E <left ticks> <right ticks>\\n`` from encoders,
-``B <0|1>\\n`` from the push-to-talk button on the car (spec section 9) and
+Downlink, 20 Hz:  ``C <steering -1..1> <throttle -1..1>\\n``, as the
+controller's wheel (positive: left) and trigger (positive: forward) would set
+them; the laptop works them out (ackermann.py).
+Uplink, optional: ``B <0|1>\\n`` from the push-to-talk button on the car (spec section 9) and
 ``U <cm>\\n`` from the forward ultrasonic sensor (0: nothing in range;
 -1: no echo at all, the sensor is missing, dropped so the reading goes stale).
 """
@@ -11,17 +12,6 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-
-# Never send more than this; the microcontroller clamps again.
-MAX_LINEAR = 1.2
-MAX_ANGULAR = 1.5
-
-
-@dataclass(frozen=True)
-class Encoders:
-    left: int
-    right: int
-
 
 @dataclass(frozen=True)
 class Button:
@@ -33,24 +23,23 @@ class Ultrasonic:
     metres: float  # inf when nothing echoed
 
 
-def _clamp(v: float, lim: float) -> float:
+def _clamp(v: float) -> float:
     if v != v:  # NaN
         return 0.0
-    return max(-lim, min(lim, v))
+    return max(-1.0, min(1.0, v))
 
 
-def format_velocity(linear: float, angular: float) -> bytes:
-    return f"V {_clamp(linear, MAX_LINEAR):.3f} {_clamp(angular, MAX_ANGULAR):.3f}\n".encode("ascii")
+def format_drive(steering: float, throttle: float) -> bytes:
+    """The downlink line; both clamped to -1..1 (the microcontroller clamps again)."""
+    return f"C {_clamp(steering):.3f} {_clamp(throttle):.3f}\n".encode("ascii")
 
 
 def parse_line(line: bytes | str):
-    """Parse one uplink line. Returns ``Encoders``, ``Button`` or None for anything else."""
+    """Parse one uplink line. Returns ``Button``, ``Ultrasonic`` or None for anything else."""
     if isinstance(line, bytes):
         line = line.decode("ascii", errors="replace")
     parts = line.strip().split()
     try:
-        if len(parts) == 3 and parts[0] == "E":
-            return Encoders(int(parts[1]), int(parts[2]))
         if len(parts) == 2 and parts[0] == "B" and parts[1] in ("0", "1"):
             return Button(parts[1] == "1")
         if len(parts) == 2 and parts[0] == "U":
