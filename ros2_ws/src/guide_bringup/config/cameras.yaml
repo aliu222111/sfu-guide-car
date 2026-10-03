@@ -1,0 +1,41 @@
+# usb_cam for the two 720p webcams, captured at 640x360 (spec section 7).
+# Calibrate once per mount (README, phase 1); cameras.launch.py points
+# camera_info_url at <calibration_dir>/left.yaml and right.yaml.
+left_camera:
+  ros__parameters:
+    video_device: /dev/video0
+    framerate: 15.0
+    image_width: 640
+    image_height: 360
+    pixel_format: mjpeg2rgb
+    camera_name: left
+    frame_id: left_camera_optical_frame
+    autoexposure: false          # fixed exposure (spec section 7)
+    exposure: 150
+    auto_white_balance: false
+    autofocus: false
+
+right_camera:
+  ros__parameters:
+    video_device: /dev/video2
+    framerate: 15.0
+    image_width: 640
+    image_height: 360
+    pixel_format: mjpeg2rgb
+    camera_name: right
+    frame_id: right_camera_optical_frame
+    autoexposure: false
+    exposure: 150
+    auto_white_balance: false
+    autofocus: false
+
+rear_camera:
+  ros__parameters:
+    video_device: /dev/video4
+    framerate: 10.0
+    image_width: 640
+    image_height: 360
+    pixel_format: mjpeg2rgb
+    camera_name: rear
+    frame_id: rear_camera_optical_frame
+    autoexposure: true

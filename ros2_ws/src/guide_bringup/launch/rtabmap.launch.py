@@ -1,0 +1,82 @@
+"""Stereo visual odometry and RTAB-Map (spec section 6).
+
+mode:=mapping      one database per floor, built on a drive of each corridor (phase 1).
+mode:=localization against that database; publishes rtabmap/localization_pose,
+                   which the localization manager aligns to the GIS frame.
+
+RTAB-Map does not publish map -> odom here: the global EKF owns that transform.
+In mapping mode on the handheld rig (``handheld:=true``) there is no EKF, so
+odometry and RTAB-Map publish TF themselves.
+"""
+
+import os
+
+from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument, OpaqueFunction
+from launch.substitutions import LaunchConfiguration
+from launch_ros.actions import Node
+
+
+def nodes(context):
+    mode = LaunchConfiguration("mode").perform(context)
+    handheld = LaunchConfiguration("handheld").perform(context).lower() == "true"
+    db = os.path.abspath(os.path.expanduser(LaunchConfiguration("database").perform(context)))
+    os.makedirs(os.path.dirname(db), exist_ok=True)
+    stereo_remaps = [
+        ("left/image_rect", "/stereo/left/image_rect"),
+        ("right/image_rect", "/stereo/right/image_rect"),
+        ("left/camera_info", "/stereo/left/camera_info"),
+        ("right/camera_info", "/stereo/right/camera_info"),
+    ]
+    common = {
+        "frame_id": "base_link",
+        "approx_sync": True,           # unsynchronised webcams (spec section 7)
+        "approx_sync_max_interval": 0.02,
+        "wait_imu_to_init": False,
+    }
+    odom = Node(
+        package="rtabmap_odom",
+        executable="stereo_odometry",
+        name="stereo_odometry",
+        parameters=[common, {
+            "publish_tf": handheld,
+            "odom_frame_id": "odom",
+            "Odom/Strategy": "0",          # frame-to-map
+            "Vis/MinInliers": "15",
+            "Odom/ResetCountdown": "0",    # stay lost (and stopped) rather than silently reset
+        }],
+        remappings=stereo_remaps + [("odom", "/vo"), ("imu", "/phone/imu")],
+    )
+    localization = mode == "localization"
+    slam = Node(
+        package="rtabmap_slam",
+        executable="rtabmap",
+        name="rtabmap",
+        namespace="rtabmap",
+        arguments=[] if localization else ["--delete_db_on_start"] if LaunchConfiguration("fresh").perform(context).lower() == "true" else [],
+        parameters=[common, {
+            "subscribe_stereo": True,
+            "subscribe_depth": False,
+            "subscribe_rgb": False,
+            "database_path": db,
+            "map_frame_id": "map" if handheld else "rtabmap_map",
+            "odom_frame_id": "odom",
+            "publish_tf": handheld,
+            "Mem/IncrementalMemory": "false" if localization else "true",
+            "Mem/InitWMWithAllNodes": "true" if localization else "false",
+            "RGBD/OptimizeMaxError": "3.0",
+            "Reg/Force3DoF": "true",       # the car stays on one floor plane
+        }],
+        remappings=stereo_remaps + [("odom", "/vo" if handheld else "/odometry/local")],
+    )
+    return [odom, slam]
+
+
+def generate_launch_description():
+    return LaunchDescription([
+        DeclareLaunchArgument("mode", default_value="localization", choices=["mapping", "localization"]),
+        DeclareLaunchArgument("database", default_value="rtabmap_db/AQ-03.db"),
+        DeclareLaunchArgument("handheld", default_value="false"),
+        DeclareLaunchArgument("fresh", default_value="false", description="mapping: start a new database"),
+        OpaqueFunction(function=nodes),
+    ])

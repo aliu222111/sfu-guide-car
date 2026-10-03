@@ -60,8 +60,9 @@ door (spec section 8).
    narrower than 0.6 m, traced into branches, spurs under 2.5 m (or 1.5x the
    corridor half-width) pruned, junctions within 1.5 m merged, then nodes every
    5 m or less.
-3. Doors: middle of the wall a room shares with the corridor, 0.4 m into the
-   corridor, attached to the nearest centreline edge in line of sight. Rooms up
+3. Doors: middle of the wall a room shares with the corridor, 0.8 m into the
+   corridor (0.6 or 0.4 m in narrow ones) so Nav2 can reach it, attached to the
+   nearest centreline edge in line of sight. Rooms up
    to 12 m from a corridor (inside suites) get a door at the nearest corridor
    point with `direct: false`.
 4. Corridor pieces the GIS separates with a wall line under 0.45 m are joined by

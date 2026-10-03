@@ -27,8 +27,9 @@ from .skeleton import centrelines
 DOOR_DIRECT = 1.5
 # Rooms further than this from free space get no door node.
 DOOR_MAX = 12.0
-# Door, elevator and entrance nodes are placed this far inside the corridor.
-DOOR_INSET = 0.4
+# Door, elevator and entrance nodes are placed this far inside the corridor,
+# the first that fits: clear of the car's half-width plus Nav2's inflation.
+DOOR_INSETS = (0.8, 0.6, 0.4)
 # Free-space pieces closer than this are treated as joined by a doorway.
 DOORWAY_GAP = 0.45
 # Attach to an edge endpoint instead of splitting when this close to it.
@@ -81,6 +82,7 @@ class FloorGraphBuilder:
         self.floor = floor
         self.free = floor.free_space
         self.free_tol = self.free.buffer(0.05)
+        self._inner_cache: dict[float, BaseGeometry] = {}
         cl = centrelines(self.free, spacing=spacing)
         self.corridor_ids = []
         for i, ((x, y), j) in enumerate(zip(cl.nodes, cl.junction)):
@@ -104,21 +106,30 @@ class FloorGraphBuilder:
         return LineString([self._xy(a), self._xy(b)])
 
     def inset_point(self, target: BaseGeometry, toward: BaseGeometry | None = None) -> Point | None:
-        """A point in free space near ``target``, ``DOOR_INSET`` metres from the wall.
+        """A point in free space near ``target``, as far from the walls as ``DOOR_INSETS`` allow.
 
-        ``toward`` picks which part of ``target`` to start from; by default its
-        representative point.
+        Nodes are Nav2 goals, so they must sit outside the car's footprint plus
+        inflation: 0.8 m from the wall where the corridor is wide enough, less
+        in narrow corridors. ``toward`` picks which part of ``target`` to start
+        from; by default its representative point.
         """
         if self.free.is_empty:
             return None
         src = toward if toward is not None else target.representative_point()
         _, p = nearest_points(src, self.free)
-        inner = self.free.buffer(-DOOR_INSET)
-        if not inner.is_empty:
+        for d in DOOR_INSETS:
+            inner = self._inner(d)
+            if inner.is_empty:
+                continue
             _, q = nearest_points(p, inner)
-            if q.distance(p) < DOOR_INSET * 3:
+            if q.distance(p) < d * 2:
                 return q
         return p
+
+    def _inner(self, d: float) -> BaseGeometry:
+        if d not in self._inner_cache:
+            self._inner_cache[d] = self.free.buffer(-d)
+        return self._inner_cache[d]
 
     def attach(self, nid: str, max_candidates: int = 12) -> bool:
         """Connect an existing node to the nearest centreline edge it can see."""
@@ -233,6 +244,8 @@ def build_graph(floors: dict[str, Floor], connectors: Connectors, spacing: float
                 "name": room.rm_name,
                 "searchable": room.searchable,
                 "direct_door": direct,
+                "room_x": round(room.geom.centroid.x, 2),
+                "room_y": round(room.geom.centroid.y, 2),
             }
 
     _add_stairs(g, floors, builders)

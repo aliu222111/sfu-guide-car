@@ -1,0 +1,6 @@
+# Runtime models for guide_perception (pip, inside the ROS environment).
+onnxruntime            # floor segmentation on CPU; onnxruntime-gpu or onnxruntime-openvino where available
+ultralytics            # YOLO11n + ByteTrack (AGPL-3.0, see spec section 7)
+paddleocr              # sign reading on the laptop
+paddlepaddle
+anthropic              # optional cloud sign reading and the voice agent

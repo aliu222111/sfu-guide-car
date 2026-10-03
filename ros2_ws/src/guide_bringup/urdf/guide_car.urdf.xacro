@@ -1,0 +1,62 @@
+<?xml version="1.0"?>
+<!-- SFU guide car. Measure the mounts on the built chassis and update the numbers. -->
+<robot name="guide_car" xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:property name="base_length" value="0.45"/>
+  <xacro:property name="base_width" value="0.35"/>
+  <xacro:property name="base_height" value="0.15"/>
+  <xacro:property name="wheel_radius" value="0.08"/>
+  <!-- Stereo pair: 10 to 15 cm baseline, level, facing forward (spec section 3). -->
+  <xacro:property name="cam_x" value="0.20"/>
+  <xacro:property name="cam_z" value="0.45"/>
+  <xacro:property name="cam_pitch" value="0.20"/>   <!-- radians, nose down -->
+  <xacro:property name="stereo_baseline" value="0.12"/>
+
+  <link name="base_footprint"/>
+  <link name="base_link">
+    <visual>
+      <origin xyz="0 0 ${base_height/2}"/>
+      <geometry><box size="${base_length} ${base_width} ${base_height}"/></geometry>
+    </visual>
+    <collision>
+      <origin xyz="0 0 ${base_height/2}"/>
+      <geometry><box size="${base_length} ${base_width} ${base_height}"/></geometry>
+    </collision>
+  </link>
+  <joint name="base_joint" type="fixed">
+    <parent link="base_footprint"/><child link="base_link"/>
+    <origin xyz="0 0 ${wheel_radius}"/>
+  </joint>
+
+  <xacro:macro name="camera" params="name x y z pitch yaw">
+    <link name="${name}_link"/>
+    <joint name="${name}_joint" type="fixed">
+      <parent link="base_link"/><child link="${name}_link"/>
+      <origin xyz="${x} ${y} ${z}" rpy="0 ${pitch} ${yaw}"/>
+    </joint>
+    <!-- Optical frame: z forward, x right, y down (REP-103). -->
+    <link name="${name}_optical_frame"/>
+    <joint name="${name}_optical_joint" type="fixed">
+      <parent link="${name}_link"/><child link="${name}_optical_frame"/>
+      <origin xyz="0 0 0" rpy="${-pi/2} 0 ${-pi/2}"/>
+    </joint>
+  </xacro:macro>
+
+  <xacro:camera name="left_camera" x="${cam_x}" y="${stereo_baseline/2}" z="${cam_z}" pitch="${cam_pitch}" yaw="0"/>
+  <xacro:camera name="right_camera" x="${cam_x}" y="${-stereo_baseline/2}" z="${cam_z}" pitch="${cam_pitch}" yaw="0"/>
+  <!-- Phase 6 rear camera, facing backwards. -->
+  <xacro:camera name="rear_camera" x="${-base_length/2}" y="0" z="${cam_z}" pitch="0.1" yaw="${pi}"/>
+
+  <!-- Phone lying flat, screen up, top edge forward (spec section 3). -->
+  <link name="phone_link"/>
+  <joint name="phone_joint" type="fixed">
+    <parent link="base_link"/><child link="phone_link"/>
+    <origin xyz="0 0 ${base_height + 0.01}"/>
+  </joint>
+
+  <!-- External GPS antenna on top (spec section 3). -->
+  <link name="gps_link"/>
+  <joint name="gps_joint" type="fixed">
+    <parent link="base_link"/><child link="gps_link"/>
+    <origin xyz="-0.1 0 ${cam_z + 0.05}"/>
+  </joint>
+</robot>

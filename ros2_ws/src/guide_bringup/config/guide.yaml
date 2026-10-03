@@ -1,0 +1,81 @@
+# Parameters for the guide_* nodes. Paths are relative to the directory the
+# launch is started from (the repository root) unless absolute.
+
+serial_bridge:
+  ros__parameters:
+    port: /dev/ttyACM0
+    baud: 115200
+    rate_hz: 20.0
+
+phone_imu:
+  ros__parameters:
+    port: 8765
+    frame_id: phone_link
+    accel_scale: 1.0            # 9.81 if the phone reports in g
+    # Android orientation is magnetic-north based. SFU Burnaby declination is
+    # about 15.5 deg east (2026); true ENU yaw = magnetic yaw - declination.
+    world_yaw_offset: -0.27
+
+velocity_gate:
+  ros__parameters:
+    outdoor_max: 1.0
+    indoor_max: 0.6
+    person_stop: 1.0
+    person_slow: 3.0
+    require_person_detector: true
+
+mission:
+  ros__parameters:
+    graph: maps/route_graph.json
+    start_floor: ""             # "" = outdoors; e.g. AQ-03 when starting indoors
+    voice_mode: false
+
+localization_manager:
+  ros__parameters:
+    maps_dir: maps
+    rtabmap_db_dir: rtabmap_db
+    alignments: rtabmap_db/alignments.yaml
+
+ui_server:
+  ros__parameters:
+    maps_dir: maps
+    port: 8080
+    rosbridge_port: 9090
+
+floor_segmentation:
+  ros__parameters:
+    model: models/segformer-b0-ade.onnx
+    labels: models/segformer-b0-ade.labels.json
+    rate_hz: 2.0                 # spec section 15: 2 Hz on CPU
+
+person_detection:
+  ros__parameters:
+    model: models/yolo11n.onnx    # yolo11n.pt with an NVIDIA GPU
+    rate_hz: 10.0
+
+sign_reader:
+  ros__parameters:
+    backend: paddle              # or claude (spec section 16)
+    rate_hz: 1.0                 # 2.0 with a GPU
+
+vp_heading:
+  ros__parameters:
+    rate_hz: 10.0
+
+student_tracker:
+  ros__parameters:
+    model: models/yolo11n.onnx
+    rate_hz: 5.0
+
+voice_agent:
+  ros__parameters:
+    graph: maps/route_graph.json
+    whisper_model: base          # small with a GPU
+    whisper_device: auto
+    whisper_compute: int8
+    piper_voice: voices/en_US-lessac-medium.onnx
+    claude_model: claude-haiku-4-5
+
+phone_rssi:
+  ros__parameters:
+    device_name: SFU-GUIDE

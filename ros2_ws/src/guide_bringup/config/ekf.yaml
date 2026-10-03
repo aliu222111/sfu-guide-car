@@ -1,0 +1,93 @@
+# robot_localization (spec section 6). Two EKFs, planar:
+#  ekf_local  odom -> base_link: stereo visual odometry + phone gyro. Smooth, drifts.
+#  ekf_global map -> odom: the same, plus what the localization manager lets
+#    through: GPS and compass outdoors, RTAB-Map localization poses and sign
+#    fixes indoors, and the corridor vanishing-point heading.
+# Sensor config vectors: [x y z roll pitch yaw vx vy vz vroll vpitch vyaw ax ay az]
+# Wheel encoders later: add odom2 with vx and vyaw (spec section 6, one change).
+
+ekf_local:
+  ros__parameters:
+    frequency: 30.0
+    sensor_timeout: 0.5
+    two_d_mode: true
+    publish_tf: true
+    map_frame: map
+    odom_frame: odom
+    base_link_frame: base_link
+    world_frame: odom
+    odom0: /vo
+    odom0_config: [false, false, false, false, false, false,
+                   true,  false, false, false, false, true,
+                   false, false, false]
+    odom0_differential: false
+    odom0_queue_size: 5
+    imu0: /phone/imu
+    imu0_config: [false, false, false, false, false, false,
+                  false, false, false, false, false, true,
+                  false, false, false]
+    imu0_queue_size: 20
+    imu0_remove_gravitational_acceleration: true
+
+ekf_global:
+  ros__parameters:
+    frequency: 30.0
+    sensor_timeout: 0.5
+    two_d_mode: true
+    publish_tf: true
+    map_frame: map
+    odom_frame: odom
+    base_link_frame: base_link
+    world_frame: map
+    odom0: /vo
+    odom0_config: [false, false, false, false, false, false,
+                   true,  false, false, false, false, true,
+                   false, false, false]
+    odom0_queue_size: 5
+    imu0: /phone/imu
+    imu0_config: [false, false, false, false, false, false,
+                  false, false, false, false, false, true,
+                  false, false, false]
+    imu0_queue_size: 20
+    # Compass yaw, outdoors only (gated by the localization manager).
+    imu1: /guide/imu_abs
+    imu1_config: [false, false, false, false, false, true,
+                  false, false, false, false, false, false,
+                  false, false, false]
+    imu1_queue_size: 20
+    # Corridor vanishing-point heading, indoors.
+    imu2: /guide/vp_heading
+    imu2_config: [false, false, false, false, false, true,
+                  false, false, false, false, false, false,
+                  false, false, false]
+    imu2_queue_size: 5
+    # GPS in the map frame, outdoors only (navsat_transform -> localization manager).
+    odom1: /guide/gps_odom
+    odom1_config: [true,  true,  false, false, false, false,
+                   false, false, false, false, false, false,
+                   false, false, false]
+    odom1_queue_size: 5
+    # RTAB-Map localization and sign fixes, indoors, aligned to the GIS frame.
+    pose0: /guide/indoor_pose
+    pose0_config: [true,  true,  false, false, false, true,
+                   false, false, false, false, false, false,
+                   false, false, false]
+    pose0_queue_size: 5
+    pose0_rejection_threshold: 6.0   # Mahalanobis; a wrong sign read is dropped
+
+navsat_transform:
+  ros__parameters:
+    frequency: 10.0
+    delay: 2.0
+    # The phone bridge already outputs true-north ENU yaw (world_yaw_offset).
+    magnetic_declination_radians: 0.0
+    yaw_offset: 0.0
+    zero_altitude: true
+    broadcast_cartesian_transform: false
+    publish_filtered_gps: false
+    use_odometry_yaw: false
+    # Pin the map frame to the GIS origin with a true local tangent plane, so
+    # GPS positions land in the same frame as the route graph (sfu_map geo.py).
+    use_local_cartesian: true
+    wait_for_datum: true
+    datum: [49.278945, -122.916558, 0.0]   # lat, lon, heading of the map x axis (0 = east)

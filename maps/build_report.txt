@@ -1,35 +1,35 @@
 sfu_map build report
 
-nodes 4941, edges 5145, destinations 1917
-node types: corridor 2240, corridor_junction 475, door 1917, doorway 178, elevator 55, entrance 1, stairs 75
-edge types: corridor 4938, door 89, elevator 86, stairs 32
-edges not yet verified on site: 175
+nodes 4858, edges 5070, destinations 1922
+node types: corridor 2136, corridor_junction 475, door 1922, doorway 194, elevator 55, entrance 1, stairs 75
+edge types: corridor 4855, door 97, elevator 86, stairs 32
+edges not yet verified on site: 183
 connectors: 14 elevators, 1 entrances, 0 links, 0 outdoor links, 0 door overrides
 
 classroom-category rooms with a door node: 98 of 98
 
 per floor: graph pieces (node counts; more than one piece needs a link in connectors.yaml)
-  AQ-01     3 pieces [54, 23, 8]
-  AQ-02     3 pieces [230, 10, 1]
-  AQ-03     2 pieces [453, 26]
+  AQ-01     3 pieces [53, 23, 8]
+  AQ-02     4 pieces [171, 56, 10, 1]
+  AQ-03     2 pieces [450, 24]
   AQ-04     1 pieces [48]
-  AQ-05     2 pieces [391, 10]
-  AQ-06     1 pieces [580]
+  AQ-05     3 pieces [384, 10, 8]
+  AQ-06     1 pieces [577]
   MBC-00A   1 pieces [16]
-  MBC-00B   4 pieces [352, 19, 13, 1]
-  MBC-01    3 pieces [435, 9, 1]
-  MBC-02    3 pieces [224, 10, 6]
-  MBC-03    2 pieces [286, 23]
+  MBC-00B   4 pieces [342, 19, 13, 1]
+  MBC-01    3 pieces [437, 8, 1]
+  MBC-02    3 pieces [229, 10, 6]
+  MBC-03    2 pieces [282, 21]
   MBC-04    0 pieces []
   WMC-P1    6 pieces [30, 13, 1, 1, 1, 1]
   WMC-P2    0 pieces []
-  WMC-01    4 pieces [240, 185, 16, 9]
-  WMC-02    3 pieces [338, 71, 69]
-  WMC-03    2 pieces [402, 2]
-  WMC-04    2 pieces [127, 104]
-  WMC-05    2 pieces [54, 48]
+  WMC-01    4 pieces [229, 179, 18, 9]
+  WMC-02    3 pieces [329, 69, 66]
+  WMC-03    2 pieces [391, 2]
+  WMC-04    2 pieces [116, 94]
+  WMC-05    2 pieces [51, 50]
 
-warnings (95):
+warnings (90):
   AQ 1017: door node could not see a corridor edge
   AQ 1014: door node could not see a corridor edge
   AQ 1018: door node could not see a corridor edge
@@ -40,10 +40,8 @@ warnings (95):
   AQ 2113: door node could not see a corridor edge
   AQ 2114: door node could not see a corridor edge
   AQ 3138C: door node could not see a corridor edge
-  AQ 5021: door node could not see a corridor edge
   MBC 033: door node could not see a corridor edge
   MBC 1311: door node could not see a corridor edge
-  MBC 142: door node could not see a corridor edge
   MBC 1012: no free space within 12.0 m, no door node
   MBC 1011: no free space within 12.0 m, no door node
   MBC 1000.1: no free space within 12.0 m, no door node
@@ -52,7 +50,6 @@ warnings (95):
   MBC 1730: no free space within 12.0 m, no door node
   MBC 1480.7: door node could not see a corridor edge
   MBC 2108: no free space within 12.0 m, no door node
-  MBC 0242: door node could not see a corridor edge
   MBC 2106: no free space within 12.0 m, no door node
   MBC 2012: no free space within 12.0 m, no door node
   MBC 2110: no free space within 12.0 m, no door node
@@ -107,8 +104,6 @@ warnings (95):
   WMC S1324: door node could not see a corridor edge
   WMC S1323: door node could not see a corridor edge
   WMC S1321: door node could not see a corridor edge
-  WMC S1312: door node could not see a corridor edge
-  WMC S1310: door node could not see a corridor edge
   WMC S1322: door node could not see a corridor edge
   WMC 102: no free space within 12.0 m, no door node
   WMC 102.1: no free space within 12.0 m, no door node
@@ -126,4 +121,4 @@ warnings (95):
   WMC 420: no free space within 12.0 m, no door node
   WMC 450: no free space within 12.0 m, no door node
 
-check aq_convocation_mall -> AQ 3150: 275 m, 90 nodes
+check aq_convocation_mall -> AQ 3150: 274 m, 90 nodes

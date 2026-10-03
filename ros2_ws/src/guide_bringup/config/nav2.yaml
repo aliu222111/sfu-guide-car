@@ -1,0 +1,224 @@
+# Nav2 for the guide car (spec section 8): NavFn global planner, DWB controller,
+# differential drive. Map comes from map_server, switched per floor by the
+# localization manager. Localization is robot_localization (map -> odom), no AMCL.
+# Ackermann chassis: swap NavFn for nav2_smac_planner::SmacPlannerHybrid and DWB
+# for nav2_regulated_pure_pursuit_controller, and drop Spin from the BT (spec section 2).
+
+bt_navigator:
+  ros__parameters:
+    global_frame: map
+    robot_base_frame: base_link
+    odom_topic: /odometry/local
+    bt_loop_duration: 10
+    default_server_timeout: 20
+    wait_for_service_timeout: 1000
+    action_server_result_timeout: 900.0
+    # Only NavigateThroughPoses: the mission node sends every leg as a pose list.
+    navigators: ["navigate_through_poses"]
+    navigate_through_poses:
+      plugin: "nav2_bt_navigator::NavigateThroughPosesNavigator"
+    # default_nav_through_poses_bt_xml is set by navigation.launch.py to
+    # guide_bringup/behavior_trees/navigate_through_poses.xml
+    error_code_names:
+      - compute_path_error_code
+      - follow_path_error_code
+
+controller_server:
+  ros__parameters:
+    controller_frequency: 10.0
+    costmap_update_timeout: 0.30
+    min_x_velocity_threshold: 0.001
+    min_y_velocity_threshold: 0.5
+    min_theta_velocity_threshold: 0.001
+    failure_tolerance: 0.3
+    progress_checker_plugins: ["progress_checker"]
+    goal_checker_plugins: ["general_goal_checker"]
+    controller_plugins: ["FollowPath"]
+    use_realtime_priority: false
+    progress_checker:
+      plugin: "nav2_controller::SimpleProgressChecker"
+      required_movement_radius: 0.5
+      movement_time_allowance: 15.0
+    general_goal_checker:
+      stateful: True
+      plugin: "nav2_controller::SimpleGoalChecker"
+      xy_goal_tolerance: 0.5     # waypoints are graph nodes; the door node is "within 2 m" (spec section 1)
+      yaw_goal_tolerance: 3.14   # no heading requirement at waypoints
+    FollowPath:
+      plugin: "dwb_core::DWBLocalPlanner"
+      debug_trajectory_details: False
+      min_vel_x: 0.0
+      min_vel_y: 0.0
+      max_vel_x: 1.0             # the velocity gate caps to 0.6 indoors (spec section 2)
+      max_vel_y: 0.0
+      max_vel_theta: 0.52        # 30 deg/s turn cap (spec section 6)
+      min_speed_xy: 0.0
+      max_speed_xy: 1.0
+      min_speed_theta: 0.0
+      acc_lim_x: 0.5
+      acc_lim_y: 0.0
+      acc_lim_theta: 1.0
+      decel_lim_x: -1.0
+      decel_lim_y: 0.0
+      decel_lim_theta: -1.5
+      vx_samples: 20
+      vy_samples: 1
+      vtheta_samples: 20
+      sim_time: 1.7
+      linear_granularity: 0.05
+      angular_granularity: 0.025
+      transform_tolerance: 0.3
+      xy_goal_tolerance: 0.5
+      trans_stopped_velocity: 0.25
+      short_circuit_trajectory_evaluation: True
+      stateful: True
+      critics: ["RotateToGoal", "Oscillation", "BaseObstacle", "GoalAlign", "PathAlign", "PathDist", "GoalDist"]
+      BaseObstacle.scale: 0.02
+      PathAlign.scale: 32.0
+      PathAlign.forward_point_distance: 0.1
+      GoalAlign.scale: 24.0
+      GoalAlign.forward_point_distance: 0.1
+      PathDist.scale: 32.0
+      GoalDist.scale: 24.0
+      RotateToGoal.scale: 32.0
+      RotateToGoal.slowing_factor: 5.0
+      RotateToGoal.lookahead_time: -1.0
+
+local_costmap:
+  local_costmap:
+    ros__parameters:
+      update_frequency: 5.0
+      publish_frequency: 2.0
+      global_frame: odom
+      robot_base_frame: base_link
+      rolling_window: true
+      width: 5
+      height: 5
+      resolution: 0.05
+      footprint: "[[0.25, 0.19], [0.25, -0.19], [-0.25, -0.19], [-0.25, 0.19]]"
+      plugins: ["voxel_layer", "floor_layer", "inflation_layer"]
+      voxel_layer:
+        plugin: "nav2_costmap_2d::VoxelLayer"
+        enabled: True
+        publish_voxel_map: False
+        origin_z: 0.0
+        z_resolution: 0.1
+        z_voxels: 16
+        max_obstacle_height: 1.8
+        mark_threshold: 0
+        observation_sources: stereo
+        stereo:
+          topic: /stereo/points2
+          data_type: "PointCloud2"
+          min_obstacle_height: 0.06   # ignore the floor itself
+          max_obstacle_height: 1.8
+          marking: True
+          clearing: True
+          obstacle_max_range: 4.0
+          raytrace_max_range: 5.0
+          expected_update_rate: 0.5
+      floor_layer:
+        plugin: "nav2_costmap_2d::ObstacleLayer"
+        enabled: True
+        observation_sources: floor_obstacles floor_free
+        floor_obstacles:              # curbs, grass edges, stair tops, glass bases (spec section 7)
+          topic: /floor/obstacles
+          data_type: "PointCloud2"
+          min_obstacle_height: 0.05
+          max_obstacle_height: 0.5
+          marking: True
+          clearing: False
+          obstacle_max_range: 5.0
+        floor_free:
+          topic: /floor/free
+          data_type: "PointCloud2"
+          min_obstacle_height: -0.1
+          max_obstacle_height: 0.05
+          marking: False
+          clearing: True
+          raytrace_max_range: 5.0
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        cost_scaling_factor: 3.0
+        inflation_radius: 0.43        # half the car width plus 25 cm (spec section 8)
+      always_send_full_costmap: True
+
+global_costmap:
+  global_costmap:
+    ros__parameters:
+      update_frequency: 1.0
+      publish_frequency: 1.0
+      global_frame: map
+      robot_base_frame: base_link
+      footprint: "[[0.25, 0.19], [0.25, -0.19], [-0.25, -0.19], [-0.25, 0.19]]"
+      resolution: 0.05
+      track_unknown_space: true
+      plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
+      static_layer:
+        plugin: "nav2_costmap_2d::StaticLayer"
+        map_subscribe_transient_local: True
+      obstacle_layer:
+        plugin: "nav2_costmap_2d::ObstacleLayer"
+        enabled: True
+        observation_sources: stereo floor_obstacles
+        stereo:
+          topic: /stereo/points2
+          data_type: "PointCloud2"
+          min_obstacle_height: 0.06
+          max_obstacle_height: 1.8
+          marking: True
+          clearing: True
+          obstacle_max_range: 4.0
+          raytrace_max_range: 5.0
+        floor_obstacles:
+          topic: /floor/obstacles
+          data_type: "PointCloud2"
+          min_obstacle_height: 0.05
+          max_obstacle_height: 0.5
+          marking: True
+          clearing: False
+          obstacle_max_range: 5.0
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        cost_scaling_factor: 3.0
+        inflation_radius: 0.43
+      always_send_full_costmap: True
+
+map_server:
+  ros__parameters:
+    # Set at launch to the start floor; switched by the localization manager.
+    yaml_filename: ""
+    topic_name: map
+    frame_id: map
+
+planner_server:
+  ros__parameters:
+    expected_planner_frequency: 5.0
+    planner_plugins: ["GridBased"]
+    costmap_update_timeout: 1.0
+    GridBased:
+      plugin: "nav2_navfn_planner::NavfnPlanner"
+      tolerance: 0.5
+      use_astar: true
+      allow_unknown: false
+
+behavior_server:
+  ros__parameters:
+    local_costmap_topic: local_costmap/costmap_raw
+    global_costmap_topic: global_costmap/costmap_raw
+    local_footprint_topic: local_costmap/published_footprint
+    global_footprint_topic: global_costmap/published_footprint
+    cycle_frequency: 10.0
+    behavior_plugins: ["spin", "wait"]
+    spin:
+      plugin: "nav2_behaviors::Spin"
+    wait:
+      plugin: "nav2_behaviors::Wait"
+    local_frame: odom
+    global_frame: map
+    robot_base_frame: base_link
+    transform_tolerance: 0.3
+    simulate_ahead_time: 2.0
+    max_rotational_vel: 0.52
+    min_rotational_vel: 0.2
+    rotational_acc_lim: 1.0
