@@ -17,7 +17,7 @@ from std_msgs.msg import Bool, Empty, String
 from sfu_map.route import RouteGraph
 
 from .agent import SYSTEM, Actions, VoiceAgent
-from .speech import Recorder, Speaker, Transcriber, trim_silence
+from .speech import Recorder, Speaker, Transcriber, audio_device, trim_silence
 
 
 class VoiceNode(Node):
@@ -28,7 +28,7 @@ class VoiceNode(Node):
         self.trip = {"state": "idle", "detail": ""}
         P = lambda name, default: self.declare_parameter(name, default).value  # noqa: E731
         log = self.get_logger().warn
-        piper = (P("piper_voice", "voices/en_US-lessac-medium.onnx"), P("piper_bin", "piper"), P("player", "aplay"))
+        piper = (P("piper_voice", "voices/en_US-lessac-medium.onnx"), audio_device(P("speaker_device", "")))
         tts = P("tts", "piper")
         if tts == "elevenlabs":  # ElevenLabs voice, Piper when it cannot (ELEVENLABS_API_KEY)
             from .cloud import ElevenLabsSpeaker
@@ -41,7 +41,7 @@ class VoiceNode(Node):
             self.speaker = Speaker(*piper)
         else:
             raise ValueError(f"tts must be piper or elevenlabs, not {tts!r}")
-        self.recorder = Recorder(P("mic_device", "") or None)
+        self.recorder = Recorder(audio_device(P("mic_device", "")))
         stt = P("stt", "whisper")
         whisper = Transcriber(P("whisper_model", "base"), P("whisper_device", "auto"), P("whisper_compute", "int8"))
         if stt == "elevenlabs":  # the student's voice goes to ElevenLabs; whisper when it cannot
@@ -53,7 +53,7 @@ class VoiceNode(Node):
         else:
             raise ValueError(f"stt must be whisper or elevenlabs, not {stt!r}")
         actions = Actions(self.set_destination, self.pause_or_resume, self.confirm)
-        llm = P("llm", "claude")
+        llm = P("llm", "gemini")
         model = self.declare_parameter("claude_model", "claude-haiku-4-5").value
         auth = self.declare_parameter("claude_auth", "subscription").value
         if llm == "gemini":  # Google Gemini (GEMINI_API_KEY)

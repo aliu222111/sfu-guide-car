@@ -7,3 +7,5 @@ ros2_ws/log/
 *.db
 .DS_Store
 *.egg-info/
+voices/
+models/

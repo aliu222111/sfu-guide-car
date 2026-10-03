@@ -17,5 +17,6 @@ setup(
     maintainer_email="alexthespacexfan@gmail.com",
     description="Voice agent for students without a phone: Whisper, Claude tools, Piper",
     license="MIT",
-    entry_points={"console_scripts": ["voice_agent = guide_voice.voice_node:main"]},
+    entry_points={"console_scripts": ["voice_agent = guide_voice.voice_node:main",
+                                      "voice_check = guide_voice.voice_check:main"]},
 )

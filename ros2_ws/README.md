@@ -9,7 +9,7 @@ Maps come from phase 0 (`sfu_map/`, output in `maps/`).
 | `guide_perception` | floor segmentation, person detection, sign reader, vanishing-point heading, rear-camera student tracker | 6, 7, 9 |
 | `guide_mission` | trip state machine and mission node, localization manager, RTAB-Map to GIS alignment | 6, 8 |
 | `guide_ui` | phone web app and its server, Bluetooth signal monitor | 9 |
-| `guide_voice` | voice agent: faster-whisper, Claude Haiku 4.5 with three tools, Piper | 9 |
+| `guide_voice` | voice agent: faster-whisper, Gemini (or Claude) with three tools, Piper | 9 |
 | `guide_claude` | Claude for the voice agent and the cloud sign reader through your Claude subscription (Claude Agent SDK) | 9, 16 |
 | `guide_bringup` | robot description, launch files, Nav2 / EKF / navsat / camera parameters, simulator | 4 |
 
@@ -30,12 +30,33 @@ cd ros2_ws && colcon build && source install/setup.bash
 ```
 
 Models, once (nothing is trained): `python ros2_ws/src/guide_perception/scripts/export_models.py --out models`
-(`--segformer b2` with an NVIDIA GPU). Piper voice: download `en_US-lessac-medium.onnx` and its `.json` into `voices/`.
+(`--segformer b2` with an NVIDIA GPU). Voice: `bash ros2_ws/src/guide_bringup/scripts/setup_voice.sh` (Piper, faster-whisper, sounddevice, the Piper voice into `voices/`).
 
 Launch everything from the repository root: `maps/`, `models/`, `voices/` and `rtabmap_db/` are found
 relative to it (or set `GUIDE_CAR_ROOT`).
 
-## Claude: your subscription, not an API key
+## Voice: Whisper listens, Gemini answers, Piper speaks
+
+The default (`guide.yaml`, `voice_agent`): faster-whisper on the laptop turns the student's words
+into text, Gemini (`llm: gemini`) picks one of the three tools (set destination, pause or resume,
+confirm) and words the reply, Piper on the laptop speaks it on the car's speaker. Only the transcript
+leaves the laptop. Once:
+
+```bash
+bash ros2_ws/src/guide_bringup/scripts/setup_voice.sh     # packages, the Piper voice, the Whisper model
+export GEMINI_API_KEY=...                                  # https://aistudio.google.com/apikey (paid tier: see below)
+ros2 run guide_voice voice_check --devices                 # find the USB speaker and microphone
+ros2 run guide_voice voice_check --talk --mic 2 --speaker 3   # Enter, speak, Enter: hear Gemini's reply
+```
+
+Put the device names or numbers that worked into `mic_device` and `speaker_device` in `guide.yaml`,
+then `guide_car.launch.py voice:=true`. On the car the push-to-talk button (Arduino pin 2, `B 1`/`B 0`
+on the serial line) starts and stops the recording; the car stops talking while it is held. Without
+WiFi the car still speaks (Piper) and hears (Whisper), and says it cannot reach its voice service.
+
+## Claude instead of Gemini: your subscription, not an API key
+
+`voice_agent: llm: claude`.
 
 The voice agent (and the sign reader with `backend: claude`) use Claude Haiku 4.5 through your own
 Claude Pro/Max subscription via the Claude Agent SDK, which runs the Claude Code CLI bundled in

@@ -101,8 +101,10 @@ voice_agent:
     whisper_model: base          # small with a GPU
     whisper_device: auto
     whisper_compute: int8
-    piper_voice: voices/en_US-lessac-medium.onnx
-    llm: claude                  # claude | gemini (GEMINI_API_KEY)
+    piper_voice: voices/en_US-lessac-medium.onnx   # scripts/setup_voice.sh downloads it
+    mic_device: ""               # "" = the system default; a name or index from voice_check --devices
+    speaker_device: ""
+    llm: gemini                  # gemini (GEMINI_API_KEY) | claude
     claude_model: claude-haiku-4-5
     claude_auth: subscription    # your Claude subscription (claude setup-token); or api_key (ANTHROPIC_API_KEY)
     gemini_model: gemini-flash-latest

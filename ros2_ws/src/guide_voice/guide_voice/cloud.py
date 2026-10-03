@@ -39,7 +39,7 @@ def _client(timeout: float, client=None):
 class ElevenLabsSpeaker(Speaker):
     """Speaker with an ElevenLabs voice; Piper speaks whatever ElevenLabs cannot."""
 
-    def __init__(self, voice_model: str, piper_bin: str = "piper", player: str = "aplay", voice_id: str = VOICE_ID,
+    def __init__(self, voice_model: str, device=None, voice_id: str = VOICE_ID,
                  model: str = TTS_MODEL, timeout: float = 4.0, cache_size: int = 64, client=None, log=None):
         self.client = _client(timeout, client)
         self.voice_id = voice_id
@@ -47,7 +47,7 @@ class ElevenLabsSpeaker(Speaker):
         self.timeout = timeout
         self.log = log or (lambda msg: None)
         self.fetch = lru_cache(maxsize=cache_size)(self._fetch)  # failures raise, so they are not cached
-        super().__init__(voice_model, piper_bin, player)
+        super().__init__(voice_model, device)
 
     def _fetch(self, text: str) -> bytes:
         chunks = self.client.text_to_speech.convert(
