@@ -32,6 +32,7 @@ from tf2_ros import Buffer, TransformException, TransformListener
 from sfu_map.route import RouteGraph
 
 from .follow import FollowMonitor, FollowParams
+from .freespace import FloorSpace
 from .instructions import corridor_axis, waypoints
 from .signs import match_sign, viewpoint
 from .trip import (
@@ -65,6 +66,9 @@ class MissionNode(Node):
     def __init__(self):
         super().__init__("mission")
         graph_path = self.declare_parameter("graph", "maps/route_graph.json").value
+        self.floors_dir = Path(graph_path).parent / "floors"
+        self.spaces: dict = {}  # floor -> FloorSpace, loaded when first needed
+        self.fit_clearance = float(self.declare_parameter("fit_clearance", 0.4).value)  # m: the car fits here
         self.map_frame = self.declare_parameter("map_frame", "map").value
         self.base_frame = self.declare_parameter("base_frame", "base_link").value
         start_floor = self.declare_parameter("start_floor", "").value or None
@@ -212,9 +216,13 @@ class MissionNode(Node):
         if fix is None:
             return
         yaw = self.pose[2] if self.pose else 0.0
-        bearing = read.get("bearing", 0.0)
-        bearing = float(bearing) if isinstance(bearing, (int, float)) and math.isfinite(bearing) else 0.0
-        fx, fy = viewpoint(fix.x, fix.y, yaw, bearing, self.sign_read_distance)
+        if read.get("source") == "voice":
+            fx, fy = fix.x, fix.y  # the student is at that door: the car is just outside it
+        else:
+            bearing = read.get("bearing", 0.0)
+            bearing = float(bearing) if isinstance(bearing, (int, float)) and math.isfinite(bearing) else 0.0
+            fx, fy = viewpoint(fix.x, fix.y, yaw, bearing, self.sign_read_distance)
+        fx, fy = self.fit(fx, fy)
         self.get_logger().info(f"sign fix {fix.room} at {fix.distance:.1f} m from estimate")
         msg = self.pose_msg(fx, fy, yaw, fix.sigma, yaw_sigma=math.pi)  # a sign says nothing about heading
         self.last_fix_xy = (fx, fy)
@@ -341,8 +349,29 @@ class MissionNode(Node):
         m.pose.covariance = cov
         return m
 
+    def space(self):
+        floor = self.trip.floor
+        if floor and floor not in self.spaces:
+            path = self.floors_dir / f"{floor}.yaml"
+            self.spaces[floor] = FloorSpace.load(path) if path.exists() else None
+        return self.spaces.get(floor) if floor else None
+
+    def fit(self, x: float, y: float) -> tuple[float, float]:
+        """(x, y), or the nearest place the car fits if that is in or against a wall."""
+        space = self.space()
+        if space is None or space.clearance(x, y) >= self.fit_clearance:
+            return x, y
+        return space.nearest_fit(x, y, self.fit_clearance) or (x, y)
+
     def navigate(self, a: Navigate):
         self.cancel_nav()
+        if self.pose is not None:
+            # Nav2 cannot plan from inside a wall ("Start occupied"), and the car is
+            # never there: move such an estimate to where the car fits.
+            fx, fy = self.fit(self.pose[0], self.pose[1])
+            if (fx, fy) != (self.pose[0], self.pose[1]):
+                self.get_logger().info(f"estimate in a wall: moved {math.hypot(fx - self.pose[0], fy - self.pose[1]):.1f} m to open floor")
+                self.set_pose_pub.publish(self.pose_msg(fx, fy, self.pose[2], 0.5, yaw_sigma=self.reset_yaw_sigma))
         poses = []
         nodes = [self.rg.nodes[n] for n in waypoints(self.rg, a.nodes)]
         # Skip the first node: it is where the car already is.

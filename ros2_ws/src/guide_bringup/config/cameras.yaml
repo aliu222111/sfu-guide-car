@@ -1,4 +1,6 @@
-# usb_cam for the two 720p webcams, captured at 640x360 (spec section 7).
+# usb_cam for the 720p webcams, captured at 640x360 MJPEG (spec section 7): three fit on
+# one powered USB 3.0 hub. Through a hub /dev/videoN can change between boots: use the
+# stable names under /dev/v4l/by-path/ (ls -l /dev/v4l/by-path/) for video_device.
 # Calibrate once per mount (README, phase 1); cameras.launch.py points
 # camera_info_url at <calibration_dir>/left.yaml and right.yaml.
 left_camera:

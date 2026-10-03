@@ -235,7 +235,11 @@ class Trip:
             # assume nothing.
             self.localized = False
         if not self.localized:
-            return out + self._lost("waiting for a position fix")
+            asked = self.state == "lost"
+            out += self._lost("waiting for a position fix")
+            if not asked:  # the car cannot turn on the spot to look for a sign: ask
+                out.append(Speak("I need to know where we are. If you can see a room number on a door nearby, tell me."))
+            return out
         if leg.kind == "door":
             nodes = list(leg.nodes)
         else:

@@ -27,8 +27,8 @@ PERSON_HEIGHT = 1.7
 class CameraModel:
     width: int = 640
     height: int = 360
-    fx: float = 460.0  # about 70 deg across: a typical 720p webcam captured at 640 x 360
-    fy: float = 460.0
+    fx: float = 690.0  # about 50 deg across: a Logitech C270-class 720p webcam (55 deg diagonal) at 640 x 360
+    fy: float = 690.0
     cx: float = 320.0
     cy: float = 180.0
     # Mount on base_link (match the URDF: cam_x, cam_z, cam_pitch, stereo_baseline).

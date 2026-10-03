@@ -65,6 +65,8 @@ async def student(url: str, destination: str, state: dict, answer_after: float, 
                     data = d["msg"]["data"]
                     if d["topic"] == "/guide/speech":
                         log(f"  car: {data}")
+                        if "room number on a door" in data:
+                            state["door_asked_at"] = state.get("sim_t", 0.0)
                     else:
                         state["doc"] = json.loads(data)
             elif msg is not None and msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR):
@@ -176,6 +178,27 @@ def main(argv=None):
     node.create_subscription(Odometry, "/odometry/global", keep("global"), 10)
     node.create_subscription(PoseStamped, "/sim/truth", on_truth, 10)
     node.create_subscription(String, "/sim/status", lambda m: status.update(json.loads(m.data)), 10)
+    # The student reads the nearest door number out to the car's voice agent when
+    # it asks; the voice node (not simulated) would publish it on /signs.
+    root = Path(os.environ.get("GUIDE_CAR_ROOT", os.getcwd()))
+    graph = json.loads((root / "maps" / "route_graph.json").read_text())
+    gnodes = {n["id"]: n for n in graph["nodes"]}
+    dests = json.loads((root / "maps" / "destinations.json").read_text())
+    doors = [(k, gnodes[d["node"]]) for k, d in dests.items() if d["node"] in gnodes]
+    sign_pub = node.create_publisher(String, "/signs", 10)
+
+    def read_nearest_door():
+        floor = status.get("floor")
+        if not truth or not floor:
+            return
+        near = [(math.hypot(n["x"] - truth["x"], n["y"] - truth["y"]), k) for k, n in doors if n["floor"] == floor]
+        d, key = min(near, default=(math.inf, ""))
+        if d <= 5.0:
+            log(f"student: the door here says {key}")
+            sign_pub.publish(String(data=json.dumps({"text": key, "conf": 0.8, "source": "voice"})))
+        else:
+            log("student: I can't see a room number")
+
     stop = threading.Event()
     threading.Thread(target=lambda: [rclpy.spin_once(node, timeout_sec=0.1) for _ in iter(lambda: stop.is_set(), True)],
                      daemon=True).start()
@@ -190,6 +213,10 @@ def main(argv=None):
             if task.done():
                 task.result()  # raises the student's error
                 break
+            asked = state.get("door_asked_at")
+            if asked is not None and state["sim_t"] - asked > args.answer_after:
+                state["door_asked_at"] = None
+                read_nearest_door()
             doc = state.get("doc")
             if not doc:
                 continue
