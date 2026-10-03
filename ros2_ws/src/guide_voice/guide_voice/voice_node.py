@@ -1,8 +1,14 @@
 """Voice agent node (spec section 9).
 
 Hold the push-to-talk button on the car (``voice/ptt`` from the serial bridge),
-speak, release. The transcript goes to the agent; its reply and every mission
-announcement (``guide/speech``) are spoken on the car's speaker.
+speak, release. ElevenLabs Scribe writes down what was said; rooms in it are
+found on the map (rooms.py) and given to the agent (Gemini) as hints. A room the
+student names is read back ("AQ 3046, the Multifaith Centre, on the 3000 level
+of the Academic Quadrangle. Is that right?") and the trip starts only on a yes.
+When the car is lost and asks for the nearest door number, a room the student
+reads out is a sign read (``signs``). The agent's reply and every mission
+announcement (``guide/speech``: doors, elevators, turns, arrival) are spoken
+with ElevenLabs, or Piper when the network is down.
 """
 
 from __future__ import annotations
@@ -17,7 +23,9 @@ from std_msgs.msg import Bool, Empty, String
 from sfu_map.route import RouteGraph
 
 from .agent import SYSTEM, Actions, VoiceAgent
-from .speech import Recorder, Speaker, Transcriber, audio_device, trim_silence
+from .cloud import Unheard
+from .rooms import answer_in, rooms_in, spoken
+from .speech import Recorder, Speaker, audio_device, trim_silence
 
 
 class VoiceNode(Node):
@@ -29,29 +37,21 @@ class VoiceNode(Node):
         P = lambda name, default: self.declare_parameter(name, default).value  # noqa: E731
         log = self.get_logger().warn
         piper = (P("piper_voice", "voices/en_US-lessac-medium.onnx"), audio_device(P("speaker_device", "")))
-        tts = P("tts", "piper")
-        if tts == "elevenlabs":  # ElevenLabs voice, Piper when it cannot (ELEVENLABS_API_KEY)
-            from .cloud import ElevenLabsSpeaker
-
-            from .cloud import TTS_MODEL, VOICE_ID
+        tts = P("tts", "elevenlabs")
+        if tts == "elevenlabs":  # ElevenLabs voice (ELEVENLABS_API_KEY), Piper when it cannot
+            from .cloud import TTS_MODEL, VOICE_ID, ElevenLabsSpeaker
 
             self.speaker = ElevenLabsSpeaker(*piper, voice_id=P("elevenlabs_voice_id", VOICE_ID),
                                              model=P("elevenlabs_tts_model", TTS_MODEL), log=log)
         elif tts == "piper":
             self.speaker = Speaker(*piper)
         else:
-            raise ValueError(f"tts must be piper or elevenlabs, not {tts!r}")
+            raise ValueError(f"tts must be elevenlabs or piper, not {tts!r}")
         self.recorder = Recorder(audio_device(P("mic_device", "")))
-        stt = P("stt", "whisper")
-        whisper = Transcriber(P("whisper_model", "base"), P("whisper_device", "auto"), P("whisper_compute", "int8"))
-        if stt == "elevenlabs":  # the student's voice goes to ElevenLabs; whisper when it cannot
-            from .cloud import STT_MODEL, ElevenLabsTranscriber
+        from .cloud import STT_MODEL, ElevenLabsTranscriber
 
-            self.stt = ElevenLabsTranscriber(whisper, model=P("elevenlabs_stt_model", STT_MODEL), log=log)
-        elif stt == "whisper":
-            self.stt = whisper
-        else:
-            raise ValueError(f"stt must be whisper or elevenlabs, not {stt!r}")
+        self.stt = ElevenLabsTranscriber(model=P("elevenlabs_stt_model", STT_MODEL), log=log)
+        self.pending = None  # a destination read back to the student, waiting for their yes
         actions = Actions(self.set_destination, self.pause_or_resume, self.confirm)
         llm = P("llm", "gemini")
         model = self.declare_parameter("claude_model", "claude-haiku-4-5").value
@@ -86,6 +86,7 @@ class VoiceNode(Node):
         self.dest_pub = self.create_publisher(String, "guide/destination", 10)
         self.pause_pub = self.create_publisher(Bool, "guide/pause", 10)
         self.confirm_pub = self.create_publisher(Empty, "guide/confirm", 10)
+        self.sign_pub = self.create_publisher(String, "signs", 10)  # a door number the student read out
         self.create_subscription(Bool, "voice/ptt", self.on_ptt, 10)
         self.create_subscription(String, "guide/speech", lambda m: self.speaker.say(m.data), 10)
         self.create_subscription(String, "guide/state", self.on_state, 10)
@@ -111,42 +112,83 @@ class VoiceNode(Node):
             self.speaker.say("One moment, I'm still thinking about the last thing you said.")
             return
         try:
-            text = self.stt(trim_silence(audio))
-            if not text:
-                self.speaker.say("Sorry, I didn't catch that.")
-                return
-            self.get_logger().info(f"heard: {text}")
-            context = f"{self.trip.get('state')}, {self.trip.get('detail', '')}".strip(", ")
-            try:
-                reply = self.agent.handle(text, context)
-            except Exception as e:  # network loss or usage limit: voice pauses (spec section 16)
-                self.get_logger().error(f"agent failed: {e}")
-                reply = "Sorry, I can't reach my voice service right now. Please use the phone app."
-            self.speaker.say(reply)
+            self.speaker.say(self.reply(trim_silence(audio)))
         finally:
             self.busy.release()
 
-    # Tools ----------------------------------------------------------------------
-    def set_destination(self, room: str) -> str:
+    def reply(self, audio) -> str:
         try:
-            key = room
+            text = self.stt(audio, extra_terms=(self.pending,) if self.pending else ())
+        except Unheard:
+            return "Sorry, I can't hear you without the network right now. Please use the phone app."
+        if not text:
+            return "Sorry, I didn't catch that."
+        self.get_logger().info(f"heard: {text}")
+        rooms = rooms_in(text, self.rg.destinations)
+        if self.trip.get("state") == "lost" and rooms:
+            # The car asked for the nearest door number: a room read out is where we are.
+            self.sign_pub.publish(String(data=json.dumps({"text": rooms[0], "conf": 0.8, "source": "voice"})))
+            return f"Thanks. I'll look around {rooms[0]}."
+        context = f"{self.trip.get('state')}, {self.trip.get('detail', '')}".strip(", ")
+        if self.pending:
+            context += f"; waiting for the student to confirm the destination {self.pending}"
+        if rooms:
+            context += f"; rooms that match what was heard: {', '.join(rooms[:3])}"
+        try:
+            return self.agent.handle(text, context)
+        except Exception as e:  # Gemini unreachable or over its limit: the plain answers still work
+            self.get_logger().error(f"agent failed: {e}")
+            return self.offline(text, rooms)
+
+    def offline(self, text: str, rooms: list[str]) -> str:
+        answer = answer_in(text)
+        if answer == "stop":
+            return self.pause_or_resume()
+        if answer == "yes":
+            said = self.confirm()
+            return said if self.dest_sent(said) else "Thanks."
+        if answer == "no" and self.pending:
+            self.pending = None
+            return "Okay. Which room would you like?"
+        if len(rooms) == 1:
+            return self.set_destination(rooms[0], speak=True)
+        return "Sorry, I can't reach my voice service right now. Please say just a room number, or use the phone app."
+
+    # Tools ----------------------------------------------------------------------
+    def set_destination(self, room: str, speak: bool = False) -> str:
+        """Find the room and read it back; the trip starts on the student's yes (confirm)."""
+        try:
             node = self.rg.resolve(room)
             key = next((k for k, d in self.rg.destinations.items() if d["node"] == node), room)
         except Exception:
-            hits = self.rg.search(room, limit=3)
-            if hits:
+            hits = rooms_in(room, self.rg.destinations) or self.rg.search(room, limit=3)
+            if len(hits) == 1:
+                key = hits[0]
+            elif hits:
                 return f"No room called {room}. Close matches: {', '.join(hits)}. Ask the student which one."
-            return f"No room called {room} in AQ, WMC or MBC. Ask the student to repeat it."
-        self.dest_pub.publish(String(data=key))
-        return f"Guiding to {key}."
+            else:
+                return f"No room called {room} in AQ, WMC or MBC. Ask the student to repeat it."
+        self.pending = key
+        where = spoken(key, self.rg.destinations.get(key))
+        if speak:
+            return f"{where}. Is that right?"
+        return f"Found {where}. Read that back and ask the student if it is right; start only after they say yes."
 
     def pause_or_resume(self) -> str:
         paused = bool(self.trip.get("paused"))
         self.pause_pub.publish(Bool(data=not paused))
         return "Resumed." if paused else "Paused."
 
+    @staticmethod
+    def dest_sent(said: str) -> bool:
+        return said.startswith("Starting the trip")
+
     def confirm(self) -> str:
-        self.confirm_pub.publish(Empty())
+        if self.pending:  # yes to the destination read back: go
+            key, self.pending = self.pending, None
+            self.dest_pub.publish(String(data=key))
+            return f"Starting the trip to {key}."
+        self.confirm_pub.publish(Empty())  # yes to a door, an elevator, "still with me?"
         return "Confirmed."
 
 

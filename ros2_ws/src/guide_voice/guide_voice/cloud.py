@@ -1,14 +1,14 @@
-"""ElevenLabs voice and speech-to-text, with the local engines as fallback.
+"""ElevenLabs: the car's voice and its hearing (spec section 9; ELEVENLABS_API_KEY).
 
-Optional (guide.yaml ``tts: elevenlabs``, ``stt: elevenlabs``; key in
-ELEVENLABS_API_KEY). The car must keep talking when campus WiFi drops, so
-every call has a short timeout and any failure falls back to Piper or
-faster-whisper for that utterance. Mission announcements repeat ("In 5
-metres, turn right."), so synthesized speech is cached by text: it saves
-credits and the network round trip.
+The laptop is on campus WiFi. The car must keep talking when it drops, so every
+call has a short timeout; a sentence ElevenLabs cannot voice is spoken by Piper
+on the laptop. Mission announcements repeat ("In 5 metres, turn right."), so
+synthesized speech is cached by text: it saves credits and the round trip.
+Speech-to-text is ElevenLabs Scribe, told the campus's building names and
+codes as key terms; without the network the car says it cannot hear just now.
 
-Privacy: with ``stt: elevenlabs`` the student's recorded voice leaves the
-laptop; with ``tts: elevenlabs`` only the car's own sentences do.
+Privacy: the student's recorded voice goes to ElevenLabs; tell them (a sign on
+the car).
 """
 
 from __future__ import annotations
@@ -25,7 +25,8 @@ from .speech import SAMPLE_RATE, Speaker
 TTS_MODEL = "eleven_flash_v2_5"  # the low-latency model
 STT_MODEL = "scribe_v1"
 VOICE_ID = "21m00Tcm4TlvDq8ikWAM"  # "Rachel", a stock voice; any voice id from the ElevenLabs library works
-ROOM_TERMS = ["AQ", "WMC", "MBC", "Academic Quadrangle", "West Mall Centre", "Maggie Benston Centre"]
+ROOM_TERMS = ["AQ", "WMC", "MBC", "Academic Quadrangle", "West Mall Centre", "Maggie Benston Centre", "room",
+              "elevator", "door"]
 
 
 def _client(timeout: float, client=None):
@@ -79,26 +80,29 @@ def to_wav_bytes(audio: np.ndarray) -> bytes:
     return buf.getvalue()
 
 
-class ElevenLabsTranscriber:
-    """ElevenLabs Scribe; ``fallback`` (a local Transcriber) when the call fails."""
+class Unheard(Exception):
+    """Scribe could not be reached (no network, no credits, bad key)."""
 
-    def __init__(self, fallback=None, model: str = STT_MODEL, timeout: float = 6.0, client=None, log=None):
+
+class ElevenLabsTranscriber:
+    """ElevenLabs Scribe. ``extra_terms`` adds key terms for one call (a room the car is asking about)."""
+
+    def __init__(self, model: str = STT_MODEL, timeout: float = 6.0, client=None, log=None):
         self.client = _client(timeout, client)
-        self.fallback = fallback
         self.model = model
         self.timeout = timeout
         self.log = log or (lambda msg: None)
 
-    def __call__(self, audio: np.ndarray) -> str:
+    def __call__(self, audio: np.ndarray, extra_terms: tuple[str, ...] = ()) -> str:
         if audio.size < SAMPLE_RATE * 0.3:
             return ""
         try:
             result = self.client.speech_to_text.convert(
                 model_id=self.model, file=("speech.wav", to_wav_bytes(audio), "audio/wav"), language_code="en",
-                tag_audio_events=False, keyterms=ROOM_TERMS,
+                tag_audio_events=False, keyterms=ROOM_TERMS + [t for t in extra_terms if t not in ROOM_TERMS],
                 request_options={"timeout_in_seconds": int(max(1, round(self.timeout))), "max_retries": 0},
             )
             return (getattr(result, "text", "") or "").strip()
         except Exception as e:
-            self.log(f"ElevenLabs transcription failed ({type(e).__name__}: {e}); using faster-whisper")
-            return self.fallback(audio) if self.fallback is not None else ""
+            self.log(f"ElevenLabs transcription failed ({type(e).__name__}: {e})")
+            raise Unheard(str(e)) from e

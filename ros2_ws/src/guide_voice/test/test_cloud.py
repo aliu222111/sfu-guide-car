@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 
 from guide_voice.agent import Actions
-from guide_voice.cloud import ElevenLabsSpeaker, ElevenLabsTranscriber, to_wav_bytes
+from guide_voice.cloud import ElevenLabsSpeaker, ElevenLabsTranscriber, Unheard, to_wav_bytes
 
 
 def _wav(n=100):
@@ -50,7 +50,7 @@ def test_wav_bytes_round_trip():
         assert (w.getframerate(), w.getnchannels(), w.getsampwidth(), w.getnframes()) == (16000, 1, 2, 16000)
 
 
-def test_elevenlabs_transcriber_and_whisper_fallback():
+def test_elevenlabs_transcriber():
     calls = []
 
     class STT:
@@ -62,13 +62,15 @@ def test_elevenlabs_transcriber_and_whisper_fallback():
                 raise TimeoutError("slow WiFi")
             return SimpleNamespace(text=" AQ 3150 please ")
 
-    t = ElevenLabsTranscriber(fallback=lambda audio: "from whisper", client=SimpleNamespace(speech_to_text=STT()))
+    t = ElevenLabsTranscriber(client=SimpleNamespace(speech_to_text=STT()))
     audio = np.zeros(16000, np.float32)
-    assert t(audio) == "AQ 3150 please"
+    assert t(audio, extra_terms=("AQ 3046",)) == "AQ 3150 please"
     name, data, mime = calls[0]["file"]
-    assert data.startswith(b"RIFF") and mime == "audio/wav" and "AQ" in calls[0]["keyterms"]
+    assert data.startswith(b"RIFF") and mime == "audio/wav"
+    assert "AQ" in calls[0]["keyterms"] and "AQ 3046" in calls[0]["keyterms"]
     STT.fail = True
-    assert t(audio) == "from whisper"
+    with pytest.raises(Unheard):  # no network: the node says it cannot hear just now
+        t(audio)
     assert t(np.zeros(100, np.float32)) == ""  # too short to be speech: no call
 
 

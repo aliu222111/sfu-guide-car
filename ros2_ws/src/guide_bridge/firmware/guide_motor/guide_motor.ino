@@ -14,8 +14,10 @@
 // (Sensors on the car need the board on the car; the controller can ride on
 // the car too, its antenna clear of the laptop.)
 //
-// Outputs: an ESP32's DAC pins (define USE_DAC, pins 25 and 26), or on any
-// board a PWM pin through an RC filter (10 kOhm, 10 uF) to the wiper wire.
+// The board is an ESP32-WROOM-32E: its two DAC pins, GPIO25 (steering) and
+// GPIO26 (throttle), drive the wiper wires directly. Compiled for another
+// board (or the simulator) it uses PWM pins, each through an RC filter
+// (10 kOhm, 10 uF) to the wiper wire. Arduino IDE: board "ESP32 Dev Module".
 // Measure on the controller with a multimeter, powered, the wiper connected:
 // - the wiper voltage with the wheel and trigger at rest (STEER_CENTER_V,
 //   THROTTLE_CENTER_V);
@@ -31,16 +33,18 @@ const float STEER_LEFT_V = 0.35;       // wheel at full left
 const float THROTTLE_CENTER_V = 1.65;  // trigger at rest
 const float THROTTLE_FULL_V = 2.95;    // trigger pulled fully (forward)
 const unsigned long WATCHDOG_MS = 300;
-const int BUTTON_PIN = 2;              // to ground, internal pull-up
-// #define USE_DAC
-#ifdef USE_DAC
-const int STEER_PIN = 25, THROTTLE_PIN = 26;  // ESP32 DAC1, DAC2
+#if defined(ARDUINO_ARCH_ESP32)
+#define USE_DAC
+const int STEER_PIN = 25, THROTTLE_PIN = 26;  // DAC1, DAC2
+const int BUTTON_PIN = 4;                     // to ground, internal pull-up (not GPIO2: a boot pin)
+const int US_TRIG = 18, US_ECHO = 19;         // the HC-SR04's 5 V echo through a divider (1k/2k) to 3.3 V
 #else
 const int STEER_PIN = 9, THROTTLE_PIN = 10;   // PWM, through an RC filter
+const int BUTTON_PIN = 2;
+const int US_TRIG = 11, US_ECHO = 12;
 #endif
 // #define HAVE_ULTRASONIC
 #ifdef HAVE_ULTRASONIC
-const int US_TRIG = 11, US_ECHO = 12;
 // An HC-SR04 with nothing in range still sends a ~38 ms echo pulse; a dead one
 // sends none. Waiting past 38 ms tells the two apart (loop() blocks up to 40 ms).
 const unsigned long US_TIMEOUT_US = 40000;

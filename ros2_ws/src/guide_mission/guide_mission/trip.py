@@ -342,7 +342,7 @@ class Trip:
         if not ok:
             if self.state == "driving":
                 out = self._lost("localization lost")
-                out.append(Speak("I've lost track of where I am. One moment."))
+                out.append(Speak("I've lost track of where I am. If you can see a room number on a door nearby, tell me."))
                 return out
             return []  # remembered: _resume checks it before driving again
         if self.state == "lost":

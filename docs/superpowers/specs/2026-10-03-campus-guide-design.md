@@ -83,7 +83,7 @@ SFU GIS ──> map pipeline (offline) ──> per-floor occupancy grids + campu
                                               └──> mission node ──> Nav2 goals, speech, waits for student
                                                         ▲
 phone web app (FastAPI + WebSocket) ────────────────────┤
-voice agent (Whisper -> Gemini tools -> Piper) ─────────┘
+voice agent (Scribe -> Gemini tools -> ElevenLabs) ─────────┘
 ```
 
 Packages: `rtabmap_ros`, `nav2_bringup`, `robot_localization`, `image_pipeline` (stereo calibration and rectification), `usb_cam` or `v4l2_camera`, `nmea_navsat_driver`, `rosbridge_server` for the phone app. Custom packages: `sfu_map` (offline pipeline, pure Python, no ROS dependency), `guide_perception` (floor, person, sign nodes), `guide_mission` (route graph walker and state machine), `guide_ui` (phone app server), `guide_voice` (voice agent), `guide_bridge` (serial to microcontroller).
@@ -181,7 +181,7 @@ Follow-aware: the page sends a heartbeat every second while open. Two missed hea
 
 ### Voice agent on the car, for students without a phone
 
-Push-to-talk button on the car or a wake word. Audio to text with faster-whisper. The text goes to Gemini (or, with `llm: claude`, a Claude model) with exactly three tools: `set_destination(room)`, `pause_or_resume()`, `confirm()`. The model's reply text goes to Piper text-to-speech on the car's speaker. The same spoken instructions the phone gives are also played on the car speaker. Follow-aware without a phone is the walking-pace limit plus a spoken "still with me?" at each turn that waits for a yes. Claude model: Haiku 4.5 for latency and cost; tool calls only, no free conversation beyond clarifying the room.
+Push-to-talk button on the car or a wake word. Audio to text with ElevenLabs Scribe over the laptop's campus WiFi, with the building names and codes as key terms; a parser finds rooms however they were said ("A Q thirty forty six") and passes them to the model as hints. The text goes to Gemini (or, with `llm: claude`, a Claude model) with exactly three tools: `set_destination(room)`, `pause_or_resume()`, `confirm()`. The car reads the room back with its name, level and building and starts only on a yes; it asks out loud for doors and elevators and waits for a yes; lost, it asks for the nearest door number and uses the answer as a position fix. The reply is spoken with ElevenLabs on the car's speaker, or Piper on the laptop when the network is down (the car then says it cannot hear just now). The same spoken instructions the phone gives are also played on the car speaker. Follow-aware without a phone is the walking-pace limit plus a spoken "still with me?" at each turn that waits for a yes. Claude model: Haiku 4.5 for latency and cost; tool calls only, no free conversation beyond clarifying the room.
 
 ## 10. Chassis interface
 

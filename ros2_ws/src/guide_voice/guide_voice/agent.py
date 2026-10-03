@@ -1,6 +1,6 @@
 """The voice agent's brain (spec section 9): transcript in, tool calls and a spoken reply out.
 
-Claude Haiku 4.5 with exactly three tools: set_destination(room),
+Gemini (or Claude) with exactly three tools: set_destination(room),
 pause_or_resume(), confirm(). No free conversation beyond clarifying the room.
 """
 
@@ -20,10 +20,13 @@ your reply is read aloud by the robot's speaker.
 Use the tools to act:
 - set_destination when the student names a room. Room names look like "AQ 3150" or "WMC 2260". \
 Speech recognition often garbles them ("A Q thirty-one fifty", "WMC twenty-two sixty"); turn them \
-into that form. If the building is missing, ask which building.
+into that form. The context may list rooms that match what was heard: prefer those. If the building \
+is missing and more than one building has that room, ask which building. The tool finds the room; \
+then read it back as the tool words it and ask if it is right. The trip starts only when they say yes.
+- confirm when the student says yes: to the room you read back, or that they pressed the button, \
+the doors are open, they are holding the door, or they are still with you. If they say no to the \
+room, ask which room they want.
 - pause_or_resume when the student asks you to stop, wait, hold on, or carry on.
-- confirm when the student says yes, they pressed the button, the doors are open, they are holding \
-the door, or they are still with you.
 
 Only help with getting to a room. For anything else, say briefly that you can only guide to \
 rooms in AQ, WMC and MBC. Replies are spoken, so keep them to one short sentence with no lists, \
@@ -32,7 +35,7 @@ symbols or markdown."""
 TOOLS = [
     {
         "name": "set_destination",
-        "description": "Start guiding the student to a room. Call this once the room is clear.",
+        "description": "Find the room the student wants; read it back and start only after they say yes (confirm).",
         "input_schema": {
             "type": "object",
             "properties": {"room": {"type": "string", "description": 'Building abbreviation and room number, e.g. "AQ 3150".'}},
@@ -47,7 +50,7 @@ TOOLS = [
     },
     {
         "name": "confirm",
-        "description": "The student confirms: yes, button pressed, doors open, holding the door, or still here.",
+        "description": "The student says yes: to the room read back, button pressed, doors open, holding the door, or still here.",
         "input_schema": {"type": "object", "properties": {}, "additionalProperties": False},
     },
 ]

@@ -108,21 +108,17 @@ student_tracker:
 voice_agent:
   ros__parameters:
     graph: maps/route_graph.json
-    whisper_model: base          # small with a GPU
-    whisper_device: auto
-    whisper_compute: int8
-    piper_voice: voices/en_US-lessac-medium.onnx   # scripts/setup_voice.sh downloads it
+    piper_voice: voices/en_US-lessac-medium.onnx   # the offline voice; setup_voice.sh downloads it
     mic_device: ""               # "" = the system default; a name or index from voice_check --devices
     speaker_device: ""
     llm: gemini                  # gemini (GEMINI_API_KEY) | claude
     claude_model: claude-haiku-4-5
     claude_auth: subscription    # your Claude subscription (claude setup-token); or api_key (ANTHROPIC_API_KEY)
     gemini_model: gemini-flash-latest
-    # Cloud speech (ELEVENLABS_API_KEY). Each falls back to the local engine on any
-    # failure, so the car keeps talking without WiFi. stt: elevenlabs sends the
-    # student's voice off the laptop; tts: elevenlabs only the car's sentences.
-    tts: piper                   # piper | elevenlabs
-    stt: whisper                 # whisper | elevenlabs
+    # ElevenLabs hears (Scribe) and speaks (ELEVENLABS_API_KEY). Without the network
+    # Piper speaks and the car says it cannot hear just now. The student's voice
+    # goes to ElevenLabs: say so on a sign on the car.
+    tts: elevenlabs              # elevenlabs | piper
     elevenlabs_voice_id: 21m00Tcm4TlvDq8ikWAM
     elevenlabs_tts_model: eleven_flash_v2_5
     elevenlabs_stt_model: scribe_v1

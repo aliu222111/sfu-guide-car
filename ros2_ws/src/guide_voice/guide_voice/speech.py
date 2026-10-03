@@ -1,4 +1,4 @@
-"""Audio in and out: push-to-talk recording, faster-whisper, Piper (spec section 9).
+"""Audio in and out: push-to-talk recording and Piper, the offline voice (spec section 9).
 
 Cloud alternatives (ElevenLabs) are in ``cloud.py`` and fall back to these.
 """
@@ -72,23 +72,6 @@ def trim_silence(audio: np.ndarray, threshold: float = 0.01, pad: float = 0.2) -
         return audio[:0]
     p = int(pad * SAMPLE_RATE)
     return audio[max(0, loud[0] * win - p) : min(audio.size, (loud[-1] + 1) * win + p)]
-
-
-class Transcriber:
-    """faster-whisper; ``small`` on a GPU, ``base`` int8 on CPU (spec section 15)."""
-
-    HINT = "AQ, WMC, MBC, Academic Quadrangle, West Mall Centre, Maggie Benston Centre, room 3150."
-
-    def __init__(self, model: str = "base", device: str = "auto", compute_type: str = "int8"):
-        from faster_whisper import WhisperModel
-
-        self.model = WhisperModel(model, device=device, compute_type=compute_type)
-
-    def __call__(self, audio: np.ndarray) -> str:
-        if audio.size < SAMPLE_RATE * 0.3:
-            return ""
-        segments, _ = self.model.transcribe(audio, language="en", beam_size=3, initial_prompt=self.HINT, vad_filter=True)
-        return " ".join(s.text.strip() for s in segments).strip()
 
 
 def read_wav(path: Path) -> tuple[np.ndarray, int]:

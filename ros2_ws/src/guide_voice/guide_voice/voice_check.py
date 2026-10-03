@@ -1,14 +1,16 @@
 """Bench check of the car's voice, no ROS and no car needed (spec section 9).
 
     ros2 run guide_voice voice_check --devices          # list microphones and speakers
-    ros2 run guide_voice voice_check                    # speak, listen 4 s, transcribe, ask Gemini, speak the reply
+    ros2 run guide_voice voice_check                    # speak, listen 4 s, transcribe (Scribe), ask Gemini, speak the reply
     ros2 run guide_voice voice_check --talk             # a conversation: Enter starts and stops each recording
     ros2 run guide_voice voice_check --text "take me to AQ 3046"   # skip the microphone
     ros2 run guide_voice voice_check --file question.wav           # transcribe a recording instead
 
-Run from the repository root (voices/ and maps/ live there). Whisper and Piper
-run on the laptop; only the transcript goes to Gemini (GEMINI_API_KEY). What
-the agent would do on the car (set a destination, pause, confirm) is printed.
+Run from the repository root (voices/ and maps/ live there). ElevenLabs
+(ELEVENLABS_API_KEY) hears and speaks, Piper speaks when it cannot; the
+transcript goes to Gemini (GEMINI_API_KEY). The rooms found in each transcript,
+and what the agent would do on the car (set a destination, pause, confirm), are
+printed.
 """
 
 from __future__ import annotations
@@ -22,7 +24,9 @@ from pathlib import Path
 
 import numpy as np
 
-from .speech import SAMPLE_RATE, Recorder, Speaker, Transcriber, audio_device, read_wav, trim_silence
+from .cloud import ElevenLabsSpeaker, ElevenLabsTranscriber, Unheard
+from .rooms import rooms_in
+from .speech import SAMPLE_RATE, Recorder, Speaker, audio_device, read_wav, trim_silence
 
 GREETING = "Hello, I'm the SFU guide car. Where would you like to go?"
 
@@ -84,7 +88,6 @@ def main(argv=None):
     ap.add_argument("--file", help="a WAV recording to transcribe, instead of the microphone")
     ap.add_argument("--seconds", type=float, default=4.0)
     ap.add_argument("--voice", default="voices/en_US-lessac-medium.onnx")
-    ap.add_argument("--whisper", default="base", help="tiny, base, small ...")
     ap.add_argument("--gemini-model", default=None)
     ap.add_argument("--mic", default="", help="device name or index (see --devices)")
     ap.add_argument("--speaker", default="")
@@ -95,7 +98,11 @@ def main(argv=None):
 
         print(sd.query_devices())
         return 0
-    speaker = Speaker(args.voice, audio_device(args.speaker))
+    eleven = bool(os.environ.get("ELEVENLABS_API_KEY"))
+    if not eleven:
+        print("No ELEVENLABS_API_KEY: Piper speaks, and nothing can be heard.")
+    speaker = (ElevenLabsSpeaker(args.voice, audio_device(args.speaker), log=print) if eleven
+               else Speaker(args.voice, audio_device(args.speaker)))
     if not Path(args.voice).exists():
         print(f"No Piper voice at {args.voice}: run scripts/setup_voice.sh")
     say(speaker, GREETING)
@@ -103,7 +110,12 @@ def main(argv=None):
     from .gemini_agent import MODEL
 
     agent = make_agent(args.gemini_model or MODEL)
-    stt = None if args.text else Transcriber(args.whisper)
+    stt = ElevenLabsTranscriber(log=print) if eleven and not args.text else None
+    keys = {}
+    if Path("maps/route_graph.json").exists():
+        from sfu_map.route import RouteGraph
+
+        keys = RouteGraph.load("maps/route_graph.json").destinations
     rec = Recorder(audio_device(args.mic))
     while True:
         if args.text:
@@ -116,9 +128,16 @@ def main(argv=None):
                     audio = np.interp(np.arange(0, len(audio), rate / SAMPLE_RATE), np.arange(len(audio)), audio).astype(np.float32)
             else:
                 audio = listen(rec, None if args.talk else args.seconds)
+            if stt is None:
+                return 1
             t = time.monotonic()
-            text = stt(trim_silence(audio))
+            try:
+                text = stt(trim_silence(audio))
+            except Unheard:
+                text = ""
             print(f"heard ({time.monotonic() - t:.1f} s): {text!r}")
+        if keys:
+            print(f"  rooms: {rooms_in(text, keys) or 'none'}")
         if agent is not None and text:
             t = time.monotonic()
             reply = agent.handle(text, "idle")

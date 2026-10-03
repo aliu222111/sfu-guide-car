@@ -9,7 +9,7 @@ Maps come from phase 0 (`sfu_map/`, output in `maps/`).
 | `guide_perception` | floor segmentation, person detection, sign reader, vanishing-point heading, rear-camera student tracker | 6, 7, 9 |
 | `guide_mission` | trip state machine and mission node, localization manager, RTAB-Map to GIS alignment | 6, 8 |
 | `guide_ui` | phone web app and its server, Bluetooth signal monitor | 9 |
-| `guide_voice` | voice agent: faster-whisper, Gemini (or Claude) with three tools, Piper | 9 |
+| `guide_voice` | voice agent: ElevenLabs Scribe, Gemini (or Claude) with three tools, ElevenLabs voice (Piper offline) | 9 |
 | `guide_claude` | Claude for the voice agent and the cloud sign reader through your Claude subscription (Claude Agent SDK) | 9, 16 |
 | `guide_bringup` | robot description, launch files, Nav2 / EKF / navsat / camera parameters, simulator | 4 |
 
@@ -24,26 +24,33 @@ sudo apt install ros-jazzy-desktop ros-jazzy-navigation2 ros-jazzy-robot-localiz
   ros-jazzy-rosbridge-server ros-jazzy-xacro python3-serial v4l-utils
 pip install -e sfu_map                                   # route graph, used by mission and voice
 pip install -r ros2_ws/src/guide_perception/requirements-perception.txt
-pip install faster-whisper sounddevice bleak claude-agent-sdk   # phase 6 (anthropic too for API-key mode)
+pip install elevenlabs google-genai piper-tts sounddevice bleak   # phase 6 (claude-agent-sdk for llm: claude)
 pip install google-genai elevenlabs                              # optional: Gemini, ElevenLabs
 cd ros2_ws && colcon build && source install/setup.bash
 ```
 
 Models, once (nothing is trained): `python ros2_ws/src/guide_perception/scripts/export_models.py --out models`
-(`--segformer b2` with an NVIDIA GPU). Voice: `bash ros2_ws/src/guide_bringup/scripts/setup_voice.sh` (Piper, faster-whisper, sounddevice, the Piper voice into `voices/`).
+(`--segformer b2` with an NVIDIA GPU). Voice: `bash ros2_ws/src/guide_bringup/scripts/setup_voice.sh` (ElevenLabs, Gemini, sounddevice, and Piper with its voice in `voices/` for when the network is down).
 
 Launch everything from the repository root: `maps/`, `models/`, `voices/` and `rtabmap_db/` are found
 relative to it (or set `GUIDE_CAR_ROOT`).
 
-## Voice: Whisper listens, Gemini answers, Piper speaks
+## Voice: ElevenLabs hears and speaks, Gemini answers
 
-The default (`guide.yaml`, `voice_agent`): faster-whisper on the laptop turns the student's words
-into text, Gemini (`llm: gemini`) picks one of the three tools (set destination, pause or resume,
-confirm) and words the reply, Piper on the laptop speaks it on the car's speaker. Only the transcript
-leaves the laptop. Once:
+The default (`guide.yaml`, `voice_agent`), over the laptop's campus WiFi: ElevenLabs Scribe writes
+down what the student said, told the building names and codes as key terms. `rooms.py` finds the
+rooms in it however they were said ("A Q thirty forty six", "West Mall twenty-eight thirty") and
+gives them to Gemini (`llm: gemini`), which picks one of three tools (set destination, pause or
+resume, confirm) and words the reply. The car reads the room back ("AQ 3046, the Multifaith Centre,
+on the 3000 level of the Academic Quadrangle. Is that right?") and starts only on a yes. On the way
+it asks out loud for doors to be held and elevator buttons pressed, and waits for a yes. If it gets
+lost it asks for the number on the nearest door, and that becomes a position fix. ElevenLabs speaks;
+without the network Piper does, and the car says it cannot hear just now. The student's voice goes
+to ElevenLabs: put a sign on the car. Once:
 
 ```bash
-bash ros2_ws/src/guide_bringup/scripts/setup_voice.sh     # packages, the Piper voice, the Whisper model
+bash ros2_ws/src/guide_bringup/scripts/setup_voice.sh     # packages and the offline Piper voice
+export ELEVENLABS_API_KEY=...                              # https://elevenlabs.io/app/settings/api-keys
 export GEMINI_API_KEY=...                                  # https://aistudio.google.com/apikey (paid tier: see below)
 ros2 run guide_voice voice_check --devices                 # find the USB speaker and microphone
 ros2 run guide_voice voice_check --talk --mic 2 --speaker 3   # Enter, speak, Enter: hear Gemini's reply
@@ -52,7 +59,7 @@ ros2 run guide_voice voice_check --talk --mic 2 --speaker 3   # Enter, speak, En
 Put the device names or numbers that worked into `mic_device` and `speaker_device` in `guide.yaml`,
 then `guide_car.launch.py voice:=true`. On the car the push-to-talk button (Arduino pin 2, `B 1`/`B 0`
 on the serial line) starts and stops the recording; the car stops talking while it is held. Without
-WiFi the car still speaks (Piper) and hears (Whisper), and says it cannot reach its voice service.
+WiFi the car still speaks (Piper) and says it cannot hear just now; the phone app still works.
 
 ## Claude instead of Gemini: your subscription, not an API key
 
@@ -86,7 +93,7 @@ Switches in `guide.yaml`, keys in the environment:
 | ElevenLabs voice | `voice_agent: tts: elevenlabs` | `ELEVENLABS_API_KEY` |
 | ElevenLabs speech-to-text | `voice_agent: stt: elevenlabs` | `ELEVENLABS_API_KEY` |
 
-The voice and transcription fall back to Piper and faster-whisper on any failure, so keep those installed.
+The voice falls back to Piper on any failure, so keep it installed.
 Use a paid Gemini key: on the free tier Google may use the prompts and camera frames. With
 `stt: elevenlabs` students' voices leave the laptop; tell them (a sign on the car).
 
