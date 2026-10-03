@@ -23,17 +23,17 @@ from .speed import SpeedTrim
 class SerialBridge(Node):
     def __init__(self):
         super().__init__("serial_bridge")
-        self.port_name = self.declare_parameter("port", "/dev/ttyACM0").value
+        self.port_name = self.declare_parameter("port", "/dev/ttyUSB0").value  # an ESP32 dev board (CP2102 / CH340)
         self.baud = self.declare_parameter("baud", 115200).value
         rate = self.declare_parameter("rate_hz", 20.0).value
         self.cmd_timeout = self.declare_parameter("cmd_timeout", 0.3).value
-        # The RC throttle is open loop: trim it on the measured speed (speed.py).
-        self.trim = SpeedTrim(gain=float(self.declare_parameter("speed_trim_gain", 0.8).value),
-                              limit=float(self.declare_parameter("speed_trim_limit", 0.3).value))
         cfg = CarConfig()
         for name, default in vars(CarConfig()).items():
             setattr(cfg, name, type(default)(self.declare_parameter(name, default).value))
         self.car = Ackermann(cfg)
+        # The RC throttle is open loop: trim it on the measured speed (speed.py).
+        self.trim = SpeedTrim(gain=float(self.declare_parameter("speed_trim_gain", 0.8).value),
+                              limit=float(self.declare_parameter("speed_trim_limit", 0.3).value), stop=cfg.stop_speed)
         self.period = 1.0 / rate
         self.measured = None  # (forward speed m/s, time)
         self.linear = 0.0
@@ -63,7 +63,13 @@ class SerialBridge(Node):
         try:
             import serial
 
-            self.serial = serial.Serial(self.port_name, self.baud, timeout=0)
+            # dtr/rts low before opening: asserting them resets an ESP32 dev board, which
+            # would leave the controller's wiper inputs floating for a second on every open.
+            s = serial.Serial()
+            s.port, s.baudrate, s.timeout = self.port_name, self.baud, 0
+            s.dtr = s.rts = False
+            s.open()
+            self.serial = s
             self.get_logger().info(f"opened {self.port_name}")
             return True
         except Exception as e:  # port missing or busy: retry next tick

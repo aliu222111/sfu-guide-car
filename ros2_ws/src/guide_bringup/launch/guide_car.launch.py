@@ -5,7 +5,7 @@
 Switches follow the phases in spec section 11:
     perception:=false   phase 2 driving tests before perception (the gate then
                         does not require the person detector)
-    voice:=true         phase 6 voice agent (your Claude subscription: CLAUDE_CODE_OAUTH_TOKEN)
+    voice:=true         phase 6 voice agent (ELEVENLABS_API_KEY and GEMINI_API_KEY; Claude only with llm: claude)
     rear_camera:=true   phase 6 student tracking
     rssi:=true          phase 6 Bluetooth follow check
     cameras:=mono       one camera (spec section 18): left camera only, floor
@@ -106,8 +106,9 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument("start_floor", default_value="", description='e.g. AQ-03; "" = outdoors'),
         DeclareLaunchArgument("calibration_dir", default_value="~/.ros/camera_info"),
-        DeclareLaunchArgument("motor_port", default_value="/dev/ttyACM0"),
-        DeclareLaunchArgument("gps_port", default_value="/dev/ttyUSB0"),
+        # Both are USB serial adapters: find them under /dev/serial/by-id/ (README, "The RC car").
+        DeclareLaunchArgument("motor_port", default_value="/dev/ttyUSB0", description="the ESP32 (CP2102 / CH340)"),
+        DeclareLaunchArgument("gps_port", default_value="/dev/ttyUSB1", description="the Adafruit GPS adapter"),
         DeclareLaunchArgument("perception", default_value="true"),
         DeclareLaunchArgument("cameras", default_value="stereo", choices=["stereo", "mono", "iphone"]),
         DeclareLaunchArgument("camera_driver", default_value="true"),

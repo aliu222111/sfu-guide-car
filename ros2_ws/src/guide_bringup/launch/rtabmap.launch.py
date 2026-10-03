@@ -31,6 +31,9 @@ def nodes(context):
     rgbd = LaunchConfiguration("sensor").perform(context) == "rgbd"
     db = os.path.abspath(os.path.expanduser(LaunchConfiguration("database").perform(context)))
     os.makedirs(os.path.dirname(db), exist_ok=True)
+    if mode == "localization" and not os.path.exists(db):
+        # Without the floor's map RTAB-Map would silently start an empty one and never localize.
+        raise RuntimeError(f"no RTAB-Map database for this floor at {db}: map it first (README, phase 1)")
     if rgbd:
         sensor_remaps = [("rgb/image", "/front/image_rect"), ("depth/image", "/front/depth"),
                          ("rgb/camera_info", "/front/camera_info")]

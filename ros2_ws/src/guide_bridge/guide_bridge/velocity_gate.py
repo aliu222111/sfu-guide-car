@@ -178,8 +178,9 @@ class VelocityGate:
         lin = max(-p.reverse_max, min(cap, lin))
         last = s.last_linear
         if lin * last < 0:
-            # Reversing: stop for one tick, then ramp up from zero.
-            return self._out(0.0, ang, why)
+            # Reversing: stop for one tick, then ramp up from zero (no turn either: the
+            # Ackermann bridge would slam the wheels to full lock for that tick).
+            return self._out(0.0, 0.0, why)
         if abs(lin) > abs(last):
             # Rate limit speeding up only; braking is never delayed.
             max_step = p.accel_max * dt if dt > 0 else 0.05

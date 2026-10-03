@@ -41,7 +41,10 @@ class CameraNode(Node):
     def _on_info(self, msg: CameraInfo):
         # Rectified images: the projection matrix P holds the intrinsics.
         P = np.array(msg.p, dtype=float).reshape(3, 4)
-        self.K = P[:, :3] if P[0, 0] > 0 else np.array(msg.k, dtype=float).reshape(3, 3)
+        K = P[:, :3] if P[0, 0] > 0 else np.array(msg.k, dtype=float).reshape(3, 3)
+        if K[0, 0] <= 0:
+            return  # an uncalibrated camera publishes zeros: stay "no calibration" (any person counts as close)
+        self.K = K
         self.camera_frame = msg.header.frame_id
 
     def _on_image(self, msg: Image):

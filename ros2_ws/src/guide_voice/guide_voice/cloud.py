@@ -51,14 +51,21 @@ class ElevenLabsSpeaker(Speaker):
         super().__init__(voice_model, device)
 
     def _fetch(self, text: str) -> bytes:
+        # Raw 16-bit PCM at 22.05 kHz (every ElevenLabs model offers it), wrapped as WAV here.
         chunks = self.client.text_to_speech.convert(
-            self.voice_id, text=text, model_id=self.model, output_format="wav_22050",
+            self.voice_id, text=text, model_id=self.model, output_format="pcm_22050",
             request_options={"timeout_in_seconds": int(max(1, round(self.timeout))), "max_retries": 0},
         )
-        audio = b"".join(chunks)
-        if not audio.startswith(b"RIFF"):
-            raise ValueError("not a WAV reply")
-        return audio
+        pcm = b"".join(chunks)
+        if len(pcm) < 1000:
+            raise ValueError("empty reply")
+        buf = io.BytesIO()
+        with wave.open(buf, "wb") as w:
+            w.setnchannels(1)
+            w.setsampwidth(2)
+            w.setframerate(22050)
+            w.writeframes(pcm)
+        return buf.getvalue()
 
     def synthesize(self, text: str, wav: Path):
         try:

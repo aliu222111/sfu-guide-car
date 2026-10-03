@@ -1,8 +1,8 @@
 """Hardware-in-the-loop simulator: the whole car with simulated hardware.
 
 Runs the car's real firmware (compiled for the PC) behind a pseudo serial
-port that the real serial bridge opens, moves a tank chassis from the
-firmware's motor pins through the real AQ/MBC/WMC floor geometry, and feeds
+port that the real serial bridge opens, drives an RC car (Ackermann
+steering) from the firmware's hand-controller outputs through the real AQ/MBC/WMC floor geometry, and feeds
 the real drivers: stereo images (as usb_cam publishes them), or with
 ``cameras:=iphone`` the iPhone's Record3D USB stream (RGB, LiDAR depth, ARKit
 pose, read by the real iPhone driver through ``fake_record3d``), the phone's
@@ -251,7 +251,7 @@ class HilSim(Node):
 
     def ultrasonic(self) -> float:
         s = self.chassis.s
-        bx, by = s.x + 0.375 * math.cos(s.yaw), s.y + 0.375 * math.sin(s.yaw)  # on the front bumper
+        bx, by = s.x + 0.63 * math.cos(s.yaw), s.y + 0.63 * math.sin(s.yaw)  # on the front bumper
         angs = s.yaw + np.radians([-7.5, 0.0, 7.5])
         h = self.world.here.raycast(bx, by, angs, max_range=4.0, t=self.t)
         return float(np.min(h.distance))

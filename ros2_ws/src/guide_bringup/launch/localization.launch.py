@@ -17,7 +17,7 @@ def generate_launch_description():
     ekf = cfg("ekf.yaml")
     guide = cfg("guide.yaml")
     return LaunchDescription([
-        DeclareLaunchArgument("gps_port", default_value="/dev/ttyUSB0"),
+        DeclareLaunchArgument("gps_port", default_value="/dev/ttyUSB1"),
         DeclareLaunchArgument("cameras", default_value="stereo", choices=["stereo", "mono", "iphone"]),
         Node(package="robot_localization", executable="ekf_node", name="ekf_local", parameters=[ekf],
              remappings=[("odometry/filtered", "/odometry/local"), ("set_pose", "/ekf_local/set_pose")]),

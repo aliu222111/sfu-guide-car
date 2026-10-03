@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 
 from .agent import SYSTEM, TOOLS, Actions, run_tool
 
-MODEL = "gemini-flash-latest"  # pin a versioned model once one is chosen for the car
+MODEL = "gemini-2.5-flash"  # pinned: a "latest" alias can move to a model that rejects thinking_budget  # pin a versioned model once one is chosen for the car
 
 
 def _declarations(types):

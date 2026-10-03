@@ -31,8 +31,10 @@ class Wiring:
     vref: float = 3.3
     steer_center_v: float = 1.65  # the controller's wheel at rest
     steer_left_v: float = 0.35  # at full left
+    steer_right_v: float = 2.95
     throttle_center_v: float = 1.65
     throttle_full_v: float = 2.95  # trigger pulled fully
+    throttle_reverse_v: float = 1.0  # trigger pushed fully: a shorter travel than forward, as on most pistol grips
 
 
 @dataclass
@@ -49,6 +51,7 @@ class ChassisParams:
     understeer: float = 1.1  # actual yaw rate = geometric / understeer
     length: float = 0.75  # the RC car body, matches nav2.yaml
     width: float = 0.41
+    rear_overhang: float = 0.12  # m from the rear axle (the body's reference point) to its back
 
 
 @dataclass
@@ -62,6 +65,13 @@ class BodyState:
     collisions: int = 0
     in_collision: bool = False
     history: list = field(default_factory=list)
+
+
+def _position(v: float, center: float, positive_end: float, negative_end: float) -> float:
+    """Where a control is, -1..1, from its wiper voltage (each side its own measured end)."""
+    if (v - center) * (positive_end - center) >= 0:
+        return max(-1.0, min(1.0, (v - center) / (positive_end - center)))
+    return max(-1.0, min(1.0, -(v - center) / (negative_end - center)))
 
 
 class Chassis:
@@ -78,8 +88,8 @@ class Chassis:
         """(wheel speed m/s, steering angle rad) the radio is telling the servo and ESC."""
         w, p = self.wiring, self.p
         volts = lambda pin: max(0, fw.pwm(pin)) / 255.0 * w.vref  # noqa: E731 (the RC filter averages the PWM)
-        wheel = max(-1.0, min(1.0, (volts(w.steer) - w.steer_center_v) / (w.steer_left_v - w.steer_center_v)))
-        trigger = max(-1.0, min(1.0, (volts(w.throttle) - w.throttle_center_v) / (w.throttle_full_v - w.throttle_center_v)))
+        wheel = _position(volts(w.steer), w.steer_center_v, w.steer_left_v, w.steer_right_v)
+        trigger = _position(volts(w.throttle), w.throttle_center_v, w.throttle_full_v, w.throttle_reverse_v)
         steer = max(-1.0, min(1.0, wheel - p.steer_offset)) * p.max_steer
         speed = 0.0
         if abs(trigger) > p.throttle_start:
@@ -115,14 +125,14 @@ class Chassis:
         x = s.x if x is None else x
         y = s.y if y is None else y
         yaw = s.yaw if yaw is None else yaw
-        hl, hw = p.length / 2, p.width / 2
+        back, front, hw = -p.rear_overhang, p.length - p.rear_overhang, p.width / 2
         pts = []
         nx, ny = max(2, int(p.length / spacing)), max(2, int(p.width / spacing))
         for i in range(nx + 1):
-            fx = -hl + p.length * i / nx
+            fx = back + p.length * i / nx
             pts += [(fx, hw), (fx, -hw)]
         for j in range(1, ny):
             fy = -hw + p.width * j / ny
-            pts += [(hl, fy), (-hl, fy)]
+            pts += [(front, fy), (back, fy)]
         c, sn = math.cos(yaw), math.sin(yaw)
         return [(x + c * a - sn * b, y + sn * a + c * b) for a, b in pts]

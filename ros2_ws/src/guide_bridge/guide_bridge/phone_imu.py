@@ -1,14 +1,18 @@
 """Turn Sensor Logger HTTP pushes into IMU, magnetometer and GPS samples (spec section 3).
 
 Sensor Logger posts JSON ``{"payload": [{"name": ..., "time": <ns>, "values": {...}}, ...]}``.
-The phone lies flat, screen up, top edge pointing forward. Phone axes (Android
-and Sensor Logger's normalised iOS output): x to the right edge, y to the top
-edge, z out of the screen. base_link (REP-103): x forward, y left, z up. So
-base = (phone_y, -phone_x, phone_z).
+The phone lies flat, screen up, top edge pointing forward. Phone axes (Android,
+and iOS with Sensor Logger's "Standardise Units & Frames" switched ON, which
+is required: raw iOS axes are the opposite sign): x to the right edge, y to
+the top edge, z out of the screen. base_link (REP-103): x forward, y left,
+z up. So base = (phone_y, -phone_x, phone_z). Android reports total
+acceleration; iOS reports the accelerometer with gravity removed plus gravity
+as a separate stream, paired here by time.
 """
 
 from __future__ import annotations
 
+import bisect
 import math
 from collections import deque
 from dataclasses import dataclass
@@ -95,6 +99,15 @@ def _vec(v: dict, keys=("x", "y", "z")) -> tuple:
 _T_MIN, _T_MAX = 946_684_800 * 10**9, 4_102_444_800 * 10**9
 
 
+def _nearest(samples, t_ns: int, within_ns: int):
+    """The value of the sample closest in time to ``t_ns``, if within ``within_ns``."""
+    if not samples:
+        return None
+    i = bisect.bisect_left(samples, (t_ns,))
+    best = min((s for s in samples[max(0, i - 1):i + 1]), key=lambda s: abs(s[0] - t_ns))
+    return best[1] if abs(best[0] - t_ns) <= within_ns else None
+
+
 def parse_payload(doc, accel_scale: float = 1.0, world_yaw_offset: float = 0.0):
     """Group one push into samples. Returns (imu_samples, mag_samples, fix_samples).
 
@@ -144,12 +157,15 @@ def parse_payload(doc, accel_scale: float = 1.0, world_yaw_offset: float = 0.0):
         except (KeyError, TypeError, ValueError, OverflowError):
             continue
     imus = []
+    gravity = sorted((t, d["gravity"]) for t, d in by_time.items() if "gravity" in d)
     for t_ns, d in sorted(by_time.items()):
         accel = None
         if "totalacceleration" in d:
             accel = d["totalacceleration"]
-        elif "accelerometer" in d and "gravity" in d:
-            accel = tuple(a + g for a, g in zip(d["accelerometer"], d["gravity"]))
+        elif "accelerometer" in d:
+            g = _nearest(gravity, t_ns, 10_000_000)  # iOS stamps the two streams separately
+            if g is not None:
+                accel = tuple(a + b for a, b in zip(d["accelerometer"], g))
         if accel is not None:
             accel = phone_to_base(tuple(c * accel_scale for c in accel))
         if d.get("gyro") is None and accel is None and d.get("orientation") is None:
@@ -229,7 +245,10 @@ class GyroBias:
         """The bias-corrected yaw rate; learns from ``wz`` when the car has been still."""
         dt = 0.0 if self.last is None else max(0.0, min(0.1, t - self.last))
         self.last = t
-        if self.still_since is not None and t - self.still_since >= self.settle and odometry_age < 0.5:
+        # Learn only when odometry has said "still" for a while, it is fresh, and the gyro
+        # itself reads nearly still (odometry lags the gyro by its processing time).
+        if (self.still_since is not None and t - self.still_since >= self.settle and odometry_age < 0.5
+                and abs(wz - self.bias) < 0.02):
             self.bias += (wz - self.bias) * min(1.0, dt / self.tau)
             self.bias = max(-self.limit, min(self.limit, self.bias))
         return wz - self.bias

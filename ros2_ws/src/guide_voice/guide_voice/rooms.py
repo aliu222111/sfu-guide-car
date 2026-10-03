@@ -1,6 +1,6 @@
 """Rooms and answers in what speech recognition wrote (spec section 9).
 
-Whisper writes room names the way people say them: "A Q thirty forty six",
+Scribe writes room names the way people say them: "A Q thirty forty six",
 "Academic Quadrangle three oh four six", "West Mall twenty-eight thirty",
 "MBC 2,290", "8Q 3046". ``rooms_in`` turns a transcript into the destination
 keys it can mean ("AQ 3046"), checked against the map, so the voice agent is

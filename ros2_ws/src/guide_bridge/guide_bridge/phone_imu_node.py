@@ -50,7 +50,10 @@ class PhoneImuNode(Node):
 
     def on_vo(self, msg: Odometry):
         self.vo_time = self.now()
-        self.gyro_bias.odometry(self.vo_time, msg.twist.twist.linear.x, msg.twist.twist.angular.z)
+        if msg.pose.covariance[0] >= 9999.0:
+            return  # visual odometry is lost (it publishes a null odometry): it says nothing about motion
+        t = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9  # its own time, as the gyro samples
+        self.gyro_bias.odometry(t, msg.twist.twist.linear.x, msg.twist.twist.angular.z)
 
     def now(self) -> float:
         return self.get_clock().now().nanoseconds * 1e-9

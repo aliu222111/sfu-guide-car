@@ -69,6 +69,7 @@ class MissionNode(Node):
         self.floors_dir = Path(graph_path).parent / "floors"
         self.spaces: dict = {}  # floor -> FloorSpace, loaded when first needed
         self.fit_clearance = float(self.declare_parameter("fit_clearance", 0.4).value)  # m: the car fits here
+        self.snapped_at = -math.inf
         self.map_frame = self.declare_parameter("map_frame", "map").value
         self.base_frame = self.declare_parameter("base_frame", "base_link").value
         start_floor = self.declare_parameter("start_floor", "").value or None
@@ -369,7 +370,8 @@ class MissionNode(Node):
             # Nav2 cannot plan from inside a wall ("Start occupied"), and the car is
             # never there: move such an estimate to where the car fits.
             fx, fy = self.fit(self.pose[0], self.pose[1])
-            if (fx, fy) != (self.pose[0], self.pose[1]):
+            if (fx, fy) != (self.pose[0], self.pose[1]) and self.now() - self.snapped_at > 10.0:
+                self.snapped_at = self.now()  # once: an indoor fix pulling it back would otherwise ping-pong
                 self.get_logger().info(f"estimate in a wall: moved {math.hypot(fx - self.pose[0], fy - self.pose[1]):.1f} m to open floor")
                 self.set_pose_pub.publish(self.pose_msg(fx, fy, self.pose[2], 0.5, yaw_sigma=self.reset_yaw_sigma))
         poses = []

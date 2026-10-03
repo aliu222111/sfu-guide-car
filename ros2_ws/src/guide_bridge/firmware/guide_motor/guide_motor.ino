@@ -18,20 +18,34 @@
 // GPIO26 (throttle), drive the wiper wires directly. Compiled for another
 // board (or the simulator) it uses PWM pins, each through an RC filter
 // (10 kOhm, 10 uF) to the wiper wire. Arduino IDE: board "ESP32 Dev Module".
-// Measure on the controller with a multimeter, powered, the wiper connected:
-// - the wiper voltage with the wheel and trigger at rest (STEER_CENTER_V,
-//   THROTTLE_CENTER_V);
-// - at full left and full trigger (STEER_LEFT_V, THROTTLE_FULL_V).
-// Then set the trims, deadband and speed in guide.yaml (README, "The RC car").
-// Tie the board's ground to the controller's ground; never feed more than
-// the controller's own supply voltage into it.
+// Measure on the controller with a multimeter, powered, the wiper still
+// connected: the wiper voltage with the wheel and trigger at rest, at full
+// left, full right, full trigger and full brake/reverse (the six numbers
+// below). Then set the trims, deadband and speed in guide.yaml (README,
+// "The RC car").
+//
+// Electrical rules, in order of what breaks:
+// - The ESP32 can only output 0 to 3.3 V and its pins die above 3.3 V. If the
+//   controller's potentiometer rail is above 3.3 V (many run the pots from the
+//   battery, 4.8 to 6 V), either feed the pots from the board's own 3V3 pin,
+//   or put a level shifter (an op-amp) between DAC and wiper. setup() refuses
+//   to run if any measured voltage below is above VREF.
+// - Lift the wiper wire off the potentiometer track before connecting the
+//   DAC to it: a DAC fighting a pot track destroys the pin.
+// - Bias each wiper wire to its centre voltage with two resistors (10 k from
+//   the pot rail, 10 k to ground, or whatever divider gives the centre
+//   voltage), so the car sits still while the board boots or resets: until
+//   setup() runs the DAC pins float.
+// - Tie the board's ground to the controller's ground.
 
 // ---- Configure for the controller -------------------------------------------
 const float VREF = 3.3;                // the board's output range, 0..VREF
 const float STEER_CENTER_V = 1.65;     // wheel at rest
 const float STEER_LEFT_V = 0.35;       // wheel at full left
+const float STEER_RIGHT_V = 2.95;      // wheel at full right
 const float THROTTLE_CENTER_V = 1.65;  // trigger at rest
 const float THROTTLE_FULL_V = 2.95;    // trigger pulled fully (forward)
+const float THROTTLE_REVERSE_V = 0.35; // trigger pushed fully (brake / reverse; often a shorter travel)
 const unsigned long WATCHDOG_MS = 300;
 #if defined(ARDUINO_ARCH_ESP32)
 #define USE_DAC
@@ -72,10 +86,21 @@ void writeVolts(int pin, float volts) {
 #endif
 }
 
+float span(float value, float center, float positive, float negative) {
+  // Linear from the centre to the measured end point on each side.
+  value = clamp1(value);
+  return center + value * ((value >= 0 ? positive : negative) - center) * (value >= 0 ? 1 : -1);
+}
+
 void drive(float steering, float throttle) {
-  // Linear between the measured end points; the far side mirrors them.
-  writeVolts(STEER_PIN, STEER_CENTER_V + clamp1(steering) * (STEER_LEFT_V - STEER_CENTER_V));
-  writeVolts(THROTTLE_PIN, THROTTLE_CENTER_V + clamp1(throttle) * (THROTTLE_FULL_V - THROTTLE_CENTER_V));
+  writeVolts(STEER_PIN, span(steering, STEER_CENTER_V, STEER_LEFT_V, STEER_RIGHT_V));
+  writeVolts(THROTTLE_PIN, span(throttle, THROTTLE_CENTER_V, THROTTLE_FULL_V, THROTTLE_REVERSE_V));
+}
+
+bool configOk() {
+  const float v[] = {STEER_CENTER_V, STEER_LEFT_V, STEER_RIGHT_V, THROTTLE_CENTER_V, THROTTLE_FULL_V, THROTTLE_REVERSE_V};
+  for (float x : v) if (x < 0 || x > VREF) return false;
+  return true;
 }
 
 void handleLine() {
@@ -94,8 +119,16 @@ void handleLine() {
 
 void setup() {
   Serial.begin(115200);
-  pinMode(STEER_PIN, OUTPUT);
+#ifndef USE_DAC
+  pinMode(STEER_PIN, OUTPUT);  // not on the ESP32: pinMode after dacWrite detaches the DAC
   pinMode(THROTTLE_PIN, OUTPUT);
+#endif
+  while (!configOk()) {
+    // A measured voltage the board cannot output: the controller's rail is
+    // above 3.3 V (see the top of this file). Stay here, saying so.
+    Serial.println("E config: a measured voltage is outside 0..VREF");
+    delay(1000);
+  }
   drive(0, 0);  // centred before the controller is switched on
   pinMode(BUTTON_PIN, INPUT_PULLUP);
 #ifdef HAVE_ULTRASONIC

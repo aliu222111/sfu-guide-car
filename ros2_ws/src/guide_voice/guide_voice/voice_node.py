@@ -14,6 +14,7 @@ with ElevenLabs, or Piper when the network is down.
 from __future__ import annotations
 
 import json
+import os
 import threading
 
 import rclpy
@@ -51,11 +52,14 @@ class VoiceNode(Node):
         from .cloud import STT_MODEL, ElevenLabsTranscriber
 
         self.stt = ElevenLabsTranscriber(model=P("elevenlabs_stt_model", STT_MODEL), log=log)
+        if not os.environ.get("ELEVENLABS_API_KEY"):
+            log("ELEVENLABS_API_KEY is not set: the car cannot hear, and speaks with Piper")
         self.pending = None  # a destination read back to the student, waiting for their yes
         actions = Actions(self.set_destination, self.pause_or_resume, self.confirm)
         llm = P("llm", "gemini")
         model = self.declare_parameter("claude_model", "claude-haiku-4-5").value
         auth = self.declare_parameter("claude_auth", "subscription").value
+        self.agent = None  # without one, offline() still understands rooms, yes, no and stop
         if llm == "gemini":  # Google Gemini (GEMINI_API_KEY)
             from google import genai
             from google.genai import types
@@ -63,9 +67,12 @@ class VoiceNode(Node):
             from .gemini_agent import MODEL as GEMINI_MODEL
             from .gemini_agent import GeminiVoiceAgent
 
-            client = genai.Client(http_options=types.HttpOptions(timeout=15000))
-            self.agent = GeminiVoiceAgent(client, actions, model=P("gemini_model", GEMINI_MODEL))
-            self.get_logger().info(f"voice agent: Gemini {self.agent.model}")
+            try:
+                client = genai.Client(http_options=types.HttpOptions(timeout=15000))
+                self.agent = GeminiVoiceAgent(client, actions, model=P("gemini_model", GEMINI_MODEL))
+                self.get_logger().info(f"voice agent: Gemini {self.agent.model}")
+            except Exception as e:  # no GEMINI_API_KEY: rooms, yes, no and stop still work
+                self.get_logger().error(f"Gemini unavailable ({e}); answering with the built-in phrases only")
         elif llm != "claude":
             raise ValueError(f"llm must be claude or gemini, not {llm!r}")
         elif auth == "subscription":
@@ -99,13 +106,18 @@ class VoiceNode(Node):
             pass
 
     def on_ptt(self, msg: Bool):
-        if msg.data:
-            self.speaker.hold(True)  # stop talking and keep quiet while the student speaks
-            self.recorder.start()
-        else:
-            audio = self.recorder.stop()
+        try:
+            if msg.data:
+                self.speaker.hold(True)  # stop talking and keep quiet while the student speaks
+                self.recorder.start()
+            else:
+                audio = self.recorder.stop()
+                self.speaker.hold(False)
+                threading.Thread(target=self.respond, args=(audio,), daemon=True).start()
+        except Exception as e:  # no microphone, or it went away: say so instead of dying
+            self.get_logger().error(f"microphone: {e}")
             self.speaker.hold(False)
-            threading.Thread(target=self.respond, args=(audio,), daemon=True).start()
+            self.speaker.say("I can't hear you: my microphone isn't working. Please use the phone app.")
 
     def respond(self, audio):
         if not self.busy.acquire(blocking=False):
@@ -134,6 +146,8 @@ class VoiceNode(Node):
             context += f"; waiting for the student to confirm the destination {self.pending}"
         if rooms:
             context += f"; rooms that match what was heard: {', '.join(rooms[:3])}"
+        if self.agent is None:
+            return self.offline(text, rooms)
         try:
             return self.agent.handle(text, context)
         except Exception as e:  # Gemini unreachable or over its limit: the plain answers still work

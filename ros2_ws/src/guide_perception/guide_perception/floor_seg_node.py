@@ -7,6 +7,8 @@ for clearing). Both are PointCloud2 in base_link for Nav2's obstacle layer.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 from sensor_msgs.msg import PointCloud2
 from sensor_msgs_py import point_cloud2
@@ -20,6 +22,9 @@ class FloorSegNode(CameraNode):
     def __init__(self):
         super().__init__("floor_segmentation", default_rate=2.0)
         model = self.declare_parameter("model", "models/segformer-b0-ade.onnx").value
+        if not Path(model).exists():
+            self.get_logger().fatal(f"model file {model} is missing: run scripts/export_models.py (README, Install)")
+            raise SystemExit(1)
         labels = self.declare_parameter("labels", "models/segformer-b0-ade.labels.json").value
         w = self.declare_parameter("input_width", 320).value
         h = self.declare_parameter("input_height", 180).value

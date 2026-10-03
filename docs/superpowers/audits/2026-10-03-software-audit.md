@@ -195,6 +195,51 @@ Not fixed, by decision:
   module; the voice agents could share their tool list and preamble; launch files repeat include
   boilerplate. Encoder inputs stay as the specced extension point.
 
+## Third pass: the RC car, before it meets the real one
+
+The chassis became a stock RC car (Ackermann steering) driven through its own hand controller by an
+ESP32. Four read-only audits (the drive path, the navigation configuration, voice and perception,
+the docs against the code) plus a dry launch of the real-car launch file without hardware. Fixed:
+
+- **Electrical, from the drive-path audit.** The ESP32 DAC cannot output above 3.3 V and its pins
+  die above it; the firmware now refuses to run if any measured controller voltage is above 3.3 V,
+  the wiring text says to feed the pots from 3V3 or level-shift, to lift the wipers and to bias each
+  wiper to its centre so the car sits still while the board boots. pyserial asserted DTR/RTS on every
+  open, which resets an ESP32 dev board and leaves the controller inputs floating for a second: the
+  bridge opens with both low. Four measured end points instead of mirroring (a trigger's brake
+  travel is shorter than its forward travel). No `pinMode` on DAC pins (it detaches the DAC in
+  arduino-esp32 3.x).
+- **Throttle trim** capped at 0.12 m/s or 60 % of the speed asked, so a car near a person is never
+  sent much more than the gate allows and a stalled car does not lunge; the gate's reverse tick no
+  longer slams the wheels to full lock.
+- **Footprint on the rear axle** (0.63 m ahead, 0.12 m behind) instead of symmetric: the bicycle
+  model turns about the rear axle. Camera and bumper mounts moved with it.
+- **Gyro bias** learns only from fresh, non-null visual odometry stamped in its own time base, and
+  only when the gyro itself reads nearly still.
+- **Progress checker** allows 60 s without movement (the gate holds the car for a student or a
+  bumper reading; that is not a navigation failure). A wall-snap of the estimate fires at most once
+  per 10 s, so an indoor fix cannot ping-pong it.
+- **Voice** survives a missing Gemini key (built-in phrases only), a missing microphone, and warns
+  on a missing ElevenLabs key; speech is requested as raw PCM and wrapped as WAV locally; the Gemini
+  model is pinned.
+- **Perception** reports a missing model file and exits cleanly; an uncalibrated camera (all-zero
+  CameraInfo) no longer silently makes every person "far" (it stays "no calibration: any person is
+  close"). RTAB-Map in localization mode refuses to start without the floor's database instead of
+  silently mapping an empty one.
+- **Phone bridge**: iOS Sensor Logger stamps the accelerometer and gravity streams apart; they are
+  paired by nearest time now. The README says to switch on "Standardise Units & Frames" and how to
+  check the compass offset once.
+- **Ports**: an ESP32 dev board is /dev/ttyUSB0, which collided with the GPS default; the launch now
+  takes both from /dev/serial/by-id.
+- **Docs**: the RC car runbook (wiring, measuring, flashing, bench test, calibration, first drive)
+  and the spec's chassis section rewritten; tank-steering text removed.
+
+Not testable here, so to check on the bench first: the firmware has never been compiled for an
+ESP32 (compile it in the Arduino IDE before anything else); the controller's potentiometer rail
+voltage; the sense of each control (the bench test); `world_yaw_offset` for the iPhone's heading
+convention; ElevenLabs and Gemini with real keys (`voice_check`); the three webcams on one hub at
+15 fps.
+
 ## Open items, not fixable without the hardware or site visits
 
 - **Verify on site:** every connector in `sfu_map/connectors.yaml` (14 elevators, 1 entrance) and

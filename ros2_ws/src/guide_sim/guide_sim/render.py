@@ -32,7 +32,7 @@ class CameraModel:
     cx: float = 320.0
     cy: float = 180.0
     # Mount on base_link (match the URDF: cam_x, cam_z, cam_pitch, stereo_baseline).
-    x: float = 0.30
+    x: float = 0.50
     z: float = 0.45
     pitch: float = 0.20  # rad, nose down
     baseline: float = 0.10

@@ -28,8 +28,8 @@ def test_fast_car_is_slowed_down():
 
 def test_stop_is_a_stop_and_trim_is_bounded():
     t = SpeedTrim(limit=0.3)
-    run(t, 0.2, lambda sent: 0.0, 10.0)  # wheels blocked: the trim saturates
-    assert t.trim == pytest.approx(0.3)
+    run(t, 0.2, lambda sent: 0.0, 10.0)  # wheels blocked: the trim saturates at its small-speed cap
+    assert t.trim == pytest.approx(0.12)
     assert t.command(0.0, 0.3, 0.0, 0.1, 0.05) == (0.0, 0.3)
     assert t.trim == 0.0
 

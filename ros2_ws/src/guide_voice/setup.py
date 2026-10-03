@@ -11,11 +11,11 @@ setup(
         ("share/" + package_name, ["package.xml"]),
     ],
     # Plus the piper binary and a voice model, see README.
-    install_requires=["setuptools", "anthropic", "faster-whisper", "sounddevice", "numpy", "sfu_map"],
+    install_requires=["setuptools", "elevenlabs", "google-genai", "piper-tts", "sounddevice", "numpy", "sfu_map"],
     zip_safe=True,
     maintainer="Alex Liu",
     maintainer_email="alexthespacexfan@gmail.com",
-    description="Voice agent for students without a phone: Whisper, Claude tools, Piper",
+    description="Voice agent: ElevenLabs Scribe and voice, Gemini with three tools, Piper offline",
     license="MIT",
     entry_points={"console_scripts": ["voice_agent = guide_voice.voice_node:main",
                                       "voice_check = guide_voice.voice_check:main"]},

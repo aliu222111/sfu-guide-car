@@ -26,7 +26,8 @@ class FakeTTS:
         self.calls.append((voice_id, kw))
         if self.fail:
             raise ConnectionError("no network")
-        return iter([_wav()[:20], _wav()[20:]])  # streamed in chunks
+        pcm = b"\x00\x10" * 2205  # 0.1 s of 16-bit PCM, streamed in chunks
+        return iter([pcm[:1000], pcm[1000:]])
 
 
 def test_elevenlabs_voice_cached_and_piper_fallback(tmp_path, monkeypatch):
@@ -38,7 +39,7 @@ def test_elevenlabs_voice_cached_and_piper_fallback(tmp_path, monkeypatch):
     sp.synthesize("In 5 metres, turn right.", out)
     sp.synthesize("In 5 metres, turn right.", out)  # repeated announcement: from the cache
     assert out.read_bytes().startswith(b"RIFF") and len(tts.calls) == 1
-    assert tts.calls[0][1]["model_id"] == "eleven_flash_v2_5" and tts.calls[0][1]["output_format"] == "wav_22050"
+    assert tts.calls[0][1]["model_id"] == "eleven_flash_v2_5" and tts.calls[0][1]["output_format"] == "pcm_22050"
     tts.fail = True
     sp.synthesize("We've arrived.", tmp_path / "b.wav")  # WiFi gone: Piper speaks
     assert piper == ["We've arrived."]

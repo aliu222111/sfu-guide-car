@@ -5,7 +5,7 @@ Maps come from phase 0 (`sfu_map/`, output in `maps/`).
 
 | package | what | spec |
 |---|---|---|
-| `guide_bridge` | serial link to the motor microcontroller (+ Arduino firmware), phone IMU bridge, velocity gate | 3, 6, 10 |
+| `guide_bridge` | serial link to the ESP32 that works the RC hand controller (+ its firmware), the Ackermann maths, phone IMU bridge, velocity gate | 3, 6, 10 |
 | `guide_perception` | floor segmentation, person detection, sign reader, vanishing-point heading, rear-camera student tracker | 6, 7, 9 |
 | `guide_mission` | trip state machine and mission node, localization manager, RTAB-Map to GIS alignment | 6, 8 |
 | `guide_ui` | phone web app and its server, Bluetooth signal monitor | 9 |
@@ -57,7 +57,7 @@ ros2 run guide_voice voice_check --talk --mic 2 --speaker 3   # Enter, speak, En
 ```
 
 Put the device names or numbers that worked into `mic_device` and `speaker_device` in `guide.yaml`,
-then `guide_car.launch.py voice:=true`. On the car the push-to-talk button (Arduino pin 2, `B 1`/`B 0`
+then `guide_car.launch.py voice:=true`. On the car the push-to-talk button (ESP32 GPIO4, `B 1`/`B 0`
 on the serial line) starts and stops the recording; the car stops talking while it is held. Without
 WiFi the car still speaks (Piper) and says it cannot hear just now; the phone app still works.
 
@@ -82,7 +82,7 @@ people's products. Subscription usage limits apply: the voice agent uses a few r
 the cloud sign reader should run at 0.2 Hz (`guide.yaml`), not the local OCR's 1 to 2 Hz. To use an
 API key instead: `claude_auth: api_key` (voice) or `backend: claude_api` (signs).
 
-## Gemini and ElevenLabs (optional)
+## Gemini and ElevenLabs: the switches
 
 Switches in `guide.yaml`, keys in the environment:
 
@@ -125,13 +125,9 @@ ros2 run guide_bringup rtabmap_check --mode mapping --duration 215
 # then mode:=localization (same database), stereo_sim -p start_s:=20, rtabmap_check --mode localization --start-s 20
 ```
 
-Tank steering in the sim: `sim.launch.py turn_slip:=1.5 pivot_stall:=0.2` makes the fake car turn at
-two thirds of the asked rate and not pivot below 0.2 rad/s; add `turn_gain:=1.5 min_pivot_rate:=0.15` for
-the serial bridge's compensation.
-
-Hardware in the loop (`guide_sim`): the real firmware, drivers and nodes against a simulated car and
-building; `hil.launch.py cameras:=stereo|mono|iphone`, then `ros2 run guide_sim hil_trip "AQ 3046"`.
-See the launch file's docstring for mapping first.
+The fake car in `sim.launch.py` is an Ackermann car (`wheelbase`, `max_steer` parameters of
+`fake_robot`): it cannot turn on the spot, like the real one. In `hil.launch.py`, `understeer:=1.1`
+is the simulated car's geometric / actual turn rate.
 
 One camera (spec section 18): `ros2 run guide_perception mono_odometry` on the left image publishes `/vo`;
 `rtabmap_check --mode odometry` scores it against `stereo_sim`.
@@ -150,13 +146,59 @@ and close the loop. Align it to the GIS frame at three or more doors:
 `ros2 run guide_mission align_floor --floor AQ-03 --graph maps/route_graph.json --out rtabmap_db/alignments.yaml --no-scale AQ-03:door:3150=x,y ...`
 with x,y read from RTAB-Map at each door.
 
-**2, chassis and outdoor driving.** Flash `guide_bridge/firmware/guide_motor/guide_motor.ino` (set pins,
-track width, max track speed, `MIN_PWM_DRIVE`, `MIN_PWM_PIVOT`). Tank steering slips in turns: with the serial bridge and phone
-IMU running (no Nav2, no gate), `ros2 run guide_bridge calibrate_turn --yes` spins the car in place and prints
-`turn_gain` and `min_pivot_rate` for `guide.yaml`; rerun with `--current-gain <new gain>` to check. Phone: Sensor Logger, HTTP push to `http://<laptop>:8765/data` at 100 Hz.
-Draw the outdoor route in `sfu_map/connectors.yaml` (`outdoor_links`) and rebuild maps, then
-`ros2 launch guide_bringup guide_car.launch.py perception:=false` (without perception the gate does not
-wait for the person detector; never run that way near people).
+**2, the RC car.** The car is a stock RC car with its stock pistol-grip controller; the laptop drives
+the controller. An ESP32-WROOM-32E's two DAC pins stand in for the controller's steering wheel and
+trigger potentiometers.
+
+*Wiring.* Open the controller. Find the steering and trigger potentiometers; each has three wires:
+the two rails and the wiper (middle). Measure the rail voltage with the controller on: if it is above
+3.3 V (many run the pots from the battery), feed the pots from the ESP32's 3V3 pin instead, or put an
+op-amp level shifter between each DAC and wiper, because the ESP32 outputs at most 3.3 V and its
+pins die above it. Lift each wiper wire off its potentiometer (desolder or cut), and connect GPIO25 to
+the steering wiper wire and GPIO26 to the throttle wiper wire. Bias each wiper wire to its centre
+voltage with two resistors (10 k to the rail, 10 k to ground, adjusted to give the centre voltage
+measured below) so the car sits still while the board boots or resets. Tie the ESP32's ground to the
+controller's ground. Push-to-talk button: GPIO4 to ground. HC-SR04 (one camera only): trigger GPIO18,
+echo GPIO19 through a 1 k / 2 k divider (its echo is 5 V). Keep the controller's antenna clear of the
+laptop and the car's chassis.
+
+*Measure.* Before lifting the wipers, with the controller on and a multimeter on each wiper: the
+voltage with the wheel and trigger at rest, at full left, full right, full trigger and full
+brake/reverse. Put the six numbers at the top of `guide_bridge/firmware/guide_motor/guide_motor.ino`
+(`STEER_CENTER_V` ... `THROTTLE_REVERSE_V`); the board refuses to run if any is above 3.3 V.
+
+*Flash.* Arduino IDE, board "ESP32 Dev Module", 115200 baud. Power the board before switching the
+controller on (both outputs sit at centre). Serial port: `ls -l /dev/serial/by-id/`; the ESP32 is the
+CP2102 or CH340 entry (usually `/dev/ttyUSB0`, the GPS adapter `/dev/ttyUSB1`): pass
+`motor_port:=/dev/serial/by-id/usb-Silicon_Labs_CP2102...` and `gps_port:=...` to the launch to be
+safe. `sudo usermod -aG dialout $USER`, then log out and in.
+
+*Bench test, wheels off the floor.* `ros2 run guide_bridge serial_bridge --ros-args -p port:=/dev/ttyUSB0`
+then `ros2 topic pub -r 10 /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.3}}"`: the wheels must turn
+forwards (else `throttle_reversed: true` in guide.yaml); `"{linear: {x: 0.3}, angular: {z: 0.5}}"`: the
+front wheels must steer left (else `steer_reversed: true`). Unplug the USB: the ESP32 centres both
+within 300 ms.
+
+*Calibrate* (guide.yaml, `serial_bridge`): `wheelbase` (front axle to rear axle); `max_steer`:
+drive a slow full-lock circle, measure its radius R to the car's centre line, `max_steer = atan(wheelbase / R)`;
+`steer_trim`: the steering value at which it rolls straight (try 0.02 steps); `throttle_start`: the
+smallest throttle at which it rolls; `throttle_limit`: keep 0.4 until everything else works;
+`speed_at_limit`: time 10 m at `throttle_limit`. The serial bridge then trims the throttle on the
+measured speed (`speed_trim_gain`), so the slow speeds near people are real.
+
+*First drive.* Outdoors, an empty paved area, the controller in your hand (switching it off stops the
+car): `ros2 launch guide_bringup guide_car.launch.py perception:=false` and a short destination.
+Without perception the gate does not wait for the person detector: never run that way near people.
+
+*Phone.* Sensor Logger on the iPhone, lying flat on the chassis, screen up, top edge forward: enable
+accelerometer, gravity, gyroscope, orientation, magnetometer and location; turn ON "Standardise
+Units & Frames" (without it the iOS axes are flipped and the heading turns the wrong way); HTTP push
+to `http://<laptop>:8765/data` at 100 Hz. Check the compass once: with the phone's top edge pointing
+east, `/phone/imu` yaw must read about 0; if it reads about 90 degrees, set `world_yaw_offset: 1.571`
+under `phone_imu` in guide.yaml (iOS reports true-north heading with x north). Outdoor position still
+needs the Adafruit GPS on the laptop: the phone's location is published on `/phone/fix` but not fused.
+
+Draw the outdoor route in `sfu_map/connectors.yaml` (`outdoor_links`) and rebuild maps.
 
 **3, perception.** `guide_car.launch.py` with the default `perception:=true`.
 
@@ -211,6 +253,9 @@ without a phone, `rear_camera:=true`, `rssi:=true`.
 
 TF: `map -> odom` from ekf_global, `odom -> base_link` from ekf_local, the rest from the URDF. RTAB-Map
 publishes no TF on the car; its poses reach the EKF through the localization manager in the GIS frame.
+
+Also: `/bumper/range` (sensor_msgs/Range, serial bridge -> velocity gate, from the HC-SR04) and
+`/odometry/local` -> serial bridge (the throttle's speed trim).
 
 ## Tests
 

@@ -108,3 +108,16 @@ def test_gyro_bias_needs_fresh_odometry():
     for k in range(500):
         b.gyro(0.01 * k, 0.02, odometry_age=5.0)  # the cameras stopped reporting: learn nothing
     assert b.bias == 0.0
+
+
+def test_ios_accelerometer_pairs_with_the_nearest_gravity_sample():
+    from guide_bridge.phone_imu import parse_payload
+
+    t = 1_790_000_000_000_000_000
+    doc = {"payload": [
+        {"name": "accelerometer", "time": t, "values": {"x": 0.0, "y": 0.5, "z": 0.0}},
+        {"name": "gravity", "time": t + 3_000_000, "values": {"x": 0.0, "y": 0.0, "z": 9.81}},  # 3 ms later: iOS stamps them apart
+        {"name": "accelerometer", "time": t + 100_000_000, "values": {"x": 0.0, "y": 0.0, "z": 0.0}},  # no gravity within 10 ms
+    ]}
+    imus, _, _ = parse_payload(doc)
+    assert len(imus) == 1 and imus[0].accel == pytest.approx((0.5, 0.0, 9.81))  # phone y forward -> base x

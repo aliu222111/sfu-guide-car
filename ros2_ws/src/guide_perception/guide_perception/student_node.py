@@ -8,6 +8,8 @@ trip starts, by ByteTrack id) and publishes ``guide/student_distance``
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import math
 
 from std_msgs.msg import Float32, String
@@ -40,7 +42,11 @@ def pick_student(people, current_id, lost_for: float = 0.0, last_distance: float
 class StudentNode(CameraNode):
     def __init__(self):
         super().__init__("student_tracker", default_rate=5.0)
-        self.det = PersonDetector(self.declare_parameter("model", "yolo11n.pt").value)
+        model = self.declare_parameter("model", "yolo11n.pt").value
+        if not Path(model).exists():
+            self.get_logger().fatal(f"model file {model} is missing: run scripts/export_models.py (README, Install)")
+            raise SystemExit(1)
+        self.det = PersonDetector(model)
         self.lock_distance = self.declare_parameter("lock_distance", 3.0).value
         self.student_id = None
         self.seen_at = 0.0

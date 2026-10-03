@@ -3,6 +3,8 @@ plus ``people/detections`` (String, JSON) for the phone app and debugging."""
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import json
 import math
 
@@ -16,6 +18,9 @@ class PersonNode(CameraNode):
     def __init__(self):
         super().__init__("person_detection", default_rate=10.0)
         model = self.declare_parameter("model", "yolo11n.pt").value
+        if not Path(model).exists():
+            self.get_logger().fatal(f"model file {model} is missing: run scripts/export_models.py (README, Install)")
+            raise SystemExit(1)
         conf = self.declare_parameter("conf", 0.35).value
         imgsz = self.declare_parameter("imgsz", 640).value
         device = self.declare_parameter("device", "").value or None

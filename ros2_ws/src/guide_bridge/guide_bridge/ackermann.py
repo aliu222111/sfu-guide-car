@@ -29,7 +29,7 @@ class CarConfig:
     throttle_limit: float = 0.40  # never more trigger than this, either way
     speed_at_limit: float = 1.6  # m/s at throttle_limit on the floor
     throttle_reversed: bool = False  # true if a positive throttle drives backwards
-    stop_speed: float = 0.02  # m/s: slower requests are a stop
+    stop_speed: float = 0.02  # m/s: slower requests are a stop (the speed trim uses it too)
 
 
 class Ackermann:

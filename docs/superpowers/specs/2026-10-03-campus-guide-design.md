@@ -23,8 +23,8 @@ Stated by Alex:
 - Environment: door to room, outdoors and indoors, level changes included, outdoors used more.
 - Buildings for version one: AQ, WMC, MBC.
 - Compute: a laptop that can dual-boot Ubuntu, riding on the car. An NVIDIA GPU is the main plan; section 15 is the plan without one; section 16 is the optional cloud split. The laptop is the main plan either way. A Raspberry Pi 4 is in hand but is not enough for stereo SLAM and is not used for perception.
-- Sensors in hand: two 720p USB webcams, Adafruit Ultimate GPS, WiFi, Bluetooth.
-- Chassis: Alex is building it, tank-style (skid) steering. No wheel encoders for now. An old phone strapped to the car is the IMU (gyro, accelerometer, compass) and a second GPS.
+- Sensors in hand: three Logitech 720p USB webcams (two front as a 10 cm stereo pair, one rear), an iPhone (Sensor Logger: IMU, compass, GPS), Adafruit Ultimate GPS, WiFi, Bluetooth.
+- Chassis: a stock RC car with Ackermann steering and four-wheel drive, driven through its own radio controller by an ESP32 on the laptop (section 10). It cannot turn on the spot; the planner and the lost-state behaviour are built around that. No wheel encoders. An iPhone strapped flat to the car is the IMU (gyro, accelerometer, compass) and a second GPS.
 - Interaction: phone web app is the main controller. An LLM voice agent on the car serves students without a phone. Follow-aware behaviour is required. Elevators and doors are handled by asking the student.
 - Learned vision wanted: floor segmentation, room-sign reading, person detection, and glass handling.
 - Localization: Alex was not sure. RTAB-Map stereo odometry with the phone IMU, GPS outdoors, room-sign reading and corridor vanishing-point heading indoors, is the recommendation and is adopted here.
@@ -33,14 +33,14 @@ Stated by Alex:
 
 Assumptions made by Claude and open to correction:
 
-- Tank-style (skid-steer) chassis, decided after the interview: each side's track or wheels driven together, turning by driving the sides at different speeds. Kinematically it is a differential drive, so it turns in place and Nav2's model holds; section 10 covers what skid steering changes.
+- Ackermann steering (the stock RC car), decided after the interview: Nav2 uses the Smac Hybrid-A* planner (a minimum turning radius, backing up allowed for three-point turns) and the Regulated Pure Pursuit controller, never a rotate-in-place; the car cannot pivot, so when lost it stops and asks the student for the nearest door number rather than spinning to find a sign.
 - The car drives at 0.6 to 1.0 m/s outdoors and 0.4 to 0.6 m/s indoors.
 - SFU WiFi is available for the voice agent's LLM calls. The phone app runs on campus WiFi.
 - The laptop runs Ubuntu 24.04 and ROS 2 Jazzy.
 
 ## 3. Hardware
 
-In hand: two 720p USB webcams, Adafruit Ultimate GPS (MTK3339, about 3 m accuracy, up to 10 Hz, uFL socket for an external antenna), laptop, Raspberry Pi 4.
+In hand: three Logitech 720p USB webcams, an iPhone, Adafruit Ultimate GPS (MTK3339, about 3 m accuracy, up to 10 Hz, uFL socket for an external antenna), laptop, Raspberry Pi 4.
 
 To build (Alex): chassis, motor driver, microcontroller for motors.
 
@@ -52,7 +52,7 @@ Required additions:
 - Microcontroller (Arduino, ESP32 or the Pi 4) that takes velocity commands over USB serial and drives the motors.
 - Speaker and USB microphone on the laptop for the voice agent.
 
-Strongly recommended, not required: motors with magnetic encoders. Without them, position freezes whenever the cameras lose texture (blank wall, glass, darkness, fast turn), although the phone IMU keeps heading. With them the car coasts through several metres of blindness. A wired 6-axis IMU (5 to 30 dollars) replaces the phone later if WiFi latency to the phone proves a problem.
+No wheel encoders: the stock car has none. Position holds whenever the cameras lose texture (blank wall, glass, darkness) and the car stops rather than drives blind; the RC throttle's speed is trimmed on visual odometry instead (section 10).
 
 Optional, only if tests show glass close calls: one ultrasonic sensor on the front bumper.
 
@@ -181,21 +181,39 @@ Follow-aware: the page sends a heartbeat every second while open. Two missed hea
 
 ### Voice agent on the car, for students without a phone
 
-Push-to-talk button on the car or a wake word. Audio to text with ElevenLabs Scribe over the laptop's campus WiFi, with the building names and codes as key terms; a parser finds rooms however they were said ("A Q thirty forty six") and passes them to the model as hints. The text goes to Gemini (or, with `llm: claude`, a Claude model) with exactly three tools: `set_destination(room)`, `pause_or_resume()`, `confirm()`. The car reads the room back with its name, level and building and starts only on a yes; it asks out loud for doors and elevators and waits for a yes; lost, it asks for the nearest door number and uses the answer as a position fix. The reply is spoken with ElevenLabs on the car's speaker, or Piper on the laptop when the network is down (the car then says it cannot hear just now). The same spoken instructions the phone gives are also played on the car speaker. Follow-aware without a phone is the walking-pace limit plus a spoken "still with me?" at each turn that waits for a yes. Claude model: Haiku 4.5 for latency and cost; tool calls only, no free conversation beyond clarifying the room.
+Push-to-talk button on the car. Audio to text with ElevenLabs Scribe over the laptop's campus WiFi, with the building names and codes as key terms; a parser finds rooms however they were said ("A Q thirty forty six") and passes them to the model as hints. The text goes to Gemini (or, with `llm: claude`, a Claude model) with exactly three tools: `set_destination(room)`, `pause_or_resume()`, `confirm()`. The car reads the room back with its name, level and building and starts only on a yes; it asks out loud for doors and elevators and waits for a yes; lost, it asks for the nearest door number and uses the answer as a position fix. The reply is spoken with ElevenLabs on the car's speaker, or Piper on the laptop when the network is down (the car then says it cannot hear just now). The same spoken instructions the phone gives are also played on the car speaker. Follow-aware without a phone is the walking-pace limit plus a spoken "still with me?" at each turn that waits for a yes. Claude model: Haiku 4.5 for latency and cost; tool calls only, no free conversation beyond clarifying the room.
 
 ## 10. Chassis interface
 
-`guide_bridge` is a ROS 2 node that opens one USB serial port. Downlink at 20 Hz: one line `V <linear m/s> <angular rad/s>\n`. Uplink is optional: if encoders are added, `E <left ticks> <right ticks>\n`. The phone IMU does not go through serial; a second small node in `guide_bridge` receives the phone app's HTTP posts and publishes `sensor_msgs/Imu`, `MagneticField` and `NavSatFix`. Any microcontroller that can parse those lines works. A watchdog on the microcontroller stops the motors if no `V` line arrives for 500 ms.
+The car is a stock RC car (75 x 41 cm, 18 cm wheels, Ackermann steering, four-wheel drive) with its
+stock pistol-grip radio controller. Nothing on the car is modified: the laptop drives the controller.
+An ESP32-WROOM-32E on the laptop's USB stands in for the controller's steering wheel and trigger: its
+two DAC outputs (GPIO25 steering, GPIO26 throttle) replace the wiper voltages of the two
+potentiometers, and the controller radios the car as if a hand held it. The wipers are lifted from
+their tracks, each wiper wire is biased to its centre voltage with a resistor divider (so the car
+sits still while the board boots), grounds are tied, and the potentiometer rail must be at or below
+3.3 V (feed the pots from the board's 3V3 pin, or level-shift) because the ESP32 cannot output more
+and its pins die above it. The firmware refuses to run if any measured voltage is above 3.3 V.
 
-### Tank steering
+Protocol, USB serial at 115200 baud. Downlink at 20 Hz: `C <steering -1..1> <throttle -1..1>\n`,
+positive left and forward, exactly what the controller's wheel and trigger would be set to. The
+firmware maps each onto the measured wiper voltages (centre, and each end of travel separately: the
+trigger's brake travel is shorter than its forward travel) and centres both if no line arrives for
+300 ms. Uplink: `B <0|1>\n` on push-to-talk button changes, and with the HC-SR04 bumper `U <cm>\n` at
+10 Hz (0: nothing within 4 m; -1: no echo at all, the sensor is missing, so the laptop treats the
+bumper as silent and creeps). No encoders: the firmware knows nothing about the car.
 
-The microcontroller mixes `V` into side speeds the textbook way, `v -/+ w * track / 2`. A skid-steer car drags its tracks sideways to turn, so on a real floor it turns slower than that mix says, by an amount that depends on the floor (more on carpet than on concrete), and below some turn rate a pivot in place does not start at all. Three things handle it:
-
-- The serial bridge scales the turn rate by `turn_gain` and raises deliberate pivots (car nearly stopped, request above 0.05 rad/s) to at least `min_pivot_rate`. Both live in `guide.yaml`, so recalibrating for a new floor needs no reflash. `ros2 run guide_bridge calibrate_turn` measures both with the phone gyro: it spins the car in place both ways at 0.15 to 0.45 rad/s and compares what the gyro saw with what was asked.
-- The firmware maps any non-zero side speed onto a floor..255 so small commands still move a track: `MIN_PWM_DRIVE` when both sides turn the same way, the higher `MIN_PWM_PIVOT` when they turn opposite ways (a pivot drags the tracks sideways). Both are measured on the floor; one floor for both made the slow-downs near people faster than asked.
-- Nav2's controller is the Rotation Shim around DWB: when the path heading is more than 0.6 rad off, the car pivots to face it first (at 0.45 rad/s), then DWB follows. A tank turns on the spot well and scrubs on tight arcs, so turning first is straighter and more predictable.
-
-Heading never comes from the tracks (section 6). In simulation (`sim.launch.py turn_slip:=1.5 pivot_stall:=0.2`, a car that turns at two thirds of the asked rate and does not pivot below 0.2 rad/s), the uncompensated car stalls at a waypoint and the trip ends blocked; with the gain and minimum pivot rate the calibration would print, it arrives as fast as an ideal chassis.
+Everything about the car lives on the laptop, in guide.yaml (`serial_bridge`) and
+guide_bridge/ackermann.py: the bicycle model (steering angle = atan(wheelbase * turn rate / speed)),
+the full-lock angle, the steering trim, the throttle deadband and cap (RC cars are fast), the speed
+at the cap, and the direction switches. Asked to turn while stopped, the car points its wheels and
+waits: it cannot turn on the spot, and nothing in the stack asks it to (Nav2 plans with a minimum
+turning radius; lost, the car asks the student for a door number instead of spinning). The RC
+throttle is open loop (the speed a trigger position gives changes with the battery, the floor and the
+load), so the serial bridge trims the throttle slowly towards the speed the local EKF measures, with
+the turn rate scaled alongside so the curve is unchanged; the trim is capped so a car held back near a
+person is never sent much more than asked, and a stalled car does not lunge when freed. Calibration
+is a bench and floor procedure in the README ("2, the RC car").
 
 ## 11. Phases and exit criteria
 
@@ -217,7 +235,7 @@ Phase 0 starts immediately and needs nothing but the laptop. Phases 1 and 2 can 
 
 ## 12. Risks
 
-- Camera-only blind spots freeze position. The car stops rather than drives blind. Mitigated by speed limits and recovery rotation; fixed properly by encoders.
+- Camera-only blind spots freeze position. The car stops rather than drives blind. Mitigated by speed limits and by asking the student for a door number; fixed properly by encoders.
 - The phone IMU depends on campus WiFi between phone and laptop. A dropped stream degrades heading to vision only. If this happens often, a wired IMU replaces the phone.
 - Unsynchronised webcams degrade stereo on fast motion. Mitigated by the turn rate cap and approximate sync.
 - SFU's terraced campus means most building-to-building walks use stairs. Car routes will be longer via ramps. The accessibility map is the source of truth for ramps until the OSM footpath pull is fixed.
@@ -240,7 +258,7 @@ Researched on 2026-10-02 and 2026-10-03.
 - cartesiancs/map3d: React Three Fiber city renderer from OpenStreetMap. Could skin the phone app's map later. Not navigation.
 - DHu06/SFU-Burnaby-Interactive-map: source of the footprint snapshot and the proof that the SFU GIS server is public.
 
-Pretrained models chosen: SegFormer ADE20K (Hugging Face `nvidia/segformer-b2-finetuned-ade-512-512`), YOLO11n with ByteTrack (Ultralytics), PaddleOCR, faster-whisper small, Piper. Fallback upgrade for depth: NVlabs/Fast-FoundationStereo.
+Pretrained models chosen: SegFormer ADE20K (Hugging Face `nvidia/segformer-b2-finetuned-ade-512-512`), YOLO11n with ByteTrack (Ultralytics), PaddleOCR, ElevenLabs Scribe and voice (Piper offline). Fallback upgrade for depth: NVlabs/Fast-FoundationStereo.
 
 ## 14. Repository layout
 
@@ -270,7 +288,7 @@ Components that change:
 
 - Floor segmentation: SegFormer-b0 instead of b2, exported to ONNX and run with ONNX Runtime on CPU at 2 Hz on a 320 x 180 crop of the lower image. On an Intel laptop the OpenVINO execution provider roughly doubles that; on an AMD laptop plain CPU is used. 2 Hz is enough because the car moves under 1 m/s and the costmap keeps the last mask.
 - Person detection: YOLO11n exported to ONNX, CPU, about 10 frames per second at 640 wide. Unchanged behaviour.
-- Speech to text: faster-whisper `base` with int8 quantisation on CPU. Commands are short so one to three seconds of latency is acceptable.
+- Speech to text: unchanged, ElevenLabs Scribe over WiFi needs no GPU.
 - Depth upgrade path: Fast-FoundationStereo is not available. If SGBM fails on glass, the fallback is the ultrasonic bumper sensor, not a learned model.
 - Sign reading: PaddleOCR already runs on CPU; its rate drops from 2 Hz to 1 Hz to leave headroom.
 
@@ -287,7 +305,7 @@ Stays local, always: stereo depth, RTAB-Map odometry, the EKF, Nav2, person stop
 Can move to the cloud, each independently:
 
 - Sign reading: send the upper third of the left frame at 640 x 360 to Claude Haiku 4.5 once per second with the instruction to return any room numbers seen and nothing else. About 300 input tokens per frame, so roughly 2 dollars per hour of driving at the current published rate of 1 dollar per million input tokens. Replaces PaddleOCR with a single API call and can answer "is a person within 2 m" in the same call as a secondary check, never as the primary stop.
-- Speech to text: a hosted Whisper endpoint instead of faster-whisper on CPU. Saves a core on a no-GPU laptop.
+- Speech to text: already in the cloud (ElevenLabs Scribe).
 - The LLM voice agent already runs in the cloud.
 - Floor segmentation: a hosted GPU endpoint (Replicate, Modal or RunPod, around a dollar an hour) running SegFormer. Not recommended, because a WiFi drop blinds the curb detector; only if the CPU budget in section 15 breaks.
 
