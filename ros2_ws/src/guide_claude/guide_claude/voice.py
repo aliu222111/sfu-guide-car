@@ -93,5 +93,5 @@ class SubscriptionVoiceAgent:
             text = f"[Robot status: {context}]\n{text}"
         reply: Reply = self.session.ask(text, timeout=30.0)
         if reply.is_error:
-            return "Sorry, could you say that again?"
+            raise RuntimeError(reply.detail or "Claude returned an error")  # the node logs it and says so
         return reply.text or "Sorry, I can only help you get to a room in AQ, WMC or MBC."

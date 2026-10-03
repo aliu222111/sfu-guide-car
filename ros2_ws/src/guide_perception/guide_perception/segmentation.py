@@ -14,8 +14,7 @@ import numpy as np
 
 # Classes the car may drive on.
 DRIVABLE = {"floor": 3, "road": 6, "sidewalk": 11, "rug": 28, "path": 52, "runway": 54}
-# Named here only for logging and tests; anything not drivable is an obstacle.
-NOT_DRIVABLE = {"wall": 0, "grass": 9, "person": 12, "earth": 13, "door": 14, "field": 29, "sand": 46, "stairs": 53, "stairway": 59}
+# Anything not drivable is an obstacle.
 
 MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32) * 255.0
 STD = np.array([0.229, 0.224, 0.225], dtype=np.float32) * 255.0

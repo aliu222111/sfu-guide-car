@@ -10,7 +10,7 @@ def gate(**kw):
 def tick(g, t, lin, ang=0.0, outdoor=False, phone=True):
     """One 50 ms control tick with the mission and phone bridge alive."""
     g.set_enabled(True, t)
-    g.set_outdoor(outdoor)
+    g.set_outdoor(outdoor, t)
     if phone:
         g.set_phone_alive(True, t)
     g.nav_cmd(lin, ang, t)
@@ -146,3 +146,10 @@ def test_bumper_optional_unless_required():
     assert ramp(g, 0, 0.5)[0] == 0.5  # no sensor fitted: no limit
     g = gate(require_bumper=True)
     assert ramp(g, 0, 0.5)[0] == GateParams().bumper_slow_speed  # required but silent: creep
+
+
+def test_outdoor_flag_must_keep_arriving():
+    g = gate()
+    assert ramp(g, 0, 1.0, outdoor=True)[0] == 1.0
+    g.set_enabled(True, 10.0), g.set_phone_alive(True, 10.0), g.nav_cmd(1.0, 0, 10.0)
+    assert g.step(10.0)[0] == GateParams().indoor_max  # outdoor flag 5 s old: indoor cap

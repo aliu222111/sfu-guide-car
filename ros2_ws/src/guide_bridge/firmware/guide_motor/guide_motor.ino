@@ -9,15 +9,18 @@
 // push-to-talk button changes. If encoders are fitted, define HAVE_ENCODERS and
 // it sends "E <left> <right>\n" at 20 Hz. With an HC-SR04 ultrasonic sensor on
 // the front bumper (required with one camera, spec section 18), define
-// HAVE_ULTRASONIC and it sends "U <cm>\n" at 10 Hz, 0 when nothing echoes.
+// HAVE_ULTRASONIC and it sends "U <cm>\n" at 10 Hz: 0 when nothing is within
+// 4 m, -1 when the sensor gives no echo pulse at all (dead or unplugged; the
+// laptop then treats the bumper as silent and the car creeps).
 //
 // Tank steering: the tracks slip sideways in turns, so the car turns slower
 // than this geometric mix says. The laptop's serial bridge scales the turn rate
 // up (turn_gain, measured with "ros2 run guide_bridge calibrate_turn"), so
 // nothing here changes when the floor does. Set TRACK_WIDTH_M to the distance
-// between the track centres and MIN_PWM to the PWM at which a track just
-// starts to move when the car pivots on the floor (tracks need more than
-// wheels to break loose).
+// between the track centres, MIN_PWM_DRIVE to the PWM at which the car just
+// starts to roll straight, and MIN_PWM_PIVOT to the PWM at which it just starts
+// to pivot (dragging tracks sideways needs more). One floor for both made slow
+// straight driving (the gate's slow-downs near people) faster than asked.
 //
 // Ackermann chassis: replace mix() so angular velocity becomes a steering angle
 // (spec section 10); the serial protocol stays the same.
@@ -25,8 +28,9 @@
 // ---- Configure for the chassis --------------------------------------------
 const float TRACK_WIDTH_M = 0.30;      // between the centres of the left and right tracks (or wheels)
 const float MAX_WHEEL_SPEED = 1.2;     // m/s at full PWM, measure on the bench
-const int MIN_PWM = 60;                // 0..255: below this a side does not move; measure on the floor
-const float STOP_SPEED = 0.01;         // m/s: side speeds under this are a stop, not MIN_PWM
+const int MIN_PWM_DRIVE = 50;          // 0..255: the car just rolls straight; measure on the floor
+const int MIN_PWM_PIVOT = 65;          // 0..255: the car just pivots in place; measure on the floor
+const float STOP_SPEED = 0.01;         // m/s: side speeds under this are a stop, not a minimum PWM
 const unsigned long WATCHDOG_MS = 500;
 const int PWM_L = 5, DIR_L = 4, PWM_R = 6, DIR_R = 7;
 const int BUTTON_PIN = 2;              // to ground, internal pull-up
@@ -41,7 +45,10 @@ void isrR() { ticksR += digitalRead(ENC_RB) ? 1 : -1; }
 // #define HAVE_ULTRASONIC
 #ifdef HAVE_ULTRASONIC
 const int US_TRIG = 8, US_ECHO = 9;
-const unsigned long US_TIMEOUT_US = 25000;  // about 4 m; also bounds how long loop() waits
+// An HC-SR04 with nothing in range still sends a ~38 ms echo pulse; a dead one
+// sends none. Waiting past 38 ms tells the two apart (loop() blocks up to 40 ms).
+const unsigned long US_TIMEOUT_US = 40000;
+const unsigned long US_MAX_ECHO_US = 23200;  // 4 m: longer pulses mean nothing in range
 unsigned long lastUs = 0;
 #endif
 // ---------------------------------------------------------------------------
@@ -53,20 +60,22 @@ bool discarding = false;  // inside an overlong line: ignore until its newline
 bool lastButton = false;
 unsigned long lastEnc = 0;
 
-void drive(int pwmPin, int dirPin, bool invert, float speed) {
+void drive(int pwmPin, int dirPin, bool invert, float speed, int minPwm) {
   float f = speed / MAX_WHEEL_SPEED;
   if (f > 1) f = 1;
   if (f < -1) f = -1;
   bool forward = (f >= 0) != invert;
   digitalWrite(dirPin, forward ? HIGH : LOW);
-  // Map the speed onto MIN_PWM..255 so small commands still move the track.
-  int pwm = fabs(speed) < STOP_SPEED ? 0 : MIN_PWM + (int)(fabs(f) * (255 - MIN_PWM));
+  // Map the speed onto minPwm..255 so small commands still move the track.
+  int pwm = fabs(speed) < STOP_SPEED ? 0 : minPwm + (int)(fabs(f) * (255 - minPwm));
   analogWrite(pwmPin, pwm);
 }
 
 void mix(float v, float w) {
-  drive(PWM_L, DIR_L, INVERT_L, v - w * TRACK_WIDTH_M / 2);
-  drive(PWM_R, DIR_R, INVERT_R, v + w * TRACK_WIDTH_M / 2);
+  float l = v - w * TRACK_WIDTH_M / 2, r = v + w * TRACK_WIDTH_M / 2;
+  int minPwm = (l > 0) != (r > 0) ? MIN_PWM_PIVOT : MIN_PWM_DRIVE;  // sides opposite: a pivot
+  drive(PWM_L, DIR_L, INVERT_L, l, minPwm);
+  drive(PWM_R, DIR_R, INVERT_R, r, minPwm);
 }
 
 void stopMotors() { mix(0, 0); }
@@ -140,8 +149,11 @@ void loop() {
   if (millis() - lastUs >= 100) {
     lastUs = millis();
     digitalWrite(US_TRIG, HIGH); delayMicroseconds(10); digitalWrite(US_TRIG, LOW);
-    unsigned long echo = pulseIn(US_ECHO, HIGH, US_TIMEOUT_US);  // 0 on timeout
-    Serial.print("U "); Serial.println(echo / 58);                // microseconds to cm
+    unsigned long echo = pulseIn(US_ECHO, HIGH, US_TIMEOUT_US);  // 0: no pulse at all
+    Serial.print("U ");
+    if (echo == 0) Serial.println(-1);                       // sensor dead or unplugged
+    else if (echo >= US_MAX_ECHO_US) Serial.println(0);      // nothing within 4 m
+    else Serial.println(echo / 58);                          // microseconds to cm
   }
 #endif
 }

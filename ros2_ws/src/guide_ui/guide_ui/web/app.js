@@ -1,6 +1,6 @@
 "use strict";
 const $ = (id) => document.getElementById(id);
-const state = { dest: [], trip: null, route: [], floor: null, floorData: {}, paused: false, browsing: true };
+const state = { dest: [], trip: null, route: [], floor: null, floorData: {}, paused: false };
 const ACTIVE = new Set(["routing", "driving", "waiting_for_student", "waiting_for_help", "lost"]);
 
 const CONFIRM_LABELS = {
@@ -41,7 +41,7 @@ async function main() {
   state.go = (key) => {
     unlockSpeech();
     ros.publish("/guide/destination", "std_msgs/msg/String", { data: key });
-    state.browsing = false; state.route = [];
+    state.route = [];
     $("search-view").hidden = true; $("trip-view").hidden = false;
   };
   renderResults("");
@@ -67,13 +67,13 @@ function renderResults(q) {
   }
 }
 
-function showSearch() { state.browsing = true; $("trip-view").hidden = true; $("search-view").hidden = false; $("q").value = ""; renderResults(""); }
+function showSearch() { $("trip-view").hidden = true; $("search-view").hidden = false; $("q").value = ""; renderResults(""); }
 
 function onState(s) {
   state.trip = s;
   // Show the trip while one is under way; a finished trip stays on screen
   // until the student taps "New trip", and never pulls them out of search.
-  if (ACTIVE.has(s.state) && $("trip-view").hidden) { state.browsing = false; $("search-view").hidden = true; $("trip-view").hidden = false; }
+  if (ACTIVE.has(s.state) && $("trip-view").hidden) { $("search-view").hidden = true; $("trip-view").hidden = false; }
   state.paused = !!s.paused;
   $("pause").textContent = state.paused ? "Resume" : "Pause";
   $("pause").hidden = !ACTIVE.has(s.state);

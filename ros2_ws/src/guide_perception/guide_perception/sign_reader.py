@@ -40,6 +40,14 @@ def upper_third(bgr):
     return bgr[: max(1, bgr.shape[0] // 3)]
 
 
+def sign_jpeg(bgr) -> bytes | None:
+    """The upper third of the frame (where door signs are) as JPEG, for the cloud backends."""
+    import cv2
+
+    ok, jpg = cv2.imencode(".jpg", upper_third(bgr), [cv2.IMWRITE_JPEG_QUALITY, 80])
+    return jpg.tobytes() if ok else None
+
+
 class PaddleBackend:
     """PaddleOCR 2.x (pinned in requirements-perception.txt)."""
 
@@ -81,12 +89,10 @@ class ClaudeBackend:
         self.model = model
 
     def read(self, bgr) -> list[SignRead]:
-        import cv2
-
-        ok, jpg = cv2.imencode(".jpg", upper_third(bgr), [cv2.IMWRITE_JPEG_QUALITY, 80])
-        if not ok:
+        jpg = sign_jpeg(bgr)
+        if jpg is None:
             return []
-        data = base64.standard_b64encode(jpg.tobytes()).decode("ascii")
+        data = base64.standard_b64encode(jpg).decode("ascii")
         response = self.client.messages.create(
             model=self.model,
             max_tokens=256,
@@ -138,15 +144,14 @@ class GeminiBackend:
         self.model = model
 
     def read(self, bgr) -> list[SignRead]:
-        import cv2
         from google.genai import types
 
-        ok, jpg = cv2.imencode(".jpg", upper_third(bgr), [cv2.IMWRITE_JPEG_QUALITY, 80])
-        if not ok:
+        jpg = sign_jpeg(bgr)
+        if jpg is None:
             return []
         response = self.client.models.generate_content(
             model=self.model,
-            contents=[types.Part.from_bytes(data=jpg.tobytes(), mime_type="image/jpeg"), CLAUDE_PROMPT],
+            contents=[types.Part.from_bytes(data=jpg, mime_type="image/jpeg"), CLAUDE_PROMPT],
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
                 max_output_tokens=256,
@@ -170,9 +175,7 @@ class ClaudeSubscriptionBackend:
         self.reader = reader
 
     def read(self, bgr) -> list[SignRead]:
-        import cv2
-
-        ok, jpg = cv2.imencode(".jpg", upper_third(bgr), [cv2.IMWRITE_JPEG_QUALITY, 80])
-        if not ok:
+        jpg = sign_jpeg(bgr)
+        if jpg is None:
             return []
-        return parse_claude_reply(self.reader.read_text(jpg.tobytes()))
+        return parse_claude_reply(self.reader.read_text(jpg))

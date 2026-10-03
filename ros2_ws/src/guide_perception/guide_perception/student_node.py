@@ -16,13 +16,25 @@ from .base_node import CameraNode, spin
 from .people import PersonDetector, locate
 
 
-def pick_student(people, current_id, max_lock_distance: float = 3.0):
-    """Keep the tracked id if still visible; otherwise lock on to the nearest person within range."""
+def pick_student(people, current_id, lost_for: float = 0.0, last_distance: float | None = None,
+                 max_lock_distance: float = 3.0, relock_after: float = 3.0, relock_window: float = 1.0):
+    """The student among ``people``, or None when not in view.
+
+    No lock yet (trip start): the nearest person within range. Locked: only
+    that track id. A short occlusion must not hand the lock to a passer-by, so
+    after ``relock_after`` seconds out of view (the tracker may have given the
+    student a new id) re-lock only onto someone near the student's last distance.
+    """
     for p in people:
         if current_id is not None and p.track_id == current_id:
             return p
     near = [p for p in people if p.distance <= max_lock_distance and p.track_id is not None]
-    return min(near, key=lambda p: p.distance) if near else None
+    if current_id is None:
+        return min(near, key=lambda p: p.distance) if near else None
+    if lost_for < relock_after or last_distance is None:
+        return None
+    near = [p for p in near if abs(p.distance - last_distance) <= relock_window]
+    return min(near, key=lambda p: abs(p.distance - last_distance)) if near else None
 
 
 class StudentNode(CameraNode):
@@ -31,16 +43,23 @@ class StudentNode(CameraNode):
         self.det = PersonDetector(self.declare_parameter("model", "yolo11n.pt").value)
         self.lock_distance = self.declare_parameter("lock_distance", 3.0).value
         self.student_id = None
+        self.seen_at = 0.0
+        self.last_distance = None
         self.pub = self.create_publisher(Float32, "guide/student_distance", 10)
-        self.create_subscription(String, "guide/destination", lambda _: setattr(self, "student_id", None), 10)
+        self.create_subscription(String, "guide/destination", self.on_new_trip, 10)
+
+    def on_new_trip(self, _msg):
+        self.student_id, self.last_distance = None, None  # lock on afresh
 
     def process(self, bgr, header):
         pose = self.camera_pose()
         if self.K is None or pose is None:
             return
         people = locate(self.det.detect(bgr), self.K, *pose, bgr.shape[0])
-        s = pick_student(people, self.student_id, self.lock_distance)
-        self.student_id = s.track_id if s else self.student_id
+        now = self.get_clock().now().nanoseconds * 1e-9
+        s = pick_student(people, self.student_id, now - self.seen_at, self.last_distance, self.lock_distance)
+        if s:
+            self.student_id, self.seen_at, self.last_distance = s.track_id, now, s.distance
         # The rear camera's frame points backwards, so distance is what matters, not sign.
         self.pub.publish(Float32(data=float(s.distance) if s and math.isfinite(s.distance) else math.inf))
 

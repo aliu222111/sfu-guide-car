@@ -21,7 +21,7 @@ COLOURS = {
 EDGE_COLOURS = {"corridor": (30, 30, 160), "door": (150, 0, 150)}
 
 
-def render_floor(floor, graph, spec: GridSpec, path: Path, route: list[str] | None = None):
+def render_floor(floor, graph, spec: GridSpec, path: Path):
     fp = rasterize(floor.footprint, spec)
     free = rasterize(floor.free_space, spec)
     img = np.full(free.shape + (3,), 255, np.uint8)
@@ -39,10 +39,6 @@ def render_floor(floor, graph, spec: GridSpec, path: Path, route: list[str] | No
         a, b = graph.nodes[e["a"]], graph.nodes[e["b"]]
         if a["floor"] == fid and b["floor"] == fid:
             d.line([px(a), px(b)], fill=EDGE_COLOURS.get(e["type"], (0, 0, 0)), width=1)
-    if route:
-        pts = [px(graph.nodes[n]) for n in route if graph.nodes[n]["floor"] == fid]
-        if len(pts) > 1:
-            d.line(pts, fill=(0, 170, 0), width=4)
     for n in graph.nodes.values():
         if n["floor"] != fid:
             continue

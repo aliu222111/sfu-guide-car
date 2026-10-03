@@ -37,7 +37,6 @@ class Leg:
 
 class RouteGraph:
     def __init__(self, graph: dict, destinations: dict | None = None):
-        self.frame = graph.get("frame", {})
         self.floors = graph.get("floors", {})
         self.nodes: dict[str, dict] = {n["id"]: n for n in graph["nodes"]}
         self.adj: dict[str, list[tuple[str, dict]]] = {nid: [] for nid in self.nodes}
@@ -153,12 +152,11 @@ class RouteGraph:
         legs: list[Leg] = []
         for a, b in zip(path, path[1:]):
             e = self.edge(a, b)
+            floor = self.nodes[b]["floor"]
             if e["type"] in ("elevator", "stairs", "door"):
                 kind = e["type"]
-                floor = self.nodes[b]["floor"]
             else:
                 kind = "drive"
-                floor = self.nodes[b]["floor"]
                 if self.nodes[a]["floor"] != floor:
                     floor = None  # mixed: entrance to outdoor
             last = legs[-1] if legs else None

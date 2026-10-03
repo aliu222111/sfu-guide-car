@@ -10,7 +10,7 @@ publishes /cmd_vel itself, so the velocity gate and Nav2 must not be running.
 Ctrl-C stops it; the motor watchdog stops the car within 0.5 s if this dies.
 Put the printed turn_gain and min_pivot_rate in guide.yaml (serial_bridge),
 then run it again with --current-gain set to the new gain to check: the gain
-should come out near the one in use. If every slow spin stalls, raise MIN_PWM
+should come out near the one in use. If every slow spin stalls, raise MIN_PWM_PIVOT
 in the firmware.
 """
 
@@ -93,7 +93,7 @@ def main(argv=None):
         print(e)
         return 1
     if stall == float("inf"):
-        print("every rate stalled at least one way: raise MIN_PWM in the firmware and run again")
+        print("every rate stalled at least one way: raise MIN_PWM_PIVOT in the firmware and run again")
         return 1
     # The stall was measured through the current gain; express it at the new one.
     min_pivot = stall * args.current_gain / gain
@@ -102,7 +102,7 @@ def main(argv=None):
     print(f"    min_pivot_rate: {min_pivot:.2f}" + ("   (no spin stalled)" if stall == 0.0 else ""))
     if min_pivot > SLOWEST_USED:
         print(f"note: pivots slower than {min_pivot:.2f} rad/s stall, so the lost-recovery rotation "
-              f"({SLOWEST_USED} rad/s) will run faster; raise MIN_PWM in the firmware to avoid that")
+              f"({SLOWEST_USED} rad/s) will run faster; raise MIN_PWM_PIVOT in the firmware to avoid that")
     return 0
 
 

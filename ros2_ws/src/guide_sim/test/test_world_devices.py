@@ -2,14 +2,13 @@
 
 import json
 import math
-import os
 import sys
 from pathlib import Path
 
 import numpy as np
 import pytest
 
-from guide_sim.devices import Phone, PtyPort, nmea_sentences, utc_at, xy_to_latlon
+from guide_sim.devices import Phone, PtyPort, nmea_sentences, utc_at
 from guide_sim.render import CameraModel, Renderer
 from guide_sim.world import Box, FloorWorld, Grid, Person
 
@@ -83,7 +82,9 @@ def _nmea_ok(line: bytes) -> bool:
 
 
 def test_nmea_fix_and_no_fix():
-    lat, lon = xy_to_latlon(100.0, -50.0)
+    from sfu_map.geo import xy_to_lonlat
+
+    lon, lat = (float(v) for v in xy_to_lonlat(100.0, -50.0))
     lines = nmea_sentences(utc_at(10.0), lat, lon, speed=1.0, course_deg=45.0).split(b"\r\n")[:-1]
     assert [l[:6] for l in lines] == [b"$GPGGA", b"$GPRMC"] and all(_nmea_ok(l) for l in lines)
     f = lines[0].decode().split(",")

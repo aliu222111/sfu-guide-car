@@ -18,7 +18,7 @@ uint8_t input_[NUM_PINS];         // levels the simulator drives onto input pins
 void (*isr_[NUM_PINS])() = {};
 std::deque<uint8_t> rx_;           // laptop -> board
 std::string tx_;                   // board -> laptop
-uint32_t echo_us_ = 0;             // the next ultrasonic echo pulse length, 0 = no echo
+uint32_t echo_us_ = 0;             // the ultrasonic echo pulse length, 0 = no pulse (dead sensor)
 bool interrupts_on_ = true;
 
 bool valid(uint8_t pin) { return pin < NUM_PINS; }
@@ -89,13 +89,14 @@ unsigned long micros() { return (unsigned long)now_us; }
 void delay(unsigned long ms) { now_us += (uint64_t)ms * 1000; }
 void delayMicroseconds(unsigned int us) { now_us += us; }
 unsigned long pulseIn(uint8_t, uint8_t, unsigned long timeout) {
-  // The board waits for the echo: an echo of length L arrives after about L
-  // (sound out and back), a missing echo costs the whole timeout.
-  if (echo_us_ == 0 || echo_us_ > timeout) {
+  // The board waits about 0.5 ms for the echo pulse to start, then for it to
+  // end. No pulse (echo 0: a dead sensor) or one longer than the timeout costs
+  // the whole timeout and returns 0, as on the board.
+  if (echo_us_ == 0 || echo_us_ + 500 > timeout) {
     now_us += timeout;
     return 0;
   }
-  now_us += 2ULL * echo_us_;
+  now_us += echo_us_ + 500;
   return echo_us_;
 }
 int digitalPinToInterrupt(int pin) { return pin; }

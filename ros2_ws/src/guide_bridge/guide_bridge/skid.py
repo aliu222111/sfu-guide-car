@@ -10,7 +10,7 @@ some turn rate a pivot in place does not start at all (the tracks stick).
 Nav2 asks for such slow pivots near waypoints, and the car would sit still
 until the progress checker gives up, so the bridge raises any deliberate
 pivot below ``min_pivot`` to ``min_pivot`` (also measured by
-``calibrate_turn``). The firmware's MIN_PWM is the motor-level version of the
+``calibrate_turn``). The firmware's MIN_PWM_PIVOT is the motor-level version of the
 same fix.
 
 Nothing here trusts wheel or track motion for heading: skid-steer slip makes
@@ -23,7 +23,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
-PIVOT_SPEED = 0.05  # m/s: slower than this the car is pivoting, not driving an arc
+PIVOT_SPEED = 0.02  # m/s: slower than this the car is pivoting (the gate's first 0.025 ramp step is not)
 PIVOT_DEADBAND = 0.05  # rad/s: smaller turn requests are noise, not worth a jerk to min_pivot
 SPIN_SETTLE = 1.5  # s ignored at the start of each spin while the tracks break loose
 STALLED = 0.5  # measured below this fraction of the command: the pivot did not really start
@@ -80,7 +80,7 @@ def new_turn_gain(results: list[SpinResult], current_gain: float) -> float:
         if r.commanded != 0 and r.measured / r.commanded >= STALLED
     )
     if not ratios:
-        raise ValueError("every spin stalled: raise MIN_PWM in the firmware or test on a smoother floor")
+        raise ValueError("every spin stalled: raise MIN_PWM_PIVOT in the firmware or test on a smoother floor")
     mid = len(ratios) // 2
     median = ratios[mid] if len(ratios) % 2 else (ratios[mid - 1] + ratios[mid]) / 2
     return current_gain * median

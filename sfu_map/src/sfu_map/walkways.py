@@ -31,7 +31,7 @@ from pathlib import Path
 
 import numpy as np
 from scipy import ndimage, optimize
-from shapely.geometry import LineString, MultiLineString, Point, mapping
+from shapely.geometry import LineString, Point, mapping
 from shapely.ops import linemerge, unary_union
 from skimage.morphology import disk, skeletonize
 
@@ -93,8 +93,7 @@ def _render(pdf: Path):
     return img, words, page.rect
 
 
-def _walkway_mask(img, words, page_rect) -> np.ndarray:
-    k = DPI / 72
+def _walkway_mask(img) -> np.ndarray:
     m = np.abs(img - NAVY).sum(2) < NAVY_TOL
     # The legend, index and title blocks sit outside the campus drawing.
     h, w = m.shape
@@ -345,7 +344,7 @@ def extract(pdf: Path = PDF) -> dict:
     footprints = load_building_footprints()
     floors = load_floors()
     sim, overlap = georeference(img, words, rect, footprints)
-    mask = _walkway_mask(img, words, rect)
+    mask = _walkway_mask(img)
     spec = GridSpec.around((-900, -500, 700, 500), GRID, 0)
     lines = trace_network(_to_map_grid(mask, sim, spec), spec)
     labels = level_labels(words, sim, rect)

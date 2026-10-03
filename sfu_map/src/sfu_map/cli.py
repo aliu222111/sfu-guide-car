@@ -12,7 +12,6 @@ DEFAULT_OUT = Path(__file__).resolve().parents[3] / "maps"
 
 
 def cmd_build(args) -> int:
-    from shapely.ops import unary_union
 
     from . import geo
     from .connectors import load_connectors

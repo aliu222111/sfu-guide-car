@@ -33,8 +33,10 @@ class VoiceNode(Node):
         if tts == "elevenlabs":  # ElevenLabs voice, Piper when it cannot (ELEVENLABS_API_KEY)
             from .cloud import ElevenLabsSpeaker
 
-            self.speaker = ElevenLabsSpeaker(*piper, voice_id=P("elevenlabs_voice_id", "21m00Tcm4TlvDq8ikWAM"),
-                                             model=P("elevenlabs_tts_model", "eleven_flash_v2_5"), log=log)
+            from .cloud import TTS_MODEL, VOICE_ID
+
+            self.speaker = ElevenLabsSpeaker(*piper, voice_id=P("elevenlabs_voice_id", VOICE_ID),
+                                             model=P("elevenlabs_tts_model", TTS_MODEL), log=log)
         elif tts == "piper":
             self.speaker = Speaker(*piper)
         else:
@@ -43,9 +45,9 @@ class VoiceNode(Node):
         stt = P("stt", "whisper")
         whisper = Transcriber(P("whisper_model", "base"), P("whisper_device", "auto"), P("whisper_compute", "int8"))
         if stt == "elevenlabs":  # the student's voice goes to ElevenLabs; whisper when it cannot
-            from .cloud import ElevenLabsTranscriber
+            from .cloud import STT_MODEL, ElevenLabsTranscriber
 
-            self.stt = ElevenLabsTranscriber(whisper, model=P("elevenlabs_stt_model", "scribe_v1"), log=log)
+            self.stt = ElevenLabsTranscriber(whisper, model=P("elevenlabs_stt_model", STT_MODEL), log=log)
         elif stt == "whisper":
             self.stt = whisper
         else:
@@ -58,10 +60,11 @@ class VoiceNode(Node):
             from google import genai
             from google.genai import types
 
+            from .gemini_agent import MODEL as GEMINI_MODEL
             from .gemini_agent import GeminiVoiceAgent
 
             client = genai.Client(http_options=types.HttpOptions(timeout=15000))
-            self.agent = GeminiVoiceAgent(client, actions, model=P("gemini_model", "gemini-flash-latest"))
+            self.agent = GeminiVoiceAgent(client, actions, model=P("gemini_model", GEMINI_MODEL))
             self.get_logger().info(f"voice agent: Gemini {self.agent.model}")
         elif llm != "claude":
             raise ValueError(f"llm must be claude or gemini, not {llm!r}")

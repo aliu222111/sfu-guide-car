@@ -1,7 +1,5 @@
 """The real firmware, compiled for the PC, driving the simulated chassis."""
 
-import math
-import os
 from pathlib import Path
 
 import pytest
@@ -50,7 +48,7 @@ def test_turning_left_is_counter_clockwise(fw):
 
 def test_fast_turns_slip(fw):
     ch = Chassis()
-    drive(fw, ch, 0.0, 1.4, 3.0)  # past the gate's cap, so MIN_PWM is a small part of the duty
+    drive(fw, ch, 0.0, 1.4, 3.0)  # past the gate's cap, so the PWM floor is a small part of the duty
     assert 0.5 < ch.s.w < 1.4  # tracks slip: slower than asked
 
 
@@ -85,11 +83,20 @@ def test_button_reported(fw):
 def test_ultrasonic_reported(fw):
     fw.set_echo_us(87 * 58)
     fw.run_until(0.35)
-    lines = fw.serial_out().split(b"\r\n")
-    assert b"U 87" in lines
-    fw.set_echo_us(0)
+    assert b"U 87" in fw.serial_out().split(b"\r\n")
+    fw.set_echo_us(38000)  # HC-SR04 with nothing in range
     fw.run_until(0.6)
     assert b"U 0" in fw.serial_out().split(b"\r\n")
+    fw.set_echo_us(0)  # no pulse at all: unplugged
+    fw.run_until(0.9)
+    assert b"U -1" in fw.serial_out().split(b"\r\n")
+
+
+def test_slow_straight_driving_is_not_inflated(fw):
+    # The bumper slow-down: 0.15 m/s. A pivot floor applied here gave about 0.2.
+    ch = Chassis()
+    drive(fw, ch, 0.15, 0.0, 3.0)
+    assert ch.s.v == pytest.approx(0.15, abs=0.02)
 
 
 def test_min_pwm_and_stiction():
@@ -100,7 +107,7 @@ def test_min_pwm_and_stiction():
 
 
 def test_slow_pivot_stalls_without_min_pivot_rate(fw):
-    # 0.1 rad/s asks for 0.015 m/s per side. MIN_PWM gets the tracks turning, but
+    # 0.1 rad/s asks for 0.015 m/s per side. MIN_PWM_PIVOT gets the tracks turning, but
     # not hard enough to drag the car round: the bridge's min_pivot_rate exists for this.
     ch = Chassis()
     drive(fw, ch, 0.0, 0.1, 2.0)
@@ -110,14 +117,14 @@ def test_slow_pivot_stalls_without_min_pivot_rate(fw):
 
 
 def test_min_pwm_set_too_high_overshoots(fw):
-    # Motors that move from PWM 46: MIN_PWM 60 makes every slow request a fast one.
-    ch = Chassis(ChassisParams(stiction_duty=0.18))
+    # Tracks that pivot easily: MIN_PWM_PIVOT 65 makes every slow pivot a fast one.
+    ch = Chassis(ChassisParams(stiction_duty=0.15, pivot_breakaway=0.05))
     drive(fw, ch, 0.0, 0.1, 2.0)
     assert ch.s.w > 0.2
 
 
 def test_min_pwm_set_too_low_stalls_tracks(fw):
-    ch = Chassis(ChassisParams(stiction_duty=0.30))  # stiffer floor: PWM 60 does not move a track
+    ch = Chassis(ChassisParams(stiction_duty=0.30))  # stiffer floor: PWM 65 does not move a track
     drive(fw, ch, 0.0, 0.1, 2.0)
     assert ch.s.v_left == 0.0 and ch.s.v_right == 0.0
 

@@ -1,7 +1,5 @@
 import math
 
-import pytest
-
 from guide_mission.alignment import Similarity2D, load_alignments, save_alignment, solve
 from guide_mission.follow import FollowMonitor, FollowParams
 from guide_mission.instructions import Turn, arrival_text, find_turns, turn_text

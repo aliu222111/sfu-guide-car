@@ -12,7 +12,8 @@ controllers.
 Published for tests: ``sim/truth`` (PoseStamped, map frame) and
 ``sim/status`` (JSON: floor, collisions, bumper range, firmware and phone
 link counters). ``sim/button`` (Bool) presses the push-to-talk button;
-``sim/stop_phone`` (Bool) cuts the phone's WiFi.
+``sim/stop_phone`` (Bool) cuts the phone's WiFi; ``sim/unplug_bumper`` (Bool)
+disconnects the ultrasonic sensor.
 """
 
 from __future__ import annotations
@@ -34,7 +35,7 @@ from std_msgs.msg import Bool, Float32, Header, String
 from tf2_ros import TransformBroadcaster
 
 from .chassis import Chassis, ChassisParams
-from .devices import Phone, PtyPort, nmea_sentences, utc_at, xy_to_latlon
+from .devices import Phone, PtyPort, nmea_sentences, utc_at
 from .emulators import SignReader, floor_clouds, nearest_person
 from .firmware import Firmware, default_ino
 from .render import CameraModel, Renderer
@@ -123,6 +124,8 @@ class HilSim(Node):
         self.create_subscription(String, "/guide/localization_mode", self.on_mode, 10)
         self.create_subscription(Bool, "/sim/button", lambda m: setattr(self, "button", m.data), 10)
         self.create_subscription(Bool, "/sim/stop_phone", lambda m: setattr(self.phone, "enabled", not m.data), 10)
+        self.bumper_connected = True
+        self.create_subscription(Bool, "/sim/unplug_bumper", lambda m: setattr(self, "bumper_connected", not m.data), 10)
         self.t = 0.0
         self.get_logger().info(f"motor board on {self.motor_port.path}, GPS on {self.gps_port.path}, "
                                f"start {start} yaw {math.degrees(yaw):.0f} deg, {len(self.world.here.boxes)} boxes, "
@@ -241,20 +244,19 @@ class HilSim(Node):
         fw, s = self.fw, self.chassis.s
         self.fw.serial_in(self.motor_port.read())
         fw.set_input(self.chassis.wiring.button, not self.button)  # pressed pulls the pin to ground
-        fw.set_echo_us(self.echo_m * 100 * 58 if math.isfinite(self.echo_m) else 0)
+        # HC-SR04: 58 us per cm; nothing within 4 m still gives a ~38 ms pulse; unplugged gives none.
+        fw.set_echo_us(0 if not self.bumper_connected else (self.echo_m * 100 * 58 if self.echo_m < 4.0 else 38000))
         fw.run_until(t)
         self.motor_port.write(fw.serial_out())
         v_before = s.v
         if self.rig is not None:
             self.rig_step(PHYSICS_DT)
-            self.phone.update(t, s.yaw, s.w, (s.v - v_before) / PHYSICS_DT, outdoors=False)
-            self.t = t
-            return
-        tl, tr = self.chassis.targets(fw)
-        moving = abs(tl) + abs(tr) + abs(s.v_left) + abs(s.v_right) > 1e-4
-        here = self.world.here
-        self.chassis.step(PHYSICS_DT, tl, tr,
-                          (lambda x, y, yaw: here.collides(self.chassis.footprint(x, y, yaw), t)) if moving else None)
+        else:
+            tl, tr = self.chassis.targets(fw)
+            moving = abs(tl) + abs(tr) + abs(s.v_left) + abs(s.v_right) > 1e-4
+            here = self.world.here
+            self.chassis.step(PHYSICS_DT, tl, tr,
+                              (lambda x, y, yaw: here.collides(self.chassis.footprint(x, y, yaw), t)) if moving else None)
         self.phone.update(t, s.yaw, s.w, (s.v - v_before) / PHYSICS_DT, outdoors=False)
         self.t = t
 
@@ -335,8 +337,7 @@ class HilSim(Node):
                 next_10hz += 0.1
                 k += 1
                 self.echo_m = self.ultrasonic()
-                fix = None  # indoors: the GPS has no fix
-                self.gps_port.write(nmea_sentences(utc_at(self.t), *(fix or (None, None))))
+                self.gps_port.write(nmea_sentences(utc_at(self.t), None, None))  # indoors: no GPS fix
                 self.publish_perception(k)
                 self.publish_truth()
                 if k % 5 == 0:

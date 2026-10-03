@@ -206,11 +206,10 @@ def main(argv=None):
     try:
         root = Path(os.environ.get("GUIDE_CAR_ROOT", os.getcwd()))
         g = json.loads((root / "maps" / "route_graph.json").read_text())
-        dests = json.loads((root / "maps" / "destinations.json").read_text())
         nodes = {n["id"]: n for n in g["nodes"]}
-        key = args.destination.upper()
-        if key in dests:
-            door = nodes[dests[key]["node"]]
+        from sfu_map.route import RouteGraph
+
+        door = nodes[RouteGraph.load(root / "maps" / "route_graph.json").resolve(args.destination)]
     except Exception:
         pass
     stop_dist = math.hypot(truth["x"] - door["x"], truth["y"] - door["y"]) if door and truth else None

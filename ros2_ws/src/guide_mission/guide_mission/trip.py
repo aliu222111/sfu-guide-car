@@ -140,6 +140,7 @@ class Trip:
             out += self.abort("new destination")
         self.destination = destination
         self.waiting_for = ""
+        self.nav_failures = 0
         self.progress = 0
         self.door_open = False
         self.paused = False  # choosing a destination means "go"
@@ -151,12 +152,7 @@ class Trip:
             out += self._set("aborted", str(e))
             out.append(Speak(f"Sorry, I can't find a way to {destination}."))
             return out
-        self.path = path
-        self.legs = self.rg.legs(path) if len(path) > 1 else []
-        self.leg_index = 0
-        self.turns = find_turns(self.rg, path)
-        self.announced = set()
-        self.elevator = None
+        self._plan(path)
         out.append(Speak(f"Let's go to {destination}. Follow me, it's about {round_distance(length)}."))
         out.append(DriveEnable(True))
         return out + self._begin_leg()
@@ -174,6 +170,10 @@ class Trip:
             path, _ = self.rg.shortest_path(start_node, self.goal)
         except RouteError:
             return []
+        self._plan(path)
+        return []
+
+    def _plan(self, path: list[str]):
         self.path = path
         self.legs = self.rg.legs(path) if len(path) > 1 else []
         self.leg_index = 0
@@ -181,7 +181,6 @@ class Trip:
         self.turns = find_turns(self.rg, path)
         self.announced = set()
         self.elevator = None
-        return []
 
     def _begin_leg(self) -> list:
         leg = self.leg

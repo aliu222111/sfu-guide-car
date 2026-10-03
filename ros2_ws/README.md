@@ -119,7 +119,7 @@ and close the loop. Align it to the GIS frame at three or more doors:
 with x,y read from RTAB-Map at each door.
 
 **2, chassis and outdoor driving.** Flash `guide_bridge/firmware/guide_motor/guide_motor.ino` (set pins,
-track width, max track speed, `MIN_PWM`). Tank steering slips in turns: with the serial bridge and phone
+track width, max track speed, `MIN_PWM_DRIVE`, `MIN_PWM_PIVOT`). Tank steering slips in turns: with the serial bridge and phone
 IMU running (no Nav2, no gate), `ros2 run guide_bridge calibrate_turn --yes` spins the car in place and prints
 `turn_gain` and `min_pivot_rate` for `guide.yaml`; rerun with `--current-gain <new gain>` to check. Phone: Sensor Logger, HTTP push to `http://<laptop>:8765/data` at 100 Hz.
 Draw the outdoor route in `sfu_map/connectors.yaml` (`outdoor_links`) and rebuild maps, then
@@ -137,7 +137,8 @@ camera with `ros2 run camera_calibration cameracalibrator --size 8x6 --square 0.
 save it as `left.yaml`, measure its height and tilt into the URDF (`cam_z`, `cam_pitch`; 1 cm of height is
 2 % of distance), fit the ultrasonic bumper, then add `cameras:=mono` to any launch above. Spec section 18.
 
-**6, voice and follow.** `voice:=true` (your Claude subscription, see above), `voice_mode:=true` for a student
+**6, voice and follow.** Calibrate the rear camera like the left one (`cameracalibrator ... image:=/rear/image_raw camera:=/rear`)
+and save it as `rear.yaml` next to `left.yaml`: the follow tracker measures distance on rectified images. Then `voice:=true` (your Claude subscription, see above), `voice_mode:=true` for a student
 without a phone, `rear_camera:=true`, `rssi:=true`.
 
 ## Topics

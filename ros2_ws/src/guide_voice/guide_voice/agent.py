@@ -90,9 +90,6 @@ class VoiceAgent:
     messages: list = field(default_factory=list)
     last_time: float = 0.0
 
-    def _run_tool(self, name: str, args: dict) -> tuple[str, bool]:
-        return run_tool(self.actions, name, args)
-
     def _trim(self):
         # Keep whole exchanges: cut only at a user message that is plain text.
         while len(self.messages) > self.history_limit:
@@ -142,7 +139,7 @@ class VoiceAgent:
             results = []
             for block in response.content:
                 if block.type == "tool_use":
-                    out, is_err = self._run_tool(block.name, dict(block.input or {}))
+                    out, is_err = run_tool(self.actions, block.name, dict(block.input or {}))
                     results.append({"type": "tool_result", "tool_use_id": block.id, "content": out, "is_error": is_err})
             self.messages.append({"role": "user", "content": results})
         else:

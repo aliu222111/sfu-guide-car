@@ -48,8 +48,13 @@ def cameras(context):
                 "use_color": "False",
             }.items(),
         ))
-    if driver and LaunchConfiguration("rear").perform(context).lower() == "true":
-        nodes.append(Node(package="usb_cam", executable="usb_cam_node_exe", name="rear_camera", namespace="rear", parameters=[cfg("cameras.yaml")]))
+    if LaunchConfiguration("rear").perform(context).lower() == "true":
+        if driver:
+            nodes.append(Node(package="usb_cam", executable="usb_cam_node_exe", name="rear_camera", namespace="rear",
+                              parameters=[cfg("cameras.yaml"), {"camera_info_url": f"file://{calib}/rear.yaml"}]))
+        # The tracker projects pixels with the rectified camera model: give it rectified images.
+        nodes.append(Node(package="image_proc", executable="rectify_node", name="rear_rectify", namespace="rear",
+                          remappings=[("image", "image_raw")]))
     return nodes
 
 

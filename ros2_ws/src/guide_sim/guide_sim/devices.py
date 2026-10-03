@@ -19,16 +19,7 @@ import tty
 import urllib.request
 from datetime import datetime, timezone
 
-# Same frame as sfu_map.geo: equirectangular about this origin.
-ORIGIN_LAT = 49.278945
-ORIGIN_LON = -122.916558
-EARTH_RADIUS = 6378137.0
-_COS_LAT0 = math.cos(math.radians(ORIGIN_LAT))
-
-
-def xy_to_latlon(x: float, y: float) -> tuple[float, float]:
-    return ORIGIN_LAT + math.degrees(y / EARTH_RADIUS), ORIGIN_LON + math.degrees(x / (EARTH_RADIUS * _COS_LAT0))
-
+from guide_bridge.phone_imu import quat_mul
 
 class PtyPort:
     """A serial device for a driver to open; ``path`` is a stable symlink to it."""
@@ -100,13 +91,6 @@ def nmea_sentences(utc: datetime, lat: float | None, lon: float | None, speed: f
             + _nmea(f"GPRMC,{hms},A,{la},{ns},{lo},{ew},{knots:.2f},{course_deg:.1f},{date},,,A"))
 
 
-def _qmul(a, b):
-    ax, ay, az, aw = a
-    bx, by, bz, bw = b
-    return (aw * bx + ax * bw + ay * bz - az * by, aw * by - ax * bz + ay * bw + az * bx,
-            aw * bz + ax * by - ay * bx + az * bw, aw * bw - ax * bx - ay * by - az * bz)
-
-
 # Phone lies flat, screen up, top edge forward: phone = (-base_y, base_x, base_z).
 _Q_BASE_PHONE = (0.0, 0.0, -math.sin(math.pi / 4), math.cos(math.pi / 4))  # inverse of guide_bridge's phone-from-base
 PHONE_EPOCH = 1_790_000_000.0  # s: the phone's wall clock when the simulation starts
@@ -157,7 +141,7 @@ class Phone:
             acc = {"x": -acc_b[1] + self.rand.gauss(0, 0.05), "y": acc_b[0] + self.rand.gauss(0, 0.05), "z": acc_b[2] + self.rand.gauss(0, 0.05)}
             heading = yaw + (0.0 if outdoors else self.compass_error)
             q_world_base = (0.0, 0.0, math.sin(heading / 2), math.cos(heading / 2))
-            qx, qy, qz, qw = _qmul(q_world_base, _Q_BASE_PHONE)
+            qx, qy, qz, qw = quat_mul(q_world_base, _Q_BASE_PHONE)
             self.batch += [
                 {"name": "gyroscope", "time": ts, "values": gyro},
                 {"name": "totalacceleration", "time": ts, "values": acc},

@@ -73,6 +73,9 @@ class AgentSession:
         self.client_factory = client_factory
         self.client = None
         self.turns = 0
+        # Connect and close are serialized: prewarm() then ask() would otherwise
+        # start two CLI processes and orphan one (a leak per new student).
+        self._lock = asyncio.Lock()
         self.loop = asyncio.new_event_loop()
         self._thread = threading.Thread(target=self.loop.run_forever, daemon=True)
         self._thread.start()
@@ -81,11 +84,12 @@ class AgentSession:
         return asyncio.run_coroutine_threadsafe(coro, self.loop).result(timeout)
 
     async def _connect(self):
-        if self.client is None:
-            client = self.client_factory(self.options_factory())
-            await client.connect()
-            self.client = client
-            self.turns = 0
+        async with self._lock:
+            if self.client is None:
+                client = self.client_factory(self.options_factory())
+                await client.connect()
+                self.client = client
+                self.turns = 0
 
     async def _ask(self, prompt) -> Reply:
         from claude_agent_sdk import AssistantMessage, ResultMessage, TextBlock, ToolUseBlock
@@ -109,19 +113,22 @@ class AgentSession:
         return Reply(" ".join(t.strip() for t in texts if t.strip()), bool(result.is_error), calls, detail)
 
     async def _close(self):
-        if self.client is not None:
-            client, self.client = self.client, None
-            try:
-                await client.disconnect()
-            except Exception:
-                pass
+        async with self._lock:
+            if self.client is not None:
+                client, self.client = self.client, None
+                try:
+                    await client.disconnect()
+                except Exception:
+                    pass
 
     def ask(self, prompt, timeout: float = 30.0) -> Reply:
         """Send a string or ``user_message(...)``; blocks until the reply is complete."""
+        fut = asyncio.run_coroutine_threadsafe(self._ask(prompt), self.loop)
         try:
-            return self._run(self._ask(prompt), timeout)
+            return fut.result(timeout)
         except Exception:
-            # A stuck or dead CLI: start a fresh one next time.
+            # A stuck or dead CLI: stop this request and start a fresh one next time.
+            fut.cancel()
             self.reset()
             raise
 

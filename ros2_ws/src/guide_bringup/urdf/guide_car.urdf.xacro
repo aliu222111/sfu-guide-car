@@ -14,7 +14,6 @@
   <xacro:property name="cam_pitch" value="0.20"/>   <!-- radians, nose down -->
   <xacro:property name="stereo_baseline" value="0.12"/>
 
-  <link name="base_footprint"/>
   <link name="base_link">
     <visual>
       <origin xyz="0 0 ${wheel_radius + base_height/2}"/>
@@ -25,10 +24,7 @@
       <geometry><box size="${base_length} ${base_width} ${base_height}"/></geometry>
     </collision>
   </link>
-  <joint name="base_joint" type="fixed">
-    <parent link="base_footprint"/><child link="base_link"/>
-    <origin xyz="0 0 0"/>
-  </joint>
+  <!-- No base_footprint: base_link is on the floor already, and the EKF is its only parent. -->
 
   <xacro:macro name="camera" params="name x y z pitch yaw">
     <link name="${name}_link"/>

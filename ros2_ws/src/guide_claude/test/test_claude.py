@@ -3,7 +3,7 @@ import os
 
 from claude_agent_sdk import AssistantMessage, ClaudeAgentOptions, ResultMessage, TextBlock, ToolUseBlock
 
-from guide_claude.session import AgentSession, use_subscription_env, user_message
+from guide_claude.session import AgentSession, use_subscription_env
 from guide_claude.signs import SubscriptionSignReader
 from guide_claude.voice import SubscriptionVoiceAgent, make_tools
 
@@ -72,7 +72,10 @@ def test_voice_agent_options_lock_it_down_and_reset_after_idle():
     agent.handle("hello", now=500.0)  # idle for longer than idle_reset: fresh session
     assert len(FakeClient.instances) >= 2 and not FakeClient.instances[0].connected
     FakeClient.script = lambda p: [result(is_error=True)]
-    assert agent.handle("x", now=501.0) == "Sorry, could you say that again?"
+    import pytest
+
+    with pytest.raises(RuntimeError):  # a usage limit or CLI error: the node logs it and says so
+        agent.handle("x", now=501.0)
 
 
 def test_tools_call_the_car_and_report_errors():
@@ -101,3 +104,43 @@ def test_subscription_env_removes_api_key(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
     assert use_subscription_env() and "ANTHROPIC_API_KEY" not in os.environ
     assert not use_subscription_env()
+
+
+def test_prewarm_then_ask_starts_one_client():
+    """A slow connect overlapped by ask() once started a second CLI and orphaned the first."""
+    import asyncio
+    import time
+
+    from claude_agent_sdk import ClaudeAgentOptions, ResultMessage
+
+    from guide_claude.session import AgentSession
+
+    made = []
+
+    class Slow:
+        def __init__(self, options):
+            self.connected = False
+            made.append(self)
+
+        async def connect(self):
+            await asyncio.sleep(0.3)
+            self.connected = True
+
+        async def disconnect(self):
+            self.connected = False
+
+        async def query(self, prompt):
+            pass
+
+        async def receive_response(self):
+            yield ResultMessage(subtype="success", duration_ms=1, duration_api_ms=1, is_error=False, num_turns=1, session_id="s")
+
+    s = AgentSession(lambda: ClaudeAgentOptions(), Slow)
+    s.prewarm()
+    s.ask("hi", timeout=5)
+    s.reset()
+    s.prewarm()
+    s.ask("again", timeout=5)
+    time.sleep(0.4)
+    assert len(made) == 2 and [c.connected for c in made] == [False, True]
+    s.close()

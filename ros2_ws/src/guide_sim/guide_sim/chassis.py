@@ -36,10 +36,10 @@ class Wiring:
 class ChassisParams:
     track_width: float = 0.30  # m between track centres (TRACK_WIDTH_M)
     top_speed: float = 1.1  # m/s track speed at full duty, loaded, on this floor
-    stiction_duty: float = 0.22  # below this duty a track does not move: PWM 56, just under the firmware's MIN_PWM 60
+    stiction_duty: float = 0.19  # below this duty a track does not roll: PWM 48, just under MIN_PWM_DRIVE 50
     motor_tau: float = 0.12  # s, speed response time constant
     turn_slip: float = 1.45  # actual turn rate = geometric rate / turn_slip
-    pivot_breakaway: float = 0.05  # m/s of side-speed difference / 2 needed to start a pivot
+    pivot_breakaway: float = 0.10  # m/s per side needed to drag the tracks round (MIN_PWM_PIVOT 65 gives 0.09)
     length: float = 0.50  # footprint, matches nav2.yaml
     width: float = 0.38
 

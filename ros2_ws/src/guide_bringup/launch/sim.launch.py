@@ -7,7 +7,6 @@ Then open http://localhost:8080 and pick a room, or
 """
 
 import json
-import math
 import os
 import sys
 

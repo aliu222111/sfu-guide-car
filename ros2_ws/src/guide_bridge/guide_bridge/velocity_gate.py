@@ -60,7 +60,7 @@ class GateState:
     manual: _Cmd = field(default_factory=_Cmd)
     enabled: _Flag = field(default_factory=_Flag)
     recovery: _Flag = field(default_factory=_Flag)
-    outdoor: bool = False
+    outdoor: _Flag = field(default_factory=_Flag)  # stale (localization manager died): indoor caps
     phone_alive: _Flag = field(default_factory=_Flag)
     person_distance: float = math.inf
     person_stamp: float = -math.inf
@@ -76,9 +76,10 @@ def _finite(*vals) -> bool:
 
 class VelocityGate:
     """Every input is timestamped. The mission re-sends enable and recovery at
-    1 Hz and the phone bridge sends liveness at 5 Hz; when any of them stops
-    arriving (a node crashed) the gate falls back to the safe value: disabled,
-    no recovery rotation, phone treated as lost."""
+    1 Hz, the phone bridge sends liveness and the localization manager the
+    outdoor flag at 5 Hz; when any of them stops arriving (a node crashed) the
+    gate falls back to the safe value: disabled, no recovery rotation, phone
+    treated as lost, indoor speed."""
 
     def __init__(self, params: GateParams | None = None):
         self.p = params or GateParams()
@@ -97,8 +98,8 @@ class VelocityGate:
     def set_recovery(self, on: bool, now: float):
         self.s.recovery = _Flag(bool(on), now)
 
-    def set_outdoor(self, on: bool):
-        self.s.outdoor = bool(on)
+    def set_outdoor(self, on: bool, now: float):
+        self.s.outdoor = _Flag(bool(on), now)
 
     def set_phone_alive(self, on: bool, now: float):
         self.s.phone_alive = _Flag(bool(on), now)
@@ -116,7 +117,8 @@ class VelocityGate:
     def speed_cap(self, now: float) -> float:
         p = self.p
         phone = self.s.phone_alive.get(now, p.flag_timeout)
-        cap = p.outdoor_max if (self.s.outdoor and phone) else p.indoor_max
+        outdoor = self.s.outdoor.get(now, p.flag_timeout)
+        cap = p.outdoor_max if (outdoor and phone) else p.indoor_max
         d = self.s.person_distance
         if now - self.s.person_stamp > p.person_timeout:
             # No word from the person detector: it may be blind, so creep.

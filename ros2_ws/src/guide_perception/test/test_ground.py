@@ -57,3 +57,7 @@ def test_pick_student_keeps_lock():
     assert pick_student([a, b], None).track_id == 2
     assert pick_student([a, b], 1).track_id == 1
     assert pick_student([Person(3, (0, 0, 1, 1), 0.9, x=-5.0)], None) is None
+    stranger = Person(3, (0, 0, 1, 1), 0.9, x=-1.0, y=0.0)
+    assert pick_student([stranger], 1, lost_for=0.2, last_distance=2.0) is None  # occluded: no hand-over
+    assert pick_student([stranger], 1, lost_for=5.0, last_distance=2.5) is None  # gone long, but not where the student was
+    assert pick_student([stranger], 1, lost_for=5.0, last_distance=1.2).track_id == 3  # new id, same place: re-lock

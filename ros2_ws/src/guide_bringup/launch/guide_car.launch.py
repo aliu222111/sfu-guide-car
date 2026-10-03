@@ -85,7 +85,7 @@ def setup(context):
     if flag(context, "rear_camera"):
         actions.append(Node(package="guide_perception", executable="student_tracker", name="student_tracker",
                             parameters=[guide, {"model": repo_path("models", "yolo11n.onnx")}],
-                            remappings=[("image", "/rear/image_raw"), ("camera_info", "/rear/camera_info")]))
+                            remappings=[("image", "/rear/image_rect"), ("camera_info", "/rear/camera_info")]))
     if flag(context, "voice"):
         actions.append(Node(package="guide_voice", executable="voice_agent", name="voice_agent", parameters=[guide,
                             {"graph": graph, "piper_voice": repo_path("voices", "en_US-lessac-medium.onnx")}]))

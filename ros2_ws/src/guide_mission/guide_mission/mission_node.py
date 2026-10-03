@@ -25,6 +25,7 @@ from rclpy.duration import Duration
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile
 from rclpy.time import Time
+from nav_msgs.msg import Odometry
 from std_msgs.msg import Bool, Empty, Float32, Float64, String
 from tf2_ros import Buffer, TransformException, TransformListener
 
@@ -86,9 +87,9 @@ class MissionNode(Node):
         self.nav = ActionClient(self, NavigateThroughPoses, "navigate_through_poses")
         self.goal_seq = 0
         self.goal_handle = None
-        self.creep_left = 0.0  # seconds of creep still to drive
+        self.creep_left = 0.0  # metres of creep still to drive
         self.creep_speed = 0.0
-        self.turn_left = 0.0  # seconds of in-place turn before the creep
+        self.turn_left = 0.0  # radians of in-place turn before the creep
         self.turn_rate = 0.0
         self.creep_turn_speed = self.declare_parameter("creep_turn_rate", 0.4).value  # rad/s
         self.enable = False
@@ -116,6 +117,8 @@ class MissionNode(Node):
         sub(Float32, "guide/phone_rssi", lambda m: self.follow.rssi(m.data, self.now()), 10)
         sub(Float32, "guide/student_distance", lambda m: self.follow.student(m.data, self.now()), 10)
         sub(Bool, "guide/localized", self.on_localized, 10)
+        sub(Odometry, "odometry/local", self.on_odom, 10)
+        sub(String, "guide/gate_reason", lambda m: setattr(self, "gate_reason", m.data), 10)
         sub(String, "signs", self.on_sign, 10)
 
         self.create_timer(0.2, self.tick)
@@ -129,7 +132,13 @@ class MissionNode(Node):
         self.sign_read_distance = float(self.declare_parameter("sign_read_distance", 2.5).value)
         self.reset_yaw_sigma = float(self.declare_parameter("reset_yaw_sigma", 0.6).value)  # rad, the compass hint's
         self.last_fix_xy = None
-        self.resume_after_reset = None  # (time, (x, y)) while waiting for the EKF reset to show in TF
+        self.resume_after_reset = None  # (time, (x, y) or None) while waiting for the EKF reset to show in TF
+        self.localized_at = self.now()
+        self.mode_sent_at = -math.inf  # last SetLocalization: older localized=True replies are ignored
+        self.gate_reason = ""
+        self.odom = None  # (x, y, yaw) from /odometry/local, for the creep
+        self.odom_at = -math.inf
+        self.creep_prev = None
         self.run([SetLocalization(start_floor), DriveEnable(False)])
 
     def now(self) -> float:
@@ -147,12 +156,19 @@ class MissionNode(Node):
         # Asked before the car knows where it is: this plan starts from a guess,
         # so plan again from the real position once localization arrives.
         self.replan_on_fix = not self.trip.localized
+        self.last_fix_xy = None  # only a fix from this trip counts
         self.run(self.trip.start(text, start))
         self.publish_route()
 
     def on_localized(self, msg: Bool):
+        self.localized_at = self.now()
+        if msg.data and self.now() - self.mode_sent_at < 1.0:
+            return  # still about the previous floor or outdoors: wait for the new setup's answer
         if msg.data and self.replan_on_fix and self.trip.active and not self.trip.localized:
             self.replan_on_fix = False
+            if self.last_fix_xy is None:
+                self.resume_after_reset = (self.now(), None)  # RTAB-Map fix: plan once TF has it
+                return
             # From the fix itself: the EKF reset may not have reached TF yet.
             start = self.start_node(self.last_fix_xy)
             if start is not None:
@@ -219,11 +235,25 @@ class MissionNode(Node):
         except TransformException:
             pass
         if self.resume_after_reset is not None:
-            since, (fx, fy) = self.resume_after_reset
-            arrived = self.pose is not None and math.hypot(self.pose[0] - fx, self.pose[1] - fy) < 3.0
-            if arrived or self.now() - since > 3.0:
+            since, xy = self.resume_after_reset
+            if xy is None:
+                # Placed by RTAB-Map, not a sign: no fix position here, so give the
+                # EKF reset a second to reach TF and plan from the pose then.
+                if self.now() - since > 1.0:
+                    self.resume_after_reset = None
+                    start = self.start_node()
+                    if start is not None:
+                        self.get_logger().info(f"position found: planning the trip again from {start}")
+                        self.run(self.trip.replan_from(start))
+                        self.publish_route()
+                    self.run(self.trip.on_localization(True))
+            elif (self.pose is not None and math.hypot(self.pose[0] - xy[0], self.pose[1] - xy[1]) < 3.0) or self.now() - since > 3.0:
                 self.resume_after_reset = None
                 self.run(self.trip.on_localization(True))
+        if self.now() - self.localized_at > 1.5 and self.trip.localized:
+            # The localization manager went quiet (crashed): assume nothing.
+            self.get_logger().warn("no guide/localized for 1.5 s: treating the car as not localized")
+            self.run(self.trip.on_localization(False))
         out = self.trip.on_follow(self.follow.following(self.now()))
         if self.pose is not None:
             out += self.trip.on_position(self.pose[0], self.pose[1])
@@ -254,14 +284,17 @@ class MissionNode(Node):
                 self.stop_creep()
             elif isinstance(a, SetLocalization):
                 self.locmode_pub.publish(String(data=json.dumps({"floor": a.floor})))
+                self.mode_sent_at = self.now()
             elif isinstance(a, SetPose):
                 n = self.rg.nodes[a.node]
                 yaw = self.pose[2] if self.pose else 0.0
-                self.set_pose_pub.publish(self.pose_msg(n["x"], n["y"], yaw, a.sigma, yaw_sigma=math.pi))
+                # Heading is kept (the gyro carried it through the ride): "unknown" here
+                # lets later heading updates drag the position (see on_sign).
+                self.set_pose_pub.publish(self.pose_msg(n["x"], n["y"], yaw, a.sigma, yaw_sigma=self.reset_yaw_sigma))
             elif isinstance(a, Creep):
                 self.creep_speed = a.speed
-                self.creep_left = a.distance / max(a.speed, 0.05)
-                self.turn_left = abs(a.turn) / self.creep_turn_speed
+                self.creep_left = a.distance  # metres, counted from measured motion (creep_progress)
+                self.turn_left = abs(a.turn)  # radians
                 self.turn_rate = math.copysign(self.creep_turn_speed, a.turn) if a.turn else 0.0
             elif isinstance(a, Recovery):
                 self.recovery = a.on
@@ -367,20 +400,45 @@ class MissionNode(Node):
             self.creep_left = self.turn_left = 0.0
             self.manual_pub.publish(Twist())
 
+    def on_odom(self, msg: Odometry):
+        p = msg.pose.pose
+        self.odom = (p.position.x, p.position.y, quat_to_yaw(p.orientation))
+        self.odom_at = self.now()
+
+    def creep_progress(self) -> tuple[float, float]:
+        """(metres, radians) moved since the last creep tick.
+
+        From odometry when it is fresh. Inside an elevator visual odometry is
+        often lost (plain metal walls): then count commanded motion, but only
+        while the velocity gate is actually passing it (not a person stop).
+        """
+        fresh = self.now() - self.odom_at < 0.5 and self.odom is not None
+        prev, self.creep_prev = self.creep_prev, (self.odom if fresh else None)
+        if fresh and prev is not None:
+            dyaw = math.atan2(math.sin(self.odom[2] - prev[2]), math.cos(self.odom[2] - prev[2]))
+            return math.hypot(self.odom[0] - prev[0], self.odom[1] - prev[1]), abs(dyaw)
+        if self.gate_reason == "manual":
+            return self.creep_speed * 0.1, abs(self.turn_rate) * 0.1
+        return 0.0, 0.0
+
     def creep_tick(self):
         """Drive the elevator creep; it pauses while the trip is paused or the student is away."""
         if self.creep_left <= 0:
+            self.creep_prev = None
             return
         if self.trip.paused or not self.trip.following:
             self.manual_pub.publish(Twist())
+            self.creep_prev = None
             return
+        moved, turned = self.creep_progress()
         t = Twist()
         if self.turn_left > 0:
-            self.turn_left -= 0.1
-            t.angular.z = self.turn_rate
-            self.manual_pub.publish(t)
-            return
-        self.creep_left -= 0.1
+            self.turn_left -= turned
+            if self.turn_left > 0:
+                t.angular.z = self.turn_rate
+                self.manual_pub.publish(t)
+                return
+        self.creep_left -= moved
         if self.creep_left > 0:
             t.linear.x = self.creep_speed
             self.manual_pub.publish(t)

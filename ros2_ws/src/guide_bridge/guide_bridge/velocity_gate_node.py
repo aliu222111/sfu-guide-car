@@ -22,7 +22,7 @@ class VelocityGateNode(Node):
         self.create_subscription(Twist, "guide/cmd_vel_manual", lambda m: self.gate.manual_cmd(m.linear.x, m.angular.z, self.now()), 10)
         self.create_subscription(Bool, "guide/drive_enable", lambda m: self.gate.set_enabled(m.data, self.now()), 10)
         self.create_subscription(Bool, "guide/recovery_rotate", lambda m: self.gate.set_recovery(m.data, self.now()), 10)
-        self.create_subscription(Bool, "guide/outdoor", lambda m: self.gate.set_outdoor(m.data), 10)
+        self.create_subscription(Bool, "guide/outdoor", lambda m: self.gate.set_outdoor(m.data, self.now()), 10)
         self.create_subscription(Bool, "phone/alive", lambda m: self.gate.set_phone_alive(m.data, self.now()), 10)
         self.create_subscription(Float32, "people/nearest", lambda m: self.gate.person(m.data, self.now()), 10)
         self.create_subscription(Range, "bumper/range", lambda m: self.gate.bumper(m.range, self.now()), 10)
