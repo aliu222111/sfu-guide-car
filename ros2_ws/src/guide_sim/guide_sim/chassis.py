@@ -39,7 +39,7 @@ class ChassisParams:
     stiction_duty: float = 0.19  # below this duty a track does not roll: PWM 48, just under MIN_PWM_DRIVE 50
     motor_tau: float = 0.12  # s, speed response time constant
     turn_slip: float = 1.45  # actual turn rate = geometric rate / turn_slip
-    pivot_breakaway: float = 0.10  # m/s per side needed to drag the tracks round (MIN_PWM_PIVOT 65 gives 0.09)
+    pivot_breakaway: float = 0.06  # m/s per side to drag the tracks round: MIN_PWM_PIVOT 55 gives 0.03, so pivots under 0.2 rad/s stall
     length: float = 0.50  # footprint, matches nav2.yaml
     width: float = 0.38
 

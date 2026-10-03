@@ -29,7 +29,7 @@
 const float TRACK_WIDTH_M = 0.30;      // between the centres of the left and right tracks (or wheels)
 const float MAX_WHEEL_SPEED = 1.2;     // m/s at full PWM, measure on the bench
 const int MIN_PWM_DRIVE = 50;          // 0..255: the car just rolls straight; measure on the floor
-const int MIN_PWM_PIVOT = 65;          // 0..255: the car just pivots in place; measure on the floor
+const int MIN_PWM_PIVOT = 55;          // 0..255: the car just pivots in place; measure on the floor
 const float STOP_SPEED = 0.01;         // m/s: side speeds under this are a stop, not a minimum PWM
 const unsigned long WATCHDOG_MS = 500;
 const int PWM_L = 5, DIR_L = 4, PWM_R = 6, DIR_R = 7;

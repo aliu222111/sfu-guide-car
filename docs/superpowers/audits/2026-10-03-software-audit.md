@@ -98,7 +98,7 @@ Fixed:
   moved. It now counts metres and radians from odometry, and falls back to commanded motion only
   while the gate is in manual mode.
 - **One PWM floor** for driving and pivoting. A pivot needs more (both tracks scrub), so the
-  firmware has `MIN_PWM_DRIVE` 50 and `MIN_PWM_PIVOT` 65; the sim's slow straight now holds
+  firmware has `MIN_PWM_DRIVE` 50 and `MIN_PWM_PIVOT` 55; the sim's slow straight now holds
   0.15 m/s within 0.02.
 - **Dead ultrasonic failed open.** A disconnected sensor timed out and read as "nothing within
   4 m". The firmware now reports `U -1` for no echo (sensor missing) and `U 0` for out of range;

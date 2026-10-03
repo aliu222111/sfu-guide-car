@@ -117,14 +117,14 @@ def test_slow_pivot_stalls_without_min_pivot_rate(fw):
 
 
 def test_min_pwm_set_too_high_overshoots(fw):
-    # Tracks that pivot easily: MIN_PWM_PIVOT 65 makes every slow pivot a fast one.
+    # Tracks that pivot easily: MIN_PWM_PIVOT 55 makes every slow pivot a fast one.
     ch = Chassis(ChassisParams(stiction_duty=0.15, pivot_breakaway=0.05))
     drive(fw, ch, 0.0, 0.1, 2.0)
     assert ch.s.w > 0.2
 
 
 def test_min_pwm_set_too_low_stalls_tracks(fw):
-    ch = Chassis(ChassisParams(stiction_duty=0.30))  # stiffer floor: PWM 65 does not move a track
+    ch = Chassis(ChassisParams(stiction_duty=0.30))  # stiffer floor: PWM 55 does not move a track
     drive(fw, ch, 0.0, 0.1, 2.0)
     assert ch.s.v_left == 0.0 and ch.s.v_right == 0.0
 
