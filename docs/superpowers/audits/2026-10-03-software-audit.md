@@ -81,6 +81,57 @@ Results on the final code and maps, run with `ros2 run guide_bringup sim_trip`:
 | Room names with letter prefixes or hyphens (`WMC S1300`, `AQ 5003-9`) did not resolve from compact input. | route.py | Buildings are matched against the known codes. All destination keys now round-trip. |
 | A trip started after an aborted voice-mode trip inherited "still with me?". | trip.py | `start()` resets it. |
 
+## Second pass: QA, safety audit and simplicity audit
+
+After the hardware-in-the-loop simulator (`guide_sim`) existed, four reviews ran in parallel: a QA
+pass (every test suite, build, launch files, docs against code), a safety audit of everything that
+can move the car, an audit of the rest, and a simplicity audit (the ponytail checklist: delete,
+use the standard library, reuse what exists, no speculative code). Every finding below was
+reproduced or read in the code before it was fixed; all suites pass (bridge 36, claude 6,
+mission 25, perception 18, ui 3, voice 13, sim 19, sfu_map 22).
+
+Fixed:
+
+- **Mission crash** when a sign fix reset the pose before any position was known (`None` unpacked).
+  Now it waits 1 s for the reset to land, then replans from the pose.
+- **Creep by time.** The "inch forward" recovery counted seconds, so a stalled car believed it had
+  moved. It now counts metres and radians from odometry, and falls back to commanded motion only
+  while the gate is in manual mode.
+- **One PWM floor** for driving and pivoting. A pivot needs more (both tracks scrub), so the
+  firmware has `MIN_PWM_DRIVE` 50 and `MIN_PWM_PIVOT` 65; the sim's slow straight now holds
+  0.15 m/s within 0.02.
+- **Dead ultrasonic failed open.** A disconnected sensor timed out and read as "nothing within
+  4 m". The firmware now reports `U -1` for no echo (sensor missing) and `U 0` for out of range;
+  the bridge drops `-1`, so the reading goes stale and, with one camera (`require_bumper`), the
+  gate caps forward speed at the 0.15 m/s creep. The sim can unplug it.
+- **Flags that never expired.** "Outdoor" and "localized" stayed set if their publisher died; both
+  now time out (outdoor like the gate's other flags, localized after 1.5 s without an update).
+- **Stale "localized" after a floor switch**: a `True` within 1 s of the mode change is ignored.
+- **Claude session race**: prewarm and the first question could start two clients; connect and close
+  now hold a lock, a timed-out request is cancelled, and an error reply is raised instead of spoken.
+- **Student tracker** jumped to whoever was nearest. It now keeps its lock while the student is
+  briefly hidden and re-locks only on someone near the last distance. The rear camera is rectified.
+- **URDF** had both `base_footprint` and the EKF as parents of `base_link`; `base_footprint` removed.
+- Smaller: `PIVOT_SPEED` threshold, `nav_failures` reset per trip, the sim's `pulseIn` returned
+  twice the echo, and the judge looked up the destination door by name instead of the route graph.
+- Simplicity: unused imports, parameters and state removed across sfu_map, the UI and the sim; the
+  sim reuses the bridge's quaternion helper and the voice agent calls `run_tool` directly.
+
+Not fixed, by decision:
+
+- **Nav2 death watchdog.** If Nav2 crashes mid-trip the mission waits for its action timeout.
+  The velocity gate already stops the car when `cmd_vel` goes quiet, so this is a stall, not a hazard.
+- **rosbridge has no authentication.** It listens on the laptop's hotspot only; add a token if the
+  car ever joins a shared network.
+- **Simulator limits.** The sim's world is the same grid the car plans on, so map errors cannot show
+  up; the host Arduino core assumes 32-bit `int` where the Uno has 16-bit; firmware is rebuilt only
+  when its source changes; the stereo pair has no separate per-camera bias; `stereo_sim` duplicates
+  part of `guide_sim`.
+- **Deferred simplifications** (worth doing, not worth the risk now): union-find in sfu_map could be
+  `scipy.sparse.csgraph`; two Umeyama implementations and several quaternion helpers could share one
+  module; the voice agents could share their tool list and preamble; launch files repeat include
+  boilerplate. Encoder inputs stay as the specced extension point.
+
 ## Open items, not fixable without the hardware or site visits
 
 - **Verify on site:** every connector in `sfu_map/connectors.yaml` (14 elevators, 1 entrance) and
@@ -106,7 +157,7 @@ Results on the final code and maps, run with `ros2 run guide_bringup sim_trip`:
   against that map from a different start, median error 0.47 m. Real webcams, real texture and real
   lighting are still untested.
 - **Tank steering** (decided after the audit): `turn_gain` and `min_pivot_rate` in the serial bridge,
-  `MIN_PWM` in the firmware, `calibrate_turn` to measure them, Rotation Shim controller. In the sim a
+  `MIN_PWM_DRIVE` and `MIN_PWM_PIVOT` in the firmware, `calibrate_turn` to measure them, Rotation Shim controller. In the sim a
   car turning at 2/3 of the asked rate and stalling below 0.2 rad/s ends blocked without compensation
   and arrives with it (AQ 3046 in 86 s; AQ 6106 via elevator and two doors in 323 s). The real
   slip is floor-dependent and must be measured.
