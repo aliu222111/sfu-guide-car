@@ -18,6 +18,14 @@ DEFAULT_CAMPUS = REPO_ROOT / "data" / "sfu_gis" / "campus-geometry.json"
 
 # Room categories the car may drive through.
 FREE_CATEGORIES = {"CIRCULATION"}
+# Public rooms the car may also cross: office suites and clubs are often
+# reached through a reception, lounge or cafeteria that the GIS does not
+# classify as circulation. Doors into them are bridged like any other doorway
+# (the car stops and asks the student to hold the door).
+PASSABLE_TYPES = {
+    "Lobby", "Reception", "Public Lounge", "Public Study Area", "Student Lounge/Lunch Room",
+    "Gallery, Display Room", "Dining", "Cafeteria", "Vending Machine Area",
+}
 # Of those, room types that are not floor space.
 NOT_FREE_TYPES = {"Stairs", "Elevator Shaft"}
 # Rooms that get no door node.
@@ -42,7 +50,9 @@ class Room:
 
     @property
     def is_free(self) -> bool:
-        return self.rm_cat in FREE_CATEGORIES and self.rm_type not in NOT_FREE_TYPES
+        if self.rm_type in NOT_FREE_TYPES:
+            return False
+        return self.rm_cat in FREE_CATEGORIES or self.rm_type in PASSABLE_TYPES
 
     @property
     def gets_door(self) -> bool:

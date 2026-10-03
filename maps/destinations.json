@@ -349,48 +349,6 @@
   "room_x": -57.42,
   "room_y": 40.2
  },
- "AQ 2000": {
-  "node": "AQ-02:door:2000",
-  "building": "AQ",
-  "floor": "AQ-02",
-  "floor_name": "2000 Level",
-  "room": "2000",
-  "type": "Workshop",
-  "category": "INSTRUCT_SUP",
-  "name": "Science Technical Centre Storage and Electrical",
-  "searchable": true,
-  "direct_door": false,
-  "room_x": -71.74,
-  "room_y": -46.09
- },
- "AQ 2001": {
-  "node": "AQ-02:door:2001",
-  "building": "AQ",
-  "floor": "AQ-02",
-  "floor_name": "2000 Level",
-  "room": "2001",
-  "type": "Workshop",
-  "category": "INSTRUCT_SUP",
-  "name": "Science Technical Centre - Electronics Shop",
-  "searchable": true,
-  "direct_door": true,
-  "room_x": -74.79,
-  "room_y": -50.28
- },
- "AQ 2002": {
-  "node": "AQ-02:door:2002",
-  "building": "AQ",
-  "floor": "AQ-02",
-  "floor_name": "2000 Level",
-  "room": "2002",
-  "type": "Student Lounge/Lunch Room",
-  "category": "ADMIN_SUPPOR",
-  "name": "Indigenous Student Centre",
-  "searchable": true,
-  "direct_door": true,
-  "room_x": -75.09,
-  "room_y": -36.7
- },
  "AQ 2002.1": {
   "node": "AQ-02:door:2002.1",
   "building": "AQ",
@@ -404,76 +362,6 @@
   "direct_door": true,
   "room_x": -75.22,
   "room_y": -31.98
- },
- "AQ 2002.2": {
-  "node": "AQ-02:door:2002.2",
-  "building": "AQ",
-  "floor": "AQ-02",
-  "floor_name": "2000 Level",
-  "room": "2002.2",
-  "type": "Office",
-  "category": "OFFICE",
-  "name": "",
-  "searchable": true,
-  "direct_door": false,
-  "room_x": -78.07,
-  "room_y": -40.73
- },
- "AQ 2002.3": {
-  "node": "AQ-02:door:2002.3",
-  "building": "AQ",
-  "floor": "AQ-02",
-  "floor_name": "2000 Level",
-  "room": "2002.3",
-  "type": "Public Study Area",
-  "category": "ASSEMBLY",
-  "name": "",
-  "searchable": true,
-  "direct_door": false,
-  "room_x": -74.48,
-  "room_y": -41.57
- },
- "AQ 2002A": {
-  "node": "AQ-02:door:2002A",
-  "building": "AQ",
-  "floor": "AQ-02",
-  "floor_name": "2000 Level",
-  "room": "2002A",
-  "type": "General Storage",
-  "category": "ADMIN_SUPPOR",
-  "name": "",
-  "searchable": false,
-  "direct_door": true,
-  "room_x": -71.24,
-  "room_y": -36.72
- },
- "AQ 2002B": {
-  "node": "AQ-02:door:2002B",
-  "building": "AQ",
-  "floor": "AQ-02",
-  "floor_name": "2000 Level",
-  "room": "2002B",
-  "type": "General Storage",
-  "category": "ADMIN_SUPPOR",
-  "name": "",
-  "searchable": false,
-  "direct_door": false,
-  "room_x": -71.62,
-  "room_y": -38.37
- },
- "AQ 2002C": {
-  "node": "AQ-02:door:2002C",
-  "building": "AQ",
-  "floor": "AQ-02",
-  "floor_name": "2000 Level",
-  "room": "2002C",
-  "type": "General Storage",
-  "category": "ADMIN_SUPPOR",
-  "name": "",
-  "searchable": false,
-  "direct_door": false,
-  "room_x": -72.44,
-  "room_y": -41.87
  },
  "AQ 2003": {
   "node": "AQ-02:door:2003",
@@ -765,7 +653,7 @@
   "category": "COMMERCIAL",
   "name": "",
   "searchable": false,
-  "direct_door": false,
+  "direct_door": true,
   "room_x": -51.57,
   "room_y": 16.33
  },
@@ -947,37 +835,9 @@
   "category": "COMMERCIAL",
   "name": "",
   "searchable": false,
-  "direct_door": false,
+  "direct_door": true,
   "room_x": -44.32,
   "room_y": 50.12
- },
- "AQ 2027.1": {
-  "node": "AQ-02:door:2027.1",
-  "building": "AQ",
-  "floor": "AQ-02",
-  "floor_name": "2000 Level",
-  "room": "2027.1",
-  "type": "Cafeteria",
-  "category": "COMMERCIAL",
-  "name": "",
-  "searchable": true,
-  "direct_door": true,
-  "room_x": -47.28,
-  "room_y": 50.82
- },
- "AQ 2027.2": {
-  "node": "AQ-02:door:2027.2",
-  "building": "AQ",
-  "floor": "AQ-02",
-  "floor_name": "2000 Level",
-  "room": "2027.2",
-  "type": "Cafeteria",
-  "category": "COMMERCIAL",
-  "name": "Taco Cantina",
-  "searchable": true,
-  "direct_door": true,
-  "room_x": -49.18,
-  "room_y": 51.19
  },
  "AQ 2035": {
   "node": "AQ-02:door:2035",
@@ -1003,7 +863,7 @@
   "category": "OFFICE",
   "name": "",
   "searchable": true,
-  "direct_door": false,
+  "direct_door": true,
   "room_x": -53.82,
   "room_y": 63.33
  },
@@ -1077,48 +937,6 @@
   "room_x": -47.94,
   "room_y": 37.48
  },
- "AQ 2040.1": {
-  "node": "AQ-02:door:2040.1",
-  "building": "AQ",
-  "floor": "AQ-02",
-  "floor_name": "2000 Level",
-  "room": "2040.1",
-  "type": "Food Dry Storage",
-  "category": "COMMERCIAL",
-  "name": "",
-  "searchable": false,
-  "direct_door": true,
-  "room_x": -84.62,
-  "room_y": 7.58
- },
- "AQ 2040.2": {
-  "node": "AQ-02:door:2040.2",
-  "building": "AQ",
-  "floor": "AQ-02",
-  "floor_name": "2000 Level",
-  "room": "2040.2",
-  "type": "Kitchenette",
-  "category": "ADMIN_SUPPOR",
-  "name": "",
-  "searchable": true,
-  "direct_door": true,
-  "room_x": -81.89,
-  "room_y": 11.66
- },
- "AQ 2040.3": {
-  "node": "AQ-02:door:2040.3",
-  "building": "AQ",
-  "floor": "AQ-02",
-  "floor_name": "2000 Level",
-  "room": "2040.3",
-  "type": "Plant Maint Storage",
-  "category": "BLDNG_SUPPOR",
-  "name": "",
-  "searchable": false,
-  "direct_door": false,
-  "room_x": -83.58,
-  "room_y": 12.21
- },
  "AQ 2041": {
   "node": "AQ-02:door:2041",
   "building": "AQ",
@@ -1143,7 +961,7 @@
   "category": "BLDNG_SERV",
   "name": "",
   "searchable": false,
-  "direct_door": false,
+  "direct_door": true,
   "room_x": -79.44,
   "room_y": 20.24
  },
@@ -1157,7 +975,7 @@
   "category": "OFFICE",
   "name": "",
   "searchable": true,
-  "direct_door": false,
+  "direct_door": true,
   "room_x": -78.8,
   "room_y": 14.9
  },
@@ -1175,6 +993,20 @@
   "room_x": -83.79,
   "room_y": 18.59
  },
+ "AQ 2045": {
+  "node": "AQ-02:door:2045",
+  "building": "AQ",
+  "floor": "AQ-02",
+  "floor_name": "2000 Level",
+  "room": "2045",
+  "type": "Comm.-Rm-Clos/Server Rm",
+  "category": "BLDNG_SERV",
+  "name": "",
+  "searchable": false,
+  "direct_door": false,
+  "room_x": -80.11,
+  "room_y": 25.83
+ },
  "AQ 2046": {
   "node": "AQ-02:door:2046",
   "building": "AQ",
@@ -1185,7 +1017,7 @@
   "category": "ADMIN_SUPPOR",
   "name": "",
   "searchable": false,
-  "direct_door": false,
+  "direct_door": true,
   "room_x": -78.33,
   "room_y": 28.53
  },
@@ -1521,7 +1353,7 @@
   "category": "ADMIN_SUPPOR",
   "name": "",
   "searchable": false,
-  "direct_door": false,
+  "direct_door": true,
   "room_x": -4.92,
   "room_y": -52.92
  },
@@ -1997,7 +1829,7 @@
   "category": "OFFICE",
   "name": "",
   "searchable": true,
-  "direct_door": false,
+  "direct_door": true,
   "room_x": -71.12,
   "room_y": -10.95
  },
@@ -3075,7 +2907,7 @@
   "category": "ADMIN_SUPPOR",
   "name": "",
   "searchable": true,
-  "direct_door": false,
+  "direct_door": true,
   "room_x": 50.69,
   "room_y": 47.92
  },
@@ -3103,7 +2935,7 @@
   "category": "OFFICE",
   "name": "",
   "searchable": true,
-  "direct_door": false,
+  "direct_door": true,
   "room_x": 57.52,
   "room_y": 46.22
  },
@@ -3173,7 +3005,7 @@
   "category": "BLDNG_SERV",
   "name": "",
   "searchable": false,
-  "direct_door": false,
+  "direct_door": true,
   "room_x": 61.28,
   "room_y": 36.76
  },
@@ -3243,7 +3075,7 @@
   "category": "ADMIN_SUPPOR",
   "name": "",
   "searchable": true,
-  "direct_door": false,
+  "direct_door": true,
   "room_x": 62.39,
   "room_y": 30.13
  },
@@ -3677,7 +3509,7 @@
   "category": "ADMIN_SUPPOR",
   "name": "",
   "searchable": true,
-  "direct_door": false,
+  "direct_door": true,
   "room_x": 11.96,
   "room_y": -76.05
  },
@@ -3691,7 +3523,7 @@
   "category": "OFFICE",
   "name": "",
   "searchable": true,
-  "direct_door": false,
+  "direct_door": true,
   "room_x": 16.34,
   "room_y": -78.18
  },
@@ -7419,20 +7251,6 @@
   "room_x": -45.13,
   "room_y": 51.89
  },
- "AQ 6097": {
-  "node": "AQ-06:door:6097",
-  "building": "AQ",
-  "floor": "AQ-06",
-  "floor_name": "6000 Level",
-  "room": "6097",
-  "type": "Student Lounge/Lunch Room",
-  "category": "ADMIN_SUPPOR",
-  "name": "English Student Union Lounge-undergraduate",
-  "searchable": true,
-  "direct_door": true,
-  "room_x": -50.43,
-  "room_y": 55.46
- },
  "AQ 6098": {
   "node": "AQ-06:door:6098",
   "building": "AQ",
@@ -7446,20 +7264,6 @@
   "direct_door": true,
   "room_x": -44.44,
   "room_y": 54.85
- },
- "AQ 6099": {
-  "node": "AQ-06:door:6099",
-  "building": "AQ",
-  "floor": "AQ-06",
-  "floor_name": "6000 Level",
-  "room": "6099",
-  "type": "Office",
-  "category": "OFFICE",
-  "name": "",
-  "searchable": true,
-  "direct_door": true,
-  "room_x": -49.56,
-  "room_y": 59.21
  },
  "AQ 6100": {
   "node": "AQ-06:door:6100",
@@ -8465,7 +8269,7 @@
   "category": "OFFICE",
   "name": "",
   "searchable": true,
-  "direct_door": false,
+  "direct_door": true,
   "room_x": 78.06,
   "room_y": 46.3
  },
@@ -10695,6 +10499,20 @@
   "room_x": -181.15,
   "room_y": -11.89
  },
+ "MBC 0243": {
+  "node": "MBC-02:door:0243",
+  "building": "MBC",
+  "floor": "MBC-02",
+  "floor_name": "2000 Level",
+  "room": "0243",
+  "type": "Washroom, men's, accessible",
+  "category": "BLDNG_SUPPOR",
+  "name": "",
+  "searchable": true,
+  "direct_door": true,
+  "room_x": -185.03,
+  "room_y": -11.22
+ },
  "MBC 0245": {
   "node": "MBC-02:door:0245",
   "building": "MBC",
@@ -11240,6 +11058,20 @@
   "direct_door": true,
   "room_x": -181.56,
   "room_y": -13.26
+ },
+ "MBC 0343": {
+  "node": "MBC-03:door:0343",
+  "building": "MBC",
+  "floor": "MBC-03",
+  "floor_name": "3000 Level",
+  "room": "0343",
+  "type": "Washroom, men's, accessible",
+  "category": "BLDNG_SUPPOR",
+  "name": "",
+  "searchable": true,
+  "direct_door": true,
+  "room_x": -185.07,
+  "room_y": -11.99
  },
  "MBC 0345": {
   "node": "MBC-03:door:0345",
@@ -14079,7 +13911,7 @@
   "category": "OFFICE",
   "name": "",
   "searchable": true,
-  "direct_door": false,
+  "direct_door": true,
   "room_x": -202.31,
   "room_y": 18.41
  },
@@ -14121,7 +13953,7 @@
   "category": "ADMIN_SUPPOR",
   "name": "",
   "searchable": true,
-  "direct_door": false,
+  "direct_door": true,
   "room_x": -204.92,
   "room_y": 24.77
  },
@@ -14163,7 +13995,7 @@
   "category": "OFFICE",
   "name": "",
   "searchable": true,
-  "direct_door": false,
+  "direct_door": true,
   "room_x": -204.3,
   "room_y": 18.99
  },
@@ -14177,7 +14009,7 @@
   "category": "OFFICE",
   "name": "",
   "searchable": true,
-  "direct_door": false,
+  "direct_door": true,
   "room_x": -197.77,
   "room_y": 25.0
  },
@@ -14191,7 +14023,7 @@
   "category": "OFFICE",
   "name": "",
   "searchable": true,
-  "direct_door": false,
+  "direct_door": true,
   "room_x": -206.75,
   "room_y": 19.55
  },
@@ -14205,7 +14037,7 @@
   "category": "OFFICE",
   "name": "",
   "searchable": true,
-  "direct_door": false,
+  "direct_door": true,
   "room_x": -200.39,
   "room_y": 25.61
  },
@@ -14219,9 +14051,23 @@
   "category": "OFFICE",
   "name": "",
   "searchable": true,
-  "direct_door": false,
+  "direct_door": true,
   "room_x": -209.56,
   "room_y": 21.08
+ },
+ "MBC 2012": {
+  "node": "MBC-02:door:2012",
+  "building": "MBC",
+  "floor": "MBC-02",
+  "floor_name": "2000 Level",
+  "room": "2012",
+  "type": "Office",
+  "category": "OFFICE",
+  "name": "",
+  "searchable": true,
+  "direct_door": true,
+  "room_x": -208.48,
+  "room_y": 24.4
  },
  "MBC 2014": {
   "node": "MBC-02:door:2014",
@@ -14233,7 +14079,7 @@
   "category": "OFFICE",
   "name": "",
   "searchable": true,
-  "direct_door": false,
+  "direct_door": true,
   "room_x": -205.94,
   "room_y": 27.22
  },
@@ -14261,9 +14107,65 @@
   "category": "OFFICE",
   "name": "",
   "searchable": true,
-  "direct_door": false,
+  "direct_door": true,
   "room_x": -226.21,
   "room_y": 6.91
+ },
+ "MBC 2106": {
+  "node": "MBC-02:door:2106",
+  "building": "MBC",
+  "floor": "MBC-02",
+  "floor_name": "2000 Level",
+  "room": "2106",
+  "type": "Office",
+  "category": "OFFICE",
+  "name": "",
+  "searchable": true,
+  "direct_door": true,
+  "room_x": -223.88,
+  "room_y": 12.79
+ },
+ "MBC 2108": {
+  "node": "MBC-02:door:2108",
+  "building": "MBC",
+  "floor": "MBC-02",
+  "floor_name": "2000 Level",
+  "room": "2108",
+  "type": "Office",
+  "category": "OFFICE",
+  "name": "",
+  "searchable": true,
+  "direct_door": true,
+  "room_x": -228.08,
+  "room_y": 13.04
+ },
+ "MBC 2110": {
+  "node": "MBC-02:door:2110",
+  "building": "MBC",
+  "floor": "MBC-02",
+  "floor_name": "2000 Level",
+  "room": "2110",
+  "type": "Office",
+  "category": "OFFICE",
+  "name": "",
+  "searchable": true,
+  "direct_door": true,
+  "room_x": -228.9,
+  "room_y": 9.52
+ },
+ "MBC 2112": {
+  "node": "MBC-02:door:2112",
+  "building": "MBC",
+  "floor": "MBC-02",
+  "floor_name": "2000 Level",
+  "room": "2112",
+  "type": "Office",
+  "category": "OFFICE",
+  "name": "",
+  "searchable": true,
+  "direct_door": true,
+  "room_x": -230.39,
+  "room_y": 6.34
  },
  "MBC 2114": {
   "node": "MBC-02:door:2114",
@@ -14275,7 +14177,7 @@
   "category": "OFFICE",
   "name": "",
   "searchable": true,
-  "direct_door": false,
+  "direct_door": true,
   "room_x": -231.31,
   "room_y": 2.33
  },
@@ -14289,7 +14191,7 @@
   "category": "OFFICE",
   "name": "",
   "searchable": true,
-  "direct_door": false,
+  "direct_door": true,
   "room_x": -231.37,
   "room_y": -1.18
  },
@@ -14303,7 +14205,7 @@
   "category": "OFFICE",
   "name": "",
   "searchable": true,
-  "direct_door": false,
+  "direct_door": true,
   "room_x": -225.78,
   "room_y": 4.57
  },
@@ -14457,7 +14359,7 @@
   "category": "ADMIN_SUPPOR",
   "name": "",
   "searchable": true,
-  "direct_door": false,
+  "direct_door": true,
   "room_x": -217.14,
   "room_y": -17.22
  },
@@ -14471,7 +14373,7 @@
   "category": "OFFICE",
   "name": "",
   "searchable": true,
-  "direct_door": false,
+  "direct_door": true,
   "room_x": -218.37,
   "room_y": -20.45
  },
@@ -14485,7 +14387,7 @@
   "category": "ADMIN_SUPPOR",
   "name": "",
   "searchable": true,
-  "direct_door": false,
+  "direct_door": true,
   "room_x": -217.12,
   "room_y": -23.28
  },
@@ -14499,7 +14401,7 @@
   "category": "ADMIN_SUPPOR",
   "name": "",
   "searchable": true,
-  "direct_door": false,
+  "direct_door": true,
   "room_x": -215.57,
   "room_y": -25.78
  },
@@ -14527,7 +14429,7 @@
   "category": "ADMIN_SUPPOR",
   "name": "",
   "searchable": true,
-  "direct_door": false,
+  "direct_door": true,
   "room_x": -214.03,
   "room_y": -28.25
  },
@@ -14667,7 +14569,7 @@
   "category": "OFFICE",
   "name": "",
   "searchable": true,
-  "direct_door": false,
+  "direct_door": true,
   "room_x": -200.31,
   "room_y": -45.95
  },
@@ -14681,7 +14583,7 @@
   "category": "OFFICE",
   "name": "",
   "searchable": true,
-  "direct_door": false,
+  "direct_door": true,
   "room_x": -203.42,
   "room_y": -45.85
  },
@@ -14709,7 +14611,7 @@
   "category": "ADMIN_SUPPOR",
   "name": "",
   "searchable": false,
-  "direct_door": false,
+  "direct_door": true,
   "room_x": -201.32,
   "room_y": -51.01
  },
@@ -14723,7 +14625,7 @@
   "category": "OFFICE",
   "name": "",
   "searchable": true,
-  "direct_door": false,
+  "direct_door": true,
   "room_x": -204.08,
   "room_y": -48.69
  },
@@ -14961,7 +14863,7 @@
   "category": "COMMERCIAL",
   "name": "Chango's House of Curry",
   "searchable": true,
-  "direct_door": false,
+  "direct_door": true,
   "room_x": -166.51,
   "room_y": -30.31
  },
@@ -14975,7 +14877,7 @@
   "category": "COMMERCIAL",
   "name": "Chango's Kitchen",
   "searchable": true,
-  "direct_door": false,
+  "direct_door": true,
   "room_x": -165.98,
   "room_y": -27.59
  },
@@ -14989,7 +14891,7 @@
   "category": "COMMERCIAL",
   "name": "",
   "searchable": false,
-  "direct_door": false,
+  "direct_door": true,
   "room_x": -169.62,
   "room_y": -28.35
  },
@@ -15003,9 +14905,23 @@
   "category": "COMMERCIAL",
   "name": "Gawon",
   "searchable": true,
-  "direct_door": false,
+  "direct_door": true,
   "room_x": -160.46,
   "room_y": -31.64
+ },
+ "MBC 2362.1": {
+  "node": "MBC-02:door:2362.1",
+  "building": "MBC",
+  "floor": "MBC-02",
+  "floor_name": "2000 Level",
+  "room": "2362.1",
+  "type": "Food Preparation",
+  "category": "COMMERCIAL",
+  "name": "Gawon Kitchen",
+  "searchable": true,
+  "direct_door": true,
+  "room_x": -159.61,
+  "room_y": -29.07
  },
  "MBC 2363": {
   "node": "MBC-02:door:2363",
@@ -15017,9 +14933,23 @@
   "category": "COMMERCIAL",
   "name": "Lonestar Burrito",
   "searchable": true,
-  "direct_door": false,
+  "direct_door": true,
   "room_x": -151.8,
   "room_y": -33.66
+ },
+ "MBC 2363.1": {
+  "node": "MBC-02:door:2363.1",
+  "building": "MBC",
+  "floor": "MBC-02",
+  "floor_name": "2000 Level",
+  "room": "2363.1",
+  "type": "Food Preparation",
+  "category": "COMMERCIAL",
+  "name": "Guadalupe Kitchen",
+  "searchable": true,
+  "direct_door": true,
+  "room_x": -151.51,
+  "room_y": -30.95
  },
  "MBC 244": {
   "node": "MBC-02:door:244",
@@ -15451,7 +15381,7 @@
   "category": "OFFICE",
   "name": "",
   "searchable": true,
-  "direct_door": false,
+  "direct_door": true,
   "room_x": -208.95,
   "room_y": 25.05
  },
@@ -15479,7 +15409,7 @@
   "category": "OFFICE",
   "name": "",
   "searchable": true,
-  "direct_door": false,
+  "direct_door": true,
   "room_x": -198.39,
   "room_y": 21.54
  },
@@ -15493,7 +15423,7 @@
   "category": "ADMIN_SUPPOR",
   "name": "",
   "searchable": true,
-  "direct_door": false,
+  "direct_door": true,
   "room_x": -196.53,
   "room_y": 25.96
  },
@@ -15507,7 +15437,7 @@
   "category": "ADMIN_SUPPOR",
   "name": "",
   "searchable": true,
-  "direct_door": false,
+  "direct_door": true,
   "room_x": -205.01,
   "room_y": 27.93
  },
@@ -16865,7 +16795,7 @@
   "category": "OFFICE",
   "name": "",
   "searchable": true,
-  "direct_door": false,
+  "direct_door": true,
   "room_x": -180.39,
   "room_y": -35.19
  },
@@ -17089,7 +17019,7 @@
   "category": "ADMIN_SUPPOR",
   "name": "",
   "searchable": false,
-  "direct_door": false,
+  "direct_door": true,
   "room_x": -205.11,
   "room_y": 11.3
  },
@@ -17145,7 +17075,7 @@
   "category": "COMMERCIAL",
   "name": "",
   "searchable": true,
-  "direct_door": false,
+  "direct_door": true,
   "room_x": -180.77,
   "room_y": 15.62
  },
@@ -17232,6 +17162,118 @@
   "direct_door": true,
   "room_x": -169.78,
   "room_y": 5.55
+ },
+ "MBC 410": {
+  "node": "MBC-04:door:410",
+  "building": "MBC",
+  "floor": "MBC-04",
+  "floor_name": "4000 Level",
+  "room": "410",
+  "type": "Washroom, men's, accessible",
+  "category": "BLDNG_SUPPOR",
+  "name": "",
+  "searchable": true,
+  "direct_door": true,
+  "room_x": -179.98,
+  "room_y": -17.24
+ },
+ "MBC 411": {
+  "node": "MBC-04:door:411",
+  "building": "MBC",
+  "floor": "MBC-04",
+  "floor_name": "4000 Level",
+  "room": "411",
+  "type": "Washroom, women's, accessible",
+  "category": "BLDNG_SUPPOR",
+  "name": "",
+  "searchable": true,
+  "direct_door": true,
+  "room_x": -177.17,
+  "room_y": -17.69
+ },
+ "MBC 4900": {
+  "node": "MBC-04:door:4900",
+  "building": "MBC",
+  "floor": "MBC-04",
+  "floor_name": "4000 Level",
+  "room": "4900",
+  "type": "Dining",
+  "category": "COMMERCIAL",
+  "name": "",
+  "searchable": true,
+  "direct_door": true,
+  "room_x": -177.54,
+  "room_y": 9.63
+ },
+ "MBC 4901": {
+  "node": "MBC-04:door:4901",
+  "building": "MBC",
+  "floor": "MBC-04",
+  "floor_name": "4000 Level",
+  "room": "4901",
+  "type": "Dining",
+  "category": "COMMERCIAL",
+  "name": "",
+  "searchable": true,
+  "direct_door": true,
+  "room_x": -182.61,
+  "room_y": -1.21
+ },
+ "MBC 4902": {
+  "node": "MBC-04:door:4902",
+  "building": "MBC",
+  "floor": "MBC-04",
+  "floor_name": "4000 Level",
+  "room": "4902",
+  "type": "Dining",
+  "category": "COMMERCIAL",
+  "name": "",
+  "searchable": true,
+  "direct_door": true,
+  "room_x": -186.09,
+  "room_y": -12.05
+ },
+ "MBC 4904": {
+  "node": "MBC-04:door:4904",
+  "building": "MBC",
+  "floor": "MBC-04",
+  "floor_name": "4000 Level",
+  "room": "4904",
+  "type": "Food Preparation",
+  "category": "COMMERCIAL",
+  "name": "",
+  "searchable": false,
+  "direct_door": true,
+  "room_x": -175.84,
+  "room_y": -10.17
+ },
+ "MBC 4920": {
+  "node": "MBC-04:door:4920",
+  "building": "MBC",
+  "floor": "MBC-04",
+  "floor_name": "4000 Level",
+  "room": "4920",
+  "type": "Dining",
+  "category": "COMMERCIAL",
+  "name": "",
+  "searchable": true,
+  "direct_door": true,
+  "room_x": -184.37,
+  "room_y": 16.01
+ },
+ "MBC 4921": {
+  "node": "MBC-04:door:4921",
+  "building": "MBC",
+  "floor": "MBC-04",
+  "floor_name": "4000 Level",
+  "room": "4921",
+  "type": "Mechanical Room",
+  "category": "BLDNG_SERV",
+  "name": "",
+  "searchable": false,
+  "direct_door": true,
+  "room_x": -181.73,
+  "room_y": 10.02
  },
  "MBC M21": {
   "node": "MBC-00A:door:M21",
@@ -19301,7 +19343,7 @@
   "category": "OFFICE",
   "name": "",
   "searchable": true,
-  "direct_door": false,
+  "direct_door": true,
   "room_x": -344.49,
   "room_y": 107.03
  },
@@ -19315,7 +19357,7 @@
   "category": "OFFICE",
   "name": "",
   "searchable": true,
-  "direct_door": false,
+  "direct_door": true,
   "room_x": -346.74,
   "room_y": 107.57
  },
@@ -19445,6 +19487,20 @@
   "room_x": -339.46,
   "room_y": 107.79
  },
+ "WMC 1390.5": {
+  "node": "WMC-01:door:1390.5",
+  "building": "WMC",
+  "floor": "WMC-01",
+  "floor_name": "1000 Level",
+  "room": "1390.5",
+  "type": "Office",
+  "category": "OFFICE",
+  "name": "",
+  "searchable": true,
+  "direct_door": true,
+  "room_x": -339.9,
+  "room_y": 105.93
+ },
  "WMC 1390.6": {
   "node": "WMC-01:door:1390.6",
   "building": "WMC",
@@ -19455,7 +19511,7 @@
   "category": "OFFICE",
   "name": "",
   "searchable": true,
-  "direct_door": false,
+  "direct_door": true,
   "room_x": -342.16,
   "room_y": 106.47
  },
@@ -19612,6 +19668,20 @@
   "direct_door": true,
   "room_x": -362.3,
   "room_y": 108.42
+ },
+ "WMC 1401": {
+  "node": "WMC-01:door:1401",
+  "building": "WMC",
+  "floor": "WMC-01",
+  "floor_name": "1000 Level",
+  "room": "1401",
+  "type": "Food Dry Storage",
+  "category": "COMMERCIAL",
+  "name": "",
+  "searchable": false,
+  "direct_door": true,
+  "room_x": -386.34,
+  "room_y": 113.44
  },
  "WMC 1402": {
   "node": "WMC-01:door:1402",
@@ -19879,20 +19949,6 @@
   "room_x": -388.98,
   "room_y": 133.96
  },
- "WMC 1621": {
-  "node": "WMC-01:door:1621",
-  "building": "WMC",
-  "floor": "WMC-01",
-  "floor_name": "1000 Level",
-  "room": "1621",
-  "type": "Computer Laboratory",
-  "category": "LAB",
-  "name": "",
-  "searchable": true,
-  "direct_door": true,
-  "room_x": -394.07,
-  "room_y": 120.84
- },
  "WMC 1621.1": {
   "node": "WMC-01:door:1621.1",
   "building": "WMC",
@@ -19903,7 +19959,7 @@
   "category": "ADMIN_SUPPOR",
   "name": "",
   "searchable": true,
-  "direct_door": false,
+  "direct_door": true,
   "room_x": -397.98,
   "room_y": 121.67
  },
@@ -20645,7 +20701,7 @@
   "category": "CLASSROOM",
   "name": "",
   "searchable": true,
-  "direct_door": false,
+  "direct_door": true,
   "room_x": -321.32,
   "room_y": 68.02
  },
@@ -21821,7 +21877,7 @@
   "category": "COMMERCIAL",
   "name": "Tim Hortons Kitchen",
   "searchable": true,
-  "direct_door": false,
+  "direct_door": true,
   "room_x": -371.76,
   "room_y": 110.07
  },
@@ -22983,9 +23039,51 @@
   "category": "ASSEMBLY",
   "name": "[math west]",
   "searchable": true,
-  "direct_door": false,
+  "direct_door": true,
   "room_x": -312.42,
   "room_y": 72.9
+ },
+ "WMC 2810": {
+  "node": "WMC-02:door:2810",
+  "building": "WMC",
+  "floor": "WMC-02",
+  "floor_name": "2000 Level",
+  "room": "2810",
+  "type": "Teaching Laboratory",
+  "category": "LAB",
+  "name": "",
+  "searchable": true,
+  "direct_door": true,
+  "room_x": -303.13,
+  "room_y": 79.86
+ },
+ "WMC 2820": {
+  "node": "WMC-02:door:2820",
+  "building": "WMC",
+  "floor": "WMC-02",
+  "floor_name": "2000 Level",
+  "room": "2820",
+  "type": "Teaching Laboratory",
+  "category": "LAB",
+  "name": "",
+  "searchable": true,
+  "direct_door": true,
+  "room_x": -305.03,
+  "room_y": 70.74
+ },
+ "WMC 2830": {
+  "node": "WMC-02:door:2830",
+  "building": "WMC",
+  "floor": "WMC-02",
+  "floor_name": "2000 Level",
+  "room": "2830",
+  "type": "Teaching Laboratory",
+  "category": "LAB",
+  "name": "",
+  "searchable": true,
+  "direct_door": true,
+  "room_x": -307.27,
+  "room_y": 62.33
  },
  "WMC 3100": {
   "node": "WMC-03:door:3100",
@@ -26805,7 +26903,7 @@
   "category": "COMMERCIAL",
   "name": "",
   "searchable": true,
-  "direct_door": false,
+  "direct_door": true,
   "room_x": -359.01,
   "room_y": 111.41
  },

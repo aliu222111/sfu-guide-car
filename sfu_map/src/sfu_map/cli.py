@@ -34,7 +34,10 @@ def cmd_build(args) -> int:
         old = building_bounds.get(fl.building, b)
         building_bounds[fl.building] = (min(old[0], b[0]), min(old[1], b[1]), max(old[2], b[2]), max(old[3], b[3]))
 
-    graph, destinations = build_graph(floors, connectors, spacing=args.spacing)
+    walkways = None
+    if args.walkways and Path(args.walkways).exists():
+        walkways = json.loads(Path(args.walkways).read_text())
+    graph, destinations = build_graph(floors, connectors, spacing=args.spacing, walkways=walkways)
     openings = doorway_openings(graph)
 
     floor_meta = {}
@@ -119,6 +122,36 @@ def _components(graph, floor: str) -> list[int]:
     return sorted(Counter(find(n) for n in parent).values(), reverse=True)
 
 
+def _reachability(graph, destinations, start: str = "entrance:aq_convocation_mall") -> list[str]:
+    """Which destinations the car can reach from ``start`` (car-traversable edges only)."""
+    from collections import deque
+
+    if start not in graph.nodes:
+        return [f"reachability: no start node {start}"]
+    adj: dict[str, list[str]] = {}
+    for e in graph.edges.values():
+        if e["car_traversable"]:
+            adj.setdefault(e["a"], []).append(e["b"])
+            adj.setdefault(e["b"], []).append(e["a"])
+    seen, q = {start}, deque([start])
+    while q:
+        for v in adj.get(q.popleft(), []):
+            if v not in seen:
+                seen.add(v)
+                q.append(v)
+    by_floor, ok = Counter(), Counter()
+    for d in destinations.values():
+        by_floor[d["floor"]] += 1
+        ok[d["floor"]] += d["node"] in seen
+    cls = sorted(k for k, d in destinations.items() if d["category"] == "CLASSROOM")
+    lost = [k for k in cls if destinations[k]["node"] not in seen]
+    out = [f"car-reachable from {start}: {sum(ok.values())} of {len(destinations)} destinations, {len(cls) - len(lost)} of {len(cls)} classrooms"]
+    out.append("  " + ", ".join(f"{f} {ok[f]}/{by_floor[f]}" for f in sorted(by_floor)))
+    if lost:
+        out.append("  classrooms not reachable: " + ", ".join(lost))
+    return out
+
+
 def _report(floors, graph, destinations, connectors) -> list[str]:
     lines = ["sfu_map build report", ""]
     lines.append(f"nodes {len(graph.nodes)}, edges {len(graph.edges)}, destinations {len(destinations)}")
@@ -141,6 +174,8 @@ def _report(floors, graph, destinations, connectors) -> list[str]:
     for fid in floors:
         comps = _components(graph, fid)
         lines.append(f"  {fid:8s} {len(comps):2d} pieces {comps[:8]}")
+    lines.append("")
+    lines.extend(_reachability(graph, destinations))
     lines.append("")
     lines.append(f"warnings ({len(graph.warnings)}):")
     lines.extend("  " + w for w in graph.warnings)
@@ -188,6 +223,18 @@ def cmd_route(args) -> int:
     return 0
 
 
+def cmd_walkways(args) -> int:
+    from . import walkways
+
+    doc = walkways.write(Path(args.walk_out))
+    feats = doc["features"]
+    n_w = sum(1 for f in feats if f["properties"]["kind"] == "walkway")
+    ents = [f["properties"] for f in feats if f["properties"]["kind"] == "entrance"]
+    print(f"{n_w} walkway lines, {len(ents)} entrances: " + ", ".join(f"{e['id']} ({e['floor']})" for e in ents))
+    print(f"georeference: {doc['properties']['georeference']}")
+    return 0
+
+
 def cmd_candidates(args) -> int:
     import yaml
 
@@ -200,7 +247,9 @@ def cmd_candidates(args) -> int:
 
 def main(argv=None) -> int:
     from .connectors import DEFAULT_CONNECTORS
-    from .gisdata import DEFAULT_ROOMS
+    from .gisdata import DEFAULT_ROOMS, REPO_ROOT
+
+    DEFAULT_WALKWAYS = REPO_ROOT / "data" / "sfu_derived" / "accessible_walkways.geojson"
 
     p = argparse.ArgumentParser(prog="sfu-map", description=__doc__)
     p.add_argument("--out", default=str(DEFAULT_OUT), help="output directory (default: repo maps/)")
@@ -209,6 +258,7 @@ def main(argv=None) -> int:
 
     b = sub.add_parser("build", help="build floor grids, route graph and destination index")
     b.add_argument("--connectors", default=str(DEFAULT_CONNECTORS))
+    b.add_argument("--walkways", default=str(DEFAULT_WALKWAYS), help="accessible walkway GeoJSON from `sfu-map walkways` ('' to skip)")
     b.add_argument("--resolution", type=float, default=0.05, help="floor grid metres per pixel")
     b.add_argument("--outdoor-resolution", type=float, default=0.10)
     b.add_argument("--outdoor-half-width", type=float, default=1.25, help="path centreline buffer, metres")
@@ -235,6 +285,10 @@ def main(argv=None) -> int:
 
     c = sub.add_parser("candidates", help="print draft elevator entries for connectors.yaml")
     c.set_defaults(func=cmd_candidates)
+
+    w = sub.add_parser("walkways", help="extract accessible walkways and entrances from the 2024 accessibility map PDF (needs pymupdf)")
+    w.add_argument("--out", dest="walk_out", default=str(DEFAULT_WALKWAYS))
+    w.set_defaults(func=cmd_walkways)
 
     args = p.parse_args(argv)
     return args.func(args)

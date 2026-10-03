@@ -17,6 +17,7 @@ dependencies = [
 
 [project.optional-dependencies]
 test = ["pytest>=7"]
+pdf = ["pymupdf>=1.24"]  # sfu-map walkways only
 
 [project.scripts]
 sfu-map = "sfu_map.cli:main"

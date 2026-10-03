@@ -14,6 +14,13 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
+# Every door leg stops the car and asks the student to hold the door, so a route
+# should not go out and back in, or through extra doorways, to save a few metres.
+DOOR_PENALTY = 15.0  # metres-equivalent added per door edge
+# A passage through a room the GIS calls an office or lab is a last resort.
+THROUGH_ROOM_PENALTY = 60.0
+
+
 class RouteError(Exception):
     pass
 
@@ -123,7 +130,7 @@ class RouteGraph:
             for v, e in self.adj[u]:
                 if not self.edge_allowed(e, car, verified_only):
                     continue
-                nd = d + e["length"]
+                nd = d + e["length"] + (DOOR_PENALTY if e["type"] == "door" else 0.0) + (THROUGH_ROOM_PENALTY if e.get("through_room") else 0.0)
                 if nd < dist.get(v, math.inf):
                     dist[v] = nd
                     prev[v] = u

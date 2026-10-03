@@ -73,7 +73,7 @@ def node_regions(graph, floor: str, free: np.ndarray, spec: GridSpec, radius: fl
     return out
 
 
-def prune_to_grid(graph, floor: str, free: np.ndarray, spec: GridSpec, radius: float = INSCRIBED_RADIUS) -> list[str]:
+def prune_to_grid(graph, floor: str, free: np.ndarray, spec: GridSpec, radius: float = INSCRIBED_RADIUS, free_geom=None) -> list[str]:
     """Remove same-floor edges whose ends the car cannot drive between on the grid.
 
     Thin GIS walls (a few centimetres) can vanish when polygons are merged or
@@ -90,6 +90,17 @@ def prune_to_grid(graph, floor: str, free: np.ndarray, spec: GridSpec, radius: f
         if e["type"] == "door":
             continue  # doorways cross a GIS wall line on purpose; verified on site
         if la != lb or la == 0:
+            na, nb = graph.nodes[a], graph.nodes[b]
+            from shapely.geometry import LineString
+
+            seg = LineString([(na["x"], na["y"]), (nb["x"], nb["y"])])
+            if free_geom is not None and la and lb and seg.within(free_geom.buffer(0.05)):
+                # Two GIS spaces that only just touch: how the GIS draws a
+                # doorway between a room and a corridor. Keep it as a door
+                # (carved into the grid, the car stops and asks); unverified.
+                e.update(type="door", verified=False, inferred=True, neck=True)
+                removed.append(f"{floor}: {a} - {b} ({e['length']:.1f} m) is a narrow neck, kept as an unverified door")
+                continue
             del graph.edges[key]
-            removed.append(f"{floor}: {a} - {b} ({e['length']:.1f} m) crosses a wall or a gap narrower than the car")
+            removed.append(f"{floor}: {a} - {b} ({e['length']:.1f} m) crosses a wall")
     return removed

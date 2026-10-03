@@ -202,8 +202,18 @@ def _door_point(fb: FloorGraphBuilder, room: Room):
     return fb.inset_point(room.geom), d
 
 
-def build_graph(floors: dict[str, Floor], connectors: Connectors, spacing: float = 5.0) -> tuple[Graph, dict]:
+def build_graph(floors: dict[str, Floor], connectors: Connectors, spacing: float = 5.0, walkways: dict | None = None) -> tuple[Graph, dict]:
+    """``walkways`` is the GeoJSON from ``sfu-map walkways`` (accessible outdoor network)."""
     g = Graph()
+    walk_lines, walk_entrances = _parse_walkways(walkways)
+    if walk_entrances:
+        connectors = Connectors(
+            elevators=connectors.elevators,
+            entrances=list(connectors.entrances) + walk_entrances,
+            links=connectors.links,
+            outdoor_links=connectors.outdoor_links,
+            doors=connectors.doors,
+        )
     builders: dict[str, FloorGraphBuilder] = {}
     for fid, fl in floors.items():
         builders[fid] = FloorGraphBuilder(g, fl, spacing)
@@ -215,6 +225,7 @@ def build_graph(floors: dict[str, Floor], connectors: Connectors, spacing: float
         fl = fb.floor
         # Doorways between free-space pieces that GIS separates by a wall line.
         _bridge_gaps(g, fb)
+        _bridge_through_rooms(g, fb)
         # Doors.
         for room in fl.rooms:
             if not room.gets_door:
@@ -264,8 +275,9 @@ def build_graph(floors: dict[str, Floor], connectors: Connectors, spacing: float
         _snap_inside(g, fb)
         if not fb.free.is_empty:
             spec = GridSpec.around(fb.free.bounds, GRID_RESOLUTION, margin=1.0)
-            g.warnings.extend(prune_to_grid(g, fb.floor.id, rasterize(fb.free, spec), spec))
+            g.warnings.extend(prune_to_grid(g, fb.floor.id, rasterize(fb.free, spec), spec, free_geom=fb.free))
     _add_outdoor(g, connectors)
+    _add_walkways(g, walk_lines, walk_entrances)
     return g, dict(sorted(destinations.items()))
 
 
@@ -323,6 +335,66 @@ def _bridge_gaps(g: Graph, fb: FloorGraphBuilder):
             for key in [e for e in g.edges if na in e or nb in e]:
                 del g.edges[key]
             # A pending split may reference the removed node; drop it.
+            for lst in fb._splits.values():
+                lst[:] = [(t, n) for t, n in lst if n not in (na, nb)]
+
+
+# Corridor pieces this close with exactly one room between them are joined
+# through that room (a vestibule or passage the GIS labels as a room).
+THROUGH_ROOM_GAP = 3.0
+
+
+def _bridge_through_rooms(g: Graph, fb: FloorGraphBuilder):
+    """Join corridor pieces that only a single room separates.
+
+    Office wings are often reached through one room the GIS labels as an
+    office or lab. Each such link is an unverified door edge marked
+    ``through_room``; the router adds a penalty so it is a last resort, and the
+    build report lists it for a site check.
+    """
+    parts = [p for p in getattr(fb.free, "geoms", [fb.free]) if p.area > 15.0]
+    if len(parts) < 2:
+        return
+    parent = list(range(len(parts)))
+
+    def find(i):
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    for i, j in itertools.combinations(range(len(parts)), 2):
+        if parts[i].distance(parts[j]) <= DOORWAY_GAP:
+            parent[find(i)] = find(j)
+    blockers = [r for r in fb.floor.rooms if not r.is_free]
+    cands = []
+    for i, j in itertools.combinations(range(len(parts)), 2):
+        d = parts[i].distance(parts[j])
+        if not DOORWAY_GAP < d <= THROUGH_ROOM_GAP:
+            continue
+        pa, pb = nearest_points(parts[i], parts[j])
+        seg = LineString([pa, pb])
+        rooms = [r for r in blockers if r.geom.intersects(seg.buffer(0.2))]
+        if len(rooms) != 1 or rooms[0].rm_cat == "PENETRATIONS":
+            continue
+        cands.append((d, i, j, pa, pb, rooms[0]))
+    k = 0
+    for d, i, j, pa, pb, room in sorted(cands, key=lambda c: c[0]):
+        if find(i) == find(j):
+            continue
+        qa = fb.inset_point(parts[i], toward=pa, region=parts[i])
+        qb = fb.inset_point(parts[j], toward=pb, region=parts[j])
+        na, nb = f"{fb.floor.id}:room{k}a", f"{fb.floor.id}:room{k}b"
+        g.add_node(na, "doorway", fb.floor.id, qa.x, qa.y)
+        g.add_node(nb, "doorway", fb.floor.id, qb.x, qb.y)
+        if fb.attach(na) and fb.attach(nb):
+            g.add_edge(na, nb, "door", verified=False, inferred=True, through_room=f"{room.building} {room.rm_id}")
+            g.warnings.append(f"{fb.floor.id}: corridor pieces joined through room {room.building} {room.rm_id} ({room.rm_type}); check on site")
+            parent[find(i)] = find(j)
+            k += 1
+        else:
+            for n in (na, nb):
+                g.nodes.pop(n, None)
             for lst in fb._splits.values():
                 lst[:] = [(t, n) for t, n in lst if n not in (na, nb)]
 
@@ -408,7 +480,15 @@ def _add_entrances(g: Graph, floors, builders, connectors: Connectors):
     for ent in connectors.entrances:
         fb = builders[ent["floor"]]
         outside = _connector_point(ent, floors)
-        p = fb.inset_point(outside.buffer(0.1), toward=outside)
+        region = None
+        if ent.get("walkway"):
+            # A walkway entrance belongs to the building's main corridor
+            # network: of the free-space pieces within reach, take the largest,
+            # not a side room that happens to be nearer.
+            parts = [q for q in getattr(fb.free, "geoms", [fb.free]) if q.distance(outside) <= ENTRANCE_REACH]
+            if parts:
+                region = max(parts, key=lambda q: q.area)
+        p = fb.inset_point(outside.buffer(0.1), toward=outside, region=region)
         nid = f"entrance:{ent['id']}"
         g.add_node(
             nid,
@@ -487,3 +567,181 @@ def outdoor_geometry(g: Graph) -> BaseGeometry:
         if a["floor"] is None or b["floor"] is None:
             lines.append(LineString([(a["x"], a["y"]), (b["x"], b["y"])]))
     return unary_union(lines) if lines else LineString()
+
+
+# --- Outdoor walkway network (sfu_map.walkways output) -------------------------
+
+WALK_SPACING = 10.0  # m between outdoor nodes
+ENTRANCE_REACH = 25.0  # m, matches sfu_map.walkways
+WALK_ATTACH = 3.0  # m, an entrance this close to a walkway end joins it
+
+
+def _parse_walkways(doc):
+    if not doc:
+        return [], []
+    from shapely.geometry import shape
+    from shapely.ops import transform
+
+    from .geo import shapely_lonlat_to_xy
+
+    lines, ents = [], []
+    for f in doc.get("features", []):
+        props = f.get("properties", {})
+        geom = transform(shapely_lonlat_to_xy, shape(f["geometry"]))
+        if props.get("kind") == "walkway":
+            lines.append((geom, props))
+        elif props.get("kind") == "entrance":
+            ents.append({
+                "id": f"walk_{props['id']}",
+                "floor": props["floor"],
+                "xy": [geom.x, geom.y],
+                "label": f"{props.get('level_label', props['floor'])} walkway",
+                "verified": bool(props.get("verified", False)),
+                "walkway": True,
+            })
+    return lines, ents
+
+
+def _add_walkways(g: Graph, lines, entrances):
+    """Accessible walkways become outdoor nodes and step-free outdoor edges."""
+    if not lines:
+        return
+    noded = unary_union([geom for geom, _ in lines])
+    segments = list(getattr(noded, "geoms", [noded]))
+    props_tree = STRtree([geom for geom, _ in lines])
+    index: dict[tuple, str] = {}
+
+    def node(x, y):
+        key = (round(x * 2) / 2, round(y * 2) / 2)  # merge ends within 0.5 m
+        if key not in index:
+            nid = f"walk:{len(index)}"
+            index[key] = nid
+            g.add_node(nid, "outdoor_junction", None, x, y)
+        return index[key]
+
+    for seg in segments:
+        if seg.length < 0.5:
+            continue
+        src = lines[int(props_tree.nearest(seg.interpolate(0.5, normalized=True)))][1]
+        n = max(1, math.ceil(seg.length / WALK_SPACING))
+        pts = [seg.interpolate(k / n, normalized=True) for k in range(n + 1)]
+        ids = [node(p.x, p.y) for p in pts]
+        for a, b in zip(ids, ids[1:]):
+            g.add_edge(a, b, "outdoor", car_traversable=bool(src.get("step_free", True)), verified=bool(src.get("verified", False)),
+                       through_building=bool(src.get("through_building", False)))
+    outdoor = [nid for nid in index.values()]
+    _join_walkway_ends(g, outdoor)
+    _join_walkway_pieces(g, outdoor)
+    for ent in entrances:
+        enid = f"entrance:{ent['id']}"
+        if enid not in g.nodes:
+            continue
+        e = g.nodes[enid]
+        ox, oy = e["outside_x"], e["outside_y"]
+        best = min(outdoor, key=lambda n: math.hypot(g.nodes[n]["x"] - ox, g.nodes[n]["y"] - oy))
+        d = math.hypot(g.nodes[best]["x"] - ox, g.nodes[best]["y"] - oy)
+        if d > WALK_ATTACH:
+            g.warnings.append(f"entrance {ent['id']}: nearest walkway node is {d:.1f} m away")
+            continue
+        g.add_edge(enid, best, "door", verified=bool(ent.get("verified", False)))
+
+
+WALK_JOIN = 8.0  # m: a dead end this close to another piece of the network joins it
+WALK_TOUCH = 3.0  # m: closer than this always joins (lines that meet in the drawing)
+
+
+def _join_walkway_ends(g: Graph, nodes: list[str]):
+    """Traced walkways that meet in the drawing can end a few metres apart: join them."""
+    if not nodes:
+        return
+    pts = np.array([(g.nodes[n]["x"], g.nodes[n]["y"]) for n in nodes])
+    deg = {n: 0 for n in nodes}
+    for e in g.edges.values():
+        for k in (e["a"], e["b"]):
+            if k in deg:
+                deg[k] += 1
+    parent = {n: n for n in nodes}
+
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    adj = {n: set() for n in nodes}
+    for e in g.edges.values():
+        if e["a"] in parent and e["b"] in parent:
+            parent[find(e["a"])] = find(e["b"])
+            adj[e["a"]].add(e["b"])
+            adj[e["b"]].add(e["a"])
+    for i, n in enumerate(nodes):
+        if deg[n] != 1:
+            continue
+        d = np.hypot(*(pts - pts[i]).T)
+        d[i] = np.inf
+        for j in np.argsort(d)[:12]:
+            m = nodes[j]
+            if d[j] > WALK_JOIN:
+                break
+            if m in adj[n]:
+                continue
+            if d[j] <= WALK_TOUCH or find(n) != find(m):
+                g.add_edge(n, m, "outdoor", car_traversable=True, verified=False, joined=True)
+                parent[find(n)] = find(m)
+                break
+
+
+WALK_PIECE_JOIN = 15.0  # m across open ground (plazas such as Convocation Mall)
+OPEN_CANOPIES = {"CML"}  # footprints that are roofs over open ground
+PLAZA_JOIN = 40.0  # m across a covered plaza
+
+
+def _join_walkway_pieces(g: Graph, nodes: list[str]):
+    """Join separate pieces of the walkway network across open ground.
+
+    Two walkways drawn side by side across a plaza are one open space for the
+    car. Pieces closer than ``WALK_PIECE_JOIN`` are joined at their nearest
+    nodes when the straight line between them crosses no building footprint.
+    """
+    from .gisdata import load_building_footprints
+
+    # Convocation Mall's footprint is the roof over an open plaza, not a building.
+    fps = load_building_footprints()
+    blocked = unary_union([f.buffer(-0.5) for code, f in fps.items() if code not in OPEN_CANOPIES])
+    plazas = unary_union([fps[c] for c in OPEN_CANOPIES if c in fps]).buffer(5.0)
+    while True:
+        parent = {n: n for n in nodes}
+
+        def find(x):
+            while parent[x] != x:
+                parent[x] = parent[parent[x]]
+                x = parent[x]
+            return x
+
+        for e in g.edges.values():
+            if e["a"] in parent and e["b"] in parent:
+                parent[find(e["a"])] = find(e["b"])
+        pieces: dict[str, list[str]] = {}
+        for n in nodes:
+            pieces.setdefault(find(n), []).append(n)
+        if len(pieces) < 2:
+            return
+        keys = list(pieces)
+        pts = {k: np.array([(g.nodes[n]["x"], g.nodes[n]["y"]) for n in pieces[k]]) for k in keys}
+        best = None
+        for i, a in enumerate(keys):
+            for b in keys[i + 1:]:
+                d = np.hypot(pts[a][:, None, 0] - pts[b][None, :, 0], pts[a][:, None, 1] - pts[b][None, :, 1])
+                for flat in np.argsort(d, axis=None)[:40]:
+                    ia, ib = np.unravel_index(flat, d.shape)
+                    if d[ia, ib] > PLAZA_JOIN:
+                        break
+                    na, nb = pieces[a][ia], pieces[b][ib]
+                    seg = LineString([pts[a][ia], pts[b][ib]])
+                    limit = PLAZA_JOIN if seg.within(plazas) else WALK_PIECE_JOIN
+                    if d[ia, ib] <= limit and not seg.intersects(blocked) and (best is None or d[ia, ib] < best[0]):
+                        best = (d[ia, ib], na, nb)
+                        break
+        if best is None:
+            return
+        g.add_edge(best[1], best[2], "outdoor", car_traversable=True, verified=False, joined=True)

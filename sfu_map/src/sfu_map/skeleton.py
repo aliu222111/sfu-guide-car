@@ -32,7 +32,7 @@ def centrelines(
     free: BaseGeometry,
     resolution: float = 0.05,  # the Nav2 grid's: a coarser raster can erase thin GIS walls
     spacing: float = 5.0,
-    min_width: float = 0.6,
+    min_width: float = 0.45,  # the car is 0.38 m wide (nav2.yaml footprint); keep passages it fits
     spur_length: float = 2.5,
     merge_radius: float = 1.5,
 ) -> Centrelines:

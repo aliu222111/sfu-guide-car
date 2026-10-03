@@ -1,44 +1,63 @@
 sfu_map build report
 
-nodes 4804, edges 4900, destinations 1916
-node types: corridor 2122, corridor_junction 485, door 1916, doorway 150, elevator 55, entrance 1, stairs 75
-edge types: corridor 4707, door 75, elevator 86, stairs 32
-edges not yet verified on site: 161
+nodes 5518, edges 5653, destinations 1923
+node types: corridor 2277, corridor_junction 597, door 1923, doorway 226, elevator 55, entrance 20, outdoor_junction 343, stairs 77
+edge types: corridor 5076, door 131, elevator 86, outdoor 327, stairs 33
+edges not yet verified on site: 544
 connectors: 14 elevators, 1 entrances, 0 links, 0 outdoor links, 0 door overrides
 
 classroom-category rooms with a door node: 98 of 98
 
 per floor: graph pieces (node counts; more than one piece needs a link in connectors.yaml)
   AQ-01     5 pieces [40, 23, 12, 8, 1]
-  AQ-02     4 pieces [116, 98, 10, 1]
-  AQ-03     3 pieces [445, 24, 2]
-  AQ-04     1 pieces [48]
-  AQ-05     2 pieces [407, 10]
-  AQ-06     1 pieces [574]
-  MBC-00A   2 pieces [16, 1]
-  MBC-00B   8 pieces [299, 23, 19, 14, 1, 1, 1, 1]
-  MBC-01    8 pieces [395, 34, 8, 1, 1, 1, 1, 1]
-  MBC-02    5 pieces [224, 11, 6, 1, 1]
-  MBC-03    5 pieces [273, 21, 1, 1, 1]
-  MBC-04    0 pieces []
+  AQ-02     3 pieces [263, 1, 1]
+  AQ-03     2 pieces [494, 2]
+  AQ-04     1 pieces [53]
+  AQ-05     2 pieces [408, 10]
+  AQ-06     2 pieces [592, 1]
+  MBC-00A   1 pieces [17]
+  MBC-00B   7 pieces [344, 19, 14, 1, 1, 1, 1]
+  MBC-01    6 pieces [443, 8, 1, 1, 1, 1]
+  MBC-02    6 pieces [289, 14, 11, 3, 1, 1]
+  MBC-03    4 pieces [331, 1, 1, 1]
+  MBC-04    2 pieces [34, 1]
   WMC-P1    6 pieces [28, 13, 1, 1, 1, 1]
   WMC-P2    0 pieces []
-  WMC-01    8 pieces [180, 171, 45, 18, 9, 1, 1, 1]
-  WMC-02    5 pieces [184, 75, 70, 68, 66]
-  WMC-03    4 pieces [143, 123, 113, 1]
-  WMC-04    2 pieces [117, 93]
+  WMC-01    7 pieces [252, 176, 17, 1, 1, 1, 1]
+  WMC-02    5 pieces [428, 67, 17, 1, 1]
+  WMC-03    5 pieces [282, 120, 1, 1, 1]
+  WMC-04    1 pieces [209]
   WMC-05    2 pieces [53, 50]
 
-warnings (110):
+car-reachable from entrance:aq_convocation_mall: 1764 of 1923 destinations, 96 of 98 classrooms
+  AQ-01 16/25, AQ-02 67/67, AQ-03 162/162, AQ-04 17/17, AQ-05 142/146, AQ-06 261/261, MBC-00A 2/2, MBC-00B 123/133, MBC-01 173/175, MBC-02 93/105, MBC-03 136/136, MBC-04 0/8, WMC-01 180/194, WMC-02 151/191, WMC-03 99/157, WMC-04 97/97, WMC-05 38/38, WMC-P1 7/9
+  classrooms not reachable: WMC 2200, WMC 2202
+
+warnings (113):
   AQ 1017: door node could not see a corridor edge
   AQ 1014: door node could not see a corridor edge
   AQ 1018: door node could not see a corridor edge
   AQ 1016: door node could not see a corridor edge
   AQ 1020: door node could not see a corridor edge
   AQ 2111: door node could not see a corridor edge
-  AQ 2045: no free space within 12.0 m, no door node
+  AQ 2002: door node could not see a corridor edge
+  AQ 2040.1: door node could not see a corridor edge
+  AQ 2001: door node could not see a corridor edge
+  AQ 2000: door node could not see a corridor edge
   AQ 2113: door node could not see a corridor edge
   AQ 2114: door node could not see a corridor edge
+  AQ 2027.2: door node could not see a corridor edge
+  AQ 2027.1: door node could not see a corridor edge
+  AQ 2002.3: door node could not see a corridor edge
+  AQ 2002.2: door node could not see a corridor edge
+  AQ 2002C: door node could not see a corridor edge
+  AQ 2002A: door node could not see a corridor edge
+  AQ 2002B: door node could not see a corridor edge
+  AQ 2040.3: door node could not see a corridor edge
+  AQ 2040.2: door node could not see a corridor edge
+  AQ 6099: door node could not see a corridor edge
+  AQ 6097: door node could not see a corridor edge
+  MBC-00B: corridor pieces joined through room MBC 0400.6 (Office); check on site
   MBC 0402: door node could not see a corridor edge
   MBC 0332: door node could not see a corridor edge
   MBC 033: door node could not see a corridor edge
@@ -52,30 +71,13 @@ warnings (110):
   MBC 1730: no free space within 12.0 m, no door node
   MBC 1480.4: door node could not see a corridor edge
   MBC 1480.7: door node could not see a corridor edge
-  MBC 2108: no free space within 12.0 m, no door node
-  MBC 0243: door node could not see a corridor edge
-  MBC 2106: no free space within 12.0 m, no door node
-  MBC 2012: no free space within 12.0 m, no door node
-  MBC 2110: no free space within 12.0 m, no door node
-  MBC 2112: no free space within 12.0 m, no door node
-  MBC 2362.1: no free space within 12.0 m, no door node
-  MBC 2363.1: no free space within 12.0 m, no door node
   MBC 3160: no free space within 12.0 m, no door node
   MBC 3166: no free space within 12.0 m, no door node
   MBC 3164: no free space within 12.0 m, no door node
   MBC 3162: no free space within 12.0 m, no door node
   MBC 3187: no free space within 12.0 m, no door node
-  MBC 0343: door node could not see a corridor edge
   MBC 3212: door node could not see a corridor edge
-  MBC 4900: no free space within 12.0 m, no door node
-  MBC 4921: no free space within 12.0 m, no door node
-  MBC 4920: no free space within 12.0 m, no door node
-  MBC 4901: no free space within 12.0 m, no door node
-  MBC 411: door node could not see a corridor edge
-  MBC 410: door node could not see a corridor edge
   MBC 414: door node could not see a corridor edge
-  MBC 4904: door node could not see a corridor edge
-  MBC 4902: door node could not see a corridor edge
   WMC 049: door node could not see a corridor edge
   WMC 048: door node could not see a corridor edge
   WMC 047: no free space within 12.0 m, no door node
@@ -104,8 +106,8 @@ warnings (110):
   WMC 020A: no free space within 12.0 m, no door node
   WMC 021: no free space within 12.0 m, no door node
   WMC 004.2: no free space within 12.0 m, no door node
+  WMC 1621: door node could not see a corridor edge
   WMC 1407: door node could not see a corridor edge
-  WMC 1401: door node could not see a corridor edge
   WMC S130: door node could not see a corridor edge
   WMC S1324: door node could not see a corridor edge
   WMC S1323: door node could not see a corridor edge
@@ -113,33 +115,38 @@ warnings (110):
   WMC S1322: door node could not see a corridor edge
   WMC 102: no free space within 12.0 m, no door node
   WMC 102.1: no free space within 12.0 m, no door node
-  WMC 1390.5: door node could not see a corridor edge
-  WMC 2810: no free space within 12.0 m, no door node
-  WMC 2820: no free space within 12.0 m, no door node
-  WMC 2830: no free space within 12.0 m, no door node
   WMC 2351.4: door node could not see a corridor edge
   WMC 227: no free space within 12.0 m, no door node
   WMC 228: no free space within 12.0 m, no door node
   WMC 220: no free space within 12.0 m, no door node
   WMC 219: no free space within 12.0 m, no door node
+  WMC-03: corridor pieces joined through room WMC 3697 (Computer Laboratory); check on site
   WMC 315: no free space within 12.0 m, no door node
   WMC 300: no free space within 12.0 m, no door node
   WMC 420: no free space within 12.0 m, no door node
   WMC 450: no free space within 12.0 m, no door node
-  AQ-02: AQ-02:c0 - AQ-02:s1 (1.0 m) crosses a wall or a gap narrower than the car
-  AQ-02: AQ-02:c0 - AQ-02:s34 (4.0 m) crosses a wall or a gap narrower than the car
-  AQ-03: AQ-03:c0 - AQ-03:c63 (9.2 m) crosses a wall or a gap narrower than the car
-  AQ-03: AQ-03:c0 - AQ-03:s79 (7.8 m) crosses a wall or a gap narrower than the car
-  AQ-05: AQ-05:c0 - AQ-05:s6 (0.9 m) crosses a wall or a gap narrower than the car
-  AQ-05: AQ-05:c4 - AQ-05:s12 (1.1 m) crosses a wall or a gap narrower than the car
-  MBC-00B: MBC-00B:s18 - MBC-00B:s19 (1.5 m) crosses a wall or a gap narrower than the car
-  MBC-01: MBC-01:c8 - MBC-01:s14 (0.8 m) crosses a wall or a gap narrower than the car
-  MBC-01: MBC-01:c73 - MBC-01:door:1480.6 (1.3 m) crosses a wall or a gap narrower than the car
-  MBC-01: MBC-01:c23 - MBC-01:s110 (1.8 m) crosses a wall or a gap narrower than the car
-  MBC-02: MBC-02:c0 - MBC-02:s5 (1.1 m) crosses a wall or a gap narrower than the car
-  WMC-01: WMC-01:c2 - WMC-01:s8 (0.9 m) crosses a wall or a gap narrower than the car
-  WMC-01: WMC-01:c3 - WMC-01:s65 (2.8 m) crosses a wall or a gap narrower than the car
-  WMC-02: WMC-02:c69 - WMC-02:s1 (2.2 m) crosses a wall or a gap narrower than the car
+  AQ-02: AQ-02:c2 - AQ-02:c4 (4.1 m) crosses a wall
+  AQ-02: AQ-02:c12 - AQ-02:c2 (1.6 m) crosses a wall
+  AQ-02: AQ-02:c16 - AQ-02:c4 (2.9 m) crosses a wall
+  AQ-02: AQ-02:c1 - AQ-02:s4 (2.6 m) crosses a wall
+  AQ-02: AQ-02:c0 - AQ-02:s5 (1.0 m) crosses a wall
+  AQ-02: AQ-02:c0 - AQ-02:s49 (4.7 m) crosses a wall
+  AQ-03: AQ-03:c0 - AQ-03:c54 (9.1 m) crosses a wall
+  AQ-03: AQ-03:c0 - AQ-03:c114 (9.5 m) crosses a wall
+  AQ-05: AQ-05:c0 - AQ-05:s6 (0.9 m) crosses a wall
+  AQ-05: AQ-05:c5 - AQ-05:s12 (1.1 m) crosses a wall
+  MBC-00B: MBC-00B:c15 - MBC-00B:c53 (3.0 m) crosses a wall
+  MBC-00B: MBC-00B:c26 - MBC-00B:s4 (1.8 m) crosses a wall
+  MBC-00B: MBC-00B:s19 - MBC-00B:s20 (1.5 m) crosses a wall
+  MBC-00B: MBC-00B:c1 - MBC-00B:s61 (3.9 m) crosses a wall
+  MBC-00B: MBC-00B:c50 - MBC-00B:s75 (1.4 m) crosses a wall
+  MBC-01: MBC-01:c3 - MBC-01:s17 (0.7 m) crosses a wall
+  MBC-01: MBC-01:c80 - MBC-01:door:1480.6 (1.3 m) crosses a wall
+  MBC-02: MBC-02:c118 - MBC-02:s8 (2.5 m) crosses a wall
+  MBC-02: MBC-02:c4 - MBC-02:s12 (1.1 m) crosses a wall
+  WMC-01: WMC-01:c8 - WMC-01:s9 (0.9 m) crosses a wall
+  WMC-02: WMC-02:c85 - WMC-02:s6 (2.2 m) crosses a wall
+  entrance walk_aq_2000_3: nearest walkway node is 11.5 m away
 
 graph pieces the Nav2 grid splits for the car (0; must be 0):
-check aq_convocation_mall -> AQ 3150: 274 m, 94 nodes
+check aq_convocation_mall -> AQ 3150: 277 m, 94 nodes
