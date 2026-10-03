@@ -347,6 +347,11 @@ front sensor and the webcam is the rear (student-facing) camera. One launch swit
   library, so the real driver, RTAB-Map RGB-D and the rest run unchanged
   (`hil.launch.py cameras:=iphone`).
 
+Measured in the hardware-in-the-loop simulator: mapping by carrying the phone, 117 map nodes, 9 loop
+closures, alignment RMS 0.22 m; trip from the entrance to AQ 3046 arrived in 156 s (one camera: 187 s),
+median localization error 0.57 m. Both iPhone findings (a cold start trusting one match, an uncalibrated
+minimum pivot) are fixed for every camera mode; see the audit.
+
 Not testable here: a real iPhone, Record3D's actual frame orientation (if images arrive sideways set
 `quarter_turns` in guide.yaml) and ARKit's real pose convention. Check on the car: push it 1 m forward
 and `/vo` must show positive `linear.x`; turn it left and positive `angular.z`.

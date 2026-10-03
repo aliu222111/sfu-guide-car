@@ -130,6 +130,35 @@ Found by the regression run after these fixes (hardware in the loop, one camera,
   costmap (0.8 m local) with a gentler fall-off: closest approach 0.91 m, never under 0.5 m, and the
   trip still arrives (187 s, 0 collisions).
 
+Found by the iPhone runs (`cameras:=iphone`, hardware in the loop, entrance to AQ 3046):
+
+- **RTAB-Map relayed odometry as fixes.** By default it publishes a "localization" pose before it has
+  matched anything; the localization manager reset the EKF to it on a cold start and the car began
+  2.3 m off, inside a wall, where Nav2 cannot plan. RTAB-Map now publishes only real matches
+  (`pub_loc_pose_only_when_localizing`), and a cold start needs two consecutive matches within
+  0.5 m. Applies to stereo too.
+- **The simulated serial bridge was uncalibrated.** Nav2's 0.1 rad/s pivots never broke the tracks
+  loose and the car sat still until it gave up. `hil.launch.py` now passes what `calibrate_turn`
+  would measure (`turn_gain` = turn slip, `min_pivot_rate` 0.2). On the car: run `calibrate_turn`
+  before indoor driving.
+- **The simulator's alignment used poses from before loop closures** (`hil_map`); now it reads the
+  finished graph, as a person reading the finished map would. Alignment RMS 0.62 m to 0.22 m.
+- Result: arrived in 156 s, 0.57 m from the door, median localization error 0.57 m, closest
+  approach to a wall 0.70 m.
+
+Open, from the same runs:
+
+- **Side blind spot.** Twice a simulated person walking across the car's path from about 60 deg off
+  its heading reached it before either the person detector or the depth cloud could see them (the
+  front camera covers about +/-33 deg). The simulated people walk fixed paths and never yield, which
+  real people mostly do, but a crowded concourse will test it. Options: slow to a crawl when
+  starting or pivoting near people last seen at the edge of the view, side ultrasonic sensors, or a
+  wider camera.
+- **Pivot hunting.** With `min_pivot_rate` raising Nav2's small corrections to 0.2 rad/s, the car
+  can swing back and forth in place for tens of seconds before it settles on a heading. A goal
+  heading tolerance wider than the pivot overshoot, or a slower minimum pivot on a grippier floor,
+  should fix it; tune on the real car.
+
 Not fixed, by decision:
 
 - **Nav2 death watchdog.** If Nav2 crashes mid-trip the mission waits for its action timeout.
