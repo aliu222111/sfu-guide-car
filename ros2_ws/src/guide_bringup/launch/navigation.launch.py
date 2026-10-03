@@ -16,7 +16,8 @@ SERVERS = ["map_server", "planner_server", "controller_server", "behavior_server
 
 
 def nodes(context):
-    params = nav2_params(cfg("nav2.yaml"), LaunchConfiguration("cameras").perform(context))
+    params = nav2_params(cfg("nav2.yaml"), LaunchConfiguration("cameras").perform(context),
+                         LaunchConfiguration("depth_period").perform(context))
     floor = LaunchConfiguration("start_floor").perform(context)
     grid = repo_path("maps", "outdoor.yaml" if not floor else f"floors/{floor}.yaml")
     bt = os.path.join(SHARE, "behavior_trees", "navigate_through_poses.xml")
@@ -37,5 +38,6 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument("start_floor", default_value="", description='floor id such as AQ-03, or "" for outdoors'),
         DeclareLaunchArgument("cameras", default_value="stereo", choices=["stereo", "mono", "iphone"]),
+        DeclareLaunchArgument("depth_period", default_value="", description="simulator only: max age of the depth cloud, s"),
         OpaqueFunction(function=nodes),
     ])

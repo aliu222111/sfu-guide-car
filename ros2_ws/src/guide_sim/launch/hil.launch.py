@@ -88,6 +88,10 @@ def setup(context):
             # does on the real one: it turns 1 / turn_slip of the asked rate, and its
             # tracks do not break loose below about 0.2 rad/s (chassis.py).
             "turn_gain": a["turn_slip"], "min_pivot_rate": a["min_pivot_rate"],
+            # Here the stereo pipeline shares 4 cores with the simulated world and gets
+            # about 2 clouds per simulated second at max_rtf 0.1; the car's 0.5 s limit
+            # would stop the controller. The car itself keeps nav2.yaml's value.
+            "depth_period": "3.0" if a["cameras"] == "stereo" else "",
             "use_sim_time": "true",  # every node of the car (guide_bringup common.Node)
         }.items(),
     )

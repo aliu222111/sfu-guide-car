@@ -31,27 +31,33 @@ def repo_path(*parts: str) -> str:
     return os.path.abspath(os.path.join(os.environ.get("GUIDE_CAR_ROOT", os.getcwd()), *parts))
 
 
-def nav2_params(src: str, cameras: str) -> str:
+def nav2_params(src: str, cameras: str, depth_period: str = "") -> str:
     """nav2.yaml for the camera setup. Stereo: as written. One camera (spec
     section 18): no depth cloud, so the voxel layer is off and floor segmentation
     is the costmaps' only obstacle source. iPhone (spec section 19): the depth
-    cloud is the LiDAR's. Written next to the other launch temp files; returns its path."""
+    cloud is the LiDAR's. ``depth_period`` (s) overrides how stale the depth cloud
+    may get before the costmaps stop the controller: only the simulator sets it,
+    because there its CPU is shared with the simulated world. Written next to the
+    other launch temp files; returns its path."""
     import tempfile
 
     import yaml
 
-    if cameras == "stereo":
+    if cameras == "stereo" and not depth_period:
         return src
     with open(src) as f:
         p = yaml.safe_load(f)
     local = p["local_costmap"]["local_costmap"]["ros__parameters"]
     obstacle = p["global_costmap"]["global_costmap"]["ros__parameters"]["obstacle_layer"]
+    if depth_period:
+        for source in (local["voxel_layer"]["stereo"], obstacle["stereo"]):
+            source["expected_update_rate"] = float(depth_period)
     if cameras == "mono":
         local["plugins"] = [x for x in local["plugins"] if x != "voxel_layer"]
         local.pop("voxel_layer", None)
         obstacle["observation_sources"] = "floor_obstacles"
         obstacle.pop("stereo", None)
-    else:
+    elif cameras == "iphone":
         local["voxel_layer"]["stereo"]["topic"] = "/front/points"
         obstacle["stereo"]["topic"] = "/front/points"
     fd, path = tempfile.mkstemp(prefix=f"nav2_{cameras}_", suffix=".yaml")
