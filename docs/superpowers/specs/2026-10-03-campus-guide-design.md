@@ -22,12 +22,12 @@ Stated by Alex:
 
 - Environment: door to room, outdoors and indoors, level changes included, outdoors used more.
 - Buildings for version one: AQ, WMC, MBC.
-- Compute: an NVIDIA laptop that can dual-boot Ubuntu, riding on the car. A Raspberry Pi 4 is in hand but is not enough for stereo SLAM and is not used for perception.
+- Compute: a laptop that can dual-boot Ubuntu, riding on the car. An NVIDIA GPU is the main plan; section 15 is the plan without one. A Raspberry Pi 4 is in hand but is not enough for stereo SLAM and is not used for perception.
 - Sensors in hand: two 720p USB webcams, Adafruit Ultimate GPS, WiFi, Bluetooth.
-- Chassis: Alex is building it. Steering geometry is open. An IMU will be added. Wheel encoders will not, for now.
+- Chassis: Alex is building it. Steering geometry is open. No IMU and no wheel encoders for now.
 - Interaction: phone web app is the main controller. An LLM voice agent on the car serves students without a phone. Follow-aware behaviour is required. Elevators and doors are handled by asking the student.
 - Learned vision wanted: floor segmentation, room-sign reading, person detection, and glass handling.
-- Localization: Alex was not sure. RTAB-Map with IMU is the recommendation and is adopted here.
+- Localization: Alex was not sure. RTAB-Map stereo odometry, with GPS outdoors and room-sign reading indoors, is the recommendation and is adopted here.
 - Time: not a constraint. Build the general system.
 - No models are trained in this project. Every model is pretrained.
 
@@ -35,24 +35,23 @@ Assumptions made by Claude and open to correction:
 
 - Differential drive chassis, so the car can turn in place in corridors. If Alex builds Ackermann steering instead, Nav2 needs the Smac Hybrid-A* planner and the Regulated Pure Pursuit controller, and in-place rotation recovery is disabled. Everything else is unchanged.
 - The car drives at 0.6 to 1.0 m/s outdoors and 0.4 to 0.6 m/s indoors.
-- SFU WiFi is available for the voice agent's LLM calls. The phone app runs over the laptop's own hotspot, so it does not depend on campus WiFi.
+- SFU WiFi is available for the voice agent's LLM calls. The phone app runs on campus WiFi.
 - The laptop runs Ubuntu 24.04 and ROS 2 Jazzy.
 
 ## 3. Hardware
 
-In hand: two 720p USB webcams, Adafruit Ultimate GPS (MTK3339, about 3 m accuracy, up to 10 Hz, uFL socket for an external antenna), NVIDIA laptop, Raspberry Pi 4.
+In hand: two 720p USB webcams, Adafruit Ultimate GPS (MTK3339, about 3 m accuracy, up to 10 Hz, uFL socket for an external antenna), laptop, Raspberry Pi 4.
 
-To build (Alex): chassis, motor driver, microcontroller for motors, IMU.
+To build (Alex): chassis, motor driver, microcontroller for motors.
 
 Required additions:
 
-- IMU: any 6-axis part with a ROS 2 driver or a trivial serial stream, for example BNO055 (fuses its own orientation, easiest), ICM-20948 or MPU-6050.
 - External active GPS antenna on the uFL socket, mounted on top of the car. The car sits low next to concrete and the on-board patch antenna will lose lock.
 - Stereo mount: the two webcams rigidly fixed 10 to 15 cm apart, level, facing forward, on a plate that does not flex. Any flex invalidates the calibration.
-- Microcontroller (Arduino, ESP32 or the Pi 4) that takes velocity commands over USB serial and drives the motors, and streams IMU readings back.
+- Microcontroller (Arduino, ESP32 or the Pi 4) that takes velocity commands over USB serial and drives the motors.
 - Speaker and USB microphone on the laptop for the voice agent.
 
-Strongly recommended, not required: motors with magnetic encoders. Without encoders the position estimate freezes whenever the cameras lose texture (blank wall, glass, darkness, fast turn). With encoders the car coasts through several metres of blindness. Section 6 designs for cameras plus IMU only and treats encoders as the first upgrade.
+Strongly recommended, not required: a 6-axis IMU (BNO055, ICM-20948 or MPU-6050, 5 to 30 dollars) and motors with magnetic encoders. Without them, both position and heading freeze whenever the cameras lose texture (blank wall, glass, darkness, fast turn). With them the car coasts through several metres of blindness. Section 6 designs for cameras plus GPS only and treats the IMU and encoders as the first upgrade, in that order.
 
 Optional, only if tests show glass close calls: one ultrasonic sensor on the front bumper.
 
@@ -68,12 +67,12 @@ webcams ──> stereo_calibrated ──> stereo depth (OpenCV SGBM) ──┐
    │        floor segmentation (SegFormer, ADE20K) ───────────┤
    │        person detection (YOLO11) ────────────────────────┘
    │
-   ├──> RTAB-Map (stereo + IMU) ──> visual odometry, loop closure, indoor maps
+   ├──> RTAB-Map (stereo) ──> visual odometry, loop closure, indoor maps
    │
    └──> sign reader (PaddleOCR) ──> absolute position fixes at known doors
 
 GPS ──> navsat_transform ──┐
-IMU ───────────────────────┼──> robot_localization EKF ──> map -> odom -> base_link
+                           ├──> robot_localization EKF ──> map -> odom -> base_link
 RTAB-Map odometry ─────────┘
 
 SFU GIS ──> map pipeline (offline) ──> per-floor occupancy grids + campus route graph
@@ -122,11 +121,11 @@ Coordinate frame: one `map` frame for the whole campus, East-North-Up metres, or
 
 ### Outdoors
 
-`robot_localization` runs one EKF fusing IMU orientation and angular rate, RTAB-Map's visual odometry twist, and GPS position converted to the map frame by `navsat_transform_node`. GPS is a 3 m measurement, so the filter leans on odometry over seconds and on GPS over tens of seconds. Under the AQ overhangs and covered walkways GPS drops out and the filter coasts on vision plus IMU.
+`robot_localization` runs one EKF fusing RTAB-Map's visual odometry (position and heading change) and GPS position converted to the map frame by `navsat_transform_node`. Heading has no gyro, so it comes from visual odometry, corrected by GPS course over ground whenever the car has moved more than 0.5 m/s for 2 s. GPS is a 3 m measurement, so the filter leans on odometry over seconds and on GPS over tens of seconds. Under the AQ overhangs and covered walkways GPS drops out and the filter coasts on vision alone.
 
 ### Indoors
 
-RTAB-Map in stereo mode with IMU, first in mapping mode on a drive of each corridor, then in localization mode. Each floor is one RTAB-Map database, aligned to the GIS frame once by driving to three known door nodes and solving a 2D similarity transform. The alignment is stored and reused.
+RTAB-Map in stereo mode, first in mapping mode on a drive of each corridor, then in localization mode. Each floor is one RTAB-Map database, aligned to the GIS frame once by driving to three known door nodes and solving a 2D similarity transform. The alignment is stored and reused.
 
 Absolute fixes from signs: the sign reader (section 7) reads room numbers. When a confident read matches a door node on the current floor and the current position is within 8 m of that door, the mission node publishes a pose correction to RTAB-Map. This is how the car recovers after an elevator ride.
 
@@ -134,13 +133,13 @@ Absolute fixes from signs: the sign reader (section 7) reads room numbers. When 
 
 Crossing an entrance node switches the EKF between the GPS-fused outdoor configuration and the indoor configuration where GPS is ignored and RTAB-Map localization is enabled against that floor's database. After an elevator ride the car has no position until a sign read or an RTAB-Map loop closure on the new floor, so it rotates slowly in place until one arrives.
 
-### Without encoders
+### Without encoders or IMU
 
-Visual odometry needs texture. On blank walls, glass, darkness or motion blur it reports no motion and the EKF holds the last position, with the IMU still tracking heading. Mitigations: speed limits above, turn rate capped at 45 degrees per second, cameras set to fixed exposure, and a recovery behaviour that stops and rotates slowly when RTAB-Map reports lost. Adding encoders later is a one-line EKF change.
+Visual odometry needs texture. On blank walls, glass, darkness or motion blur it reports no motion and the EKF holds the last position and the last heading. Nothing on the car knows it is still moving, so the mission node stops the motors the moment RTAB-Map reports lost, rather than driving blind. Mitigations: speed limits above, turn rate capped at 30 degrees per second so rolling-shutter smear stays small, cameras set to fixed exposure, and a recovery behaviour that rotates slowly in place until RTAB-Map reacquires or a sign is read. Adding an IMU or encoders later is a one-line EKF change each.
 
 ## 7. Perception
 
-All nodes consume the rectified stereo pair at 640 x 360, which is enough for everything below and halves GPU load. Calibration uses `image_pipeline`'s stereo calibrator with a printed checkerboard, done once per mount.
+All nodes consume the rectified stereo pair at 640 x 360, which is enough for everything below and halves compute load. Calibration uses `image_pipeline`'s stereo calibrator with a printed checkerboard, done once per mount.
 
 - Stereo depth: OpenCV SGBM on CPU, output as a point cloud into Nav2's voxel or obstacle layer. Measured first on the real corridor. Fast-FoundationStereo on the GPU is the upgrade only if SGBM leaves holes on glass or plain walls that cause collisions.
 - Floor segmentation: SegFormer pretrained on ADE20K (floor, sidewalk, path, road, grass, stairs classes). Pixels in the lower image that are not floor-like are projected to the ground plane and added to the costmap as obstacles. This is the sensor for curbs, grass edges, stair tops and the base of glass walls. Runs outdoors and indoors.
@@ -167,17 +166,17 @@ States: idle, routing, driving, waiting_for_student (heartbeat lost or follow ch
 
 ### Phone web app, main controller
 
-Served by the laptop over its own WiFi hotspot at a fixed address. Plain HTML and JavaScript, no build step, talking to ROS through `rosbridge_server` over WebSocket. Screens: search a room, see the route drawn on the floor plan outline, trip status, three buttons (I pressed it, I am holding the door, pause). Spoken instructions on the phone use the browser's built-in speech synthesis. Room search is a text box over the destination index.
+Served by the laptop on campus WiFi at the laptop's address, shown on its screen. Plain HTML and JavaScript, no build step, talking to ROS through `rosbridge_server` over WebSocket. Screens: search a room, see the route drawn on the floor plan outline, trip status, three buttons (I pressed it, I am holding the door, pause). Spoken instructions on the phone use the browser's built-in speech synthesis. Room search is a text box over the destination index.
 
 Follow-aware: the page sends a heartbeat every second while open. Two missed heartbeats put the mission into waiting_for_student and the car stops and says so. Bluetooth signal strength from the phone, read by the laptop, is the second signal: when it falls below a calibrated threshold for 3 s the car waits. Phase 6 adds a rear camera with YOLO tracking the student directly.
 
 ### Voice agent on the car, for students without a phone
 
-Push-to-talk button on the car or a wake word. Audio to text with faster-whisper on the GPU. The text goes to a Claude model with exactly three tools: `set_destination(room)`, `pause_or_resume()`, `confirm()`. The model's reply text goes to Piper text-to-speech on the car's speaker. The same spoken instructions the phone gives are also played on the car speaker. Follow-aware without a phone is the walking-pace limit plus a spoken "still with me?" at each turn that waits for a yes. Claude model: Haiku 4.5 for latency and cost; tool calls only, no free conversation beyond clarifying the room.
+Push-to-talk button on the car or a wake word. Audio to text with faster-whisper. The text goes to a Claude model with exactly three tools: `set_destination(room)`, `pause_or_resume()`, `confirm()`. The model's reply text goes to Piper text-to-speech on the car's speaker. The same spoken instructions the phone gives are also played on the car speaker. Follow-aware without a phone is the walking-pace limit plus a spoken "still with me?" at each turn that waits for a yes. Claude model: Haiku 4.5 for latency and cost; tool calls only, no free conversation beyond clarifying the room.
 
 ## 10. Chassis interface
 
-`guide_bridge` is a ROS 2 node that opens one USB serial port. Downlink at 20 Hz: one line `V <linear m/s> <angular rad/s>\n`. Uplink at 50 Hz or more: `I <qw> <qx> <qy> <qz> <gx> <gy> <gz> <ax> <ay> <az>\n` from the IMU, and if encoders are added later, `E <left ticks> <right ticks>\n`. Any microcontroller that can parse those lines works. A watchdog on the microcontroller stops the motors if no `V` line arrives for 500 ms.
+`guide_bridge` is a ROS 2 node that opens one USB serial port. Downlink at 20 Hz: one line `V <linear m/s> <angular rad/s>\n`. Uplink is optional: if an IMU is added, `I <qw> <qx> <qy> <qz> <gx> <gy> <gz> <ax> <ay> <az>\n` at 50 Hz or more; if encoders are added, `E <left ticks> <right ticks>\n`. Any microcontroller that can parse those lines works. A watchdog on the microcontroller stops the motors if no `V` line arrives for 500 ms.
 
 If the chassis is Ackermann, the `V` line stays the same and the microcontroller converts angular velocity to a steering angle. The Nav2 plugin change is noted in section 2.
 
@@ -187,7 +186,7 @@ Phase 0, map pipeline, no hardware. `sfu_map` turns the committed GIS data into 
 
 Phase 1, handheld stereo rig. Mount, calibrate, rectify, SGBM depth, RTAB-Map mapping while carrying the rig down the AQ concourse. Exit: a loop of the concourse closes in RTAB-Map and the point cloud is recognisably the corridor.
 
-Phase 2, chassis and outdoor driving. Serial bridge, IMU, GPS, EKF, Nav2 on the outdoor grid. Exit: the 200 m outdoor success criterion.
+Phase 2, chassis and outdoor driving. Serial bridge, GPS, EKF, Nav2 on the outdoor grid. Exit: the 200 m outdoor success criterion.
 
 Phase 3, perception. Floor segmentation and YOLO feeding the costmap, sign reader publishing fixes. Exit: the car stops for a person, refuses to cross a curb onto grass, and reads 9 of 10 room signs it drives past.
 
@@ -201,7 +200,7 @@ Phase 0 starts immediately and needs nothing but the laptop. Phases 1 and 2 can 
 
 ## 12. Risks
 
-- Camera-only blind spots freeze the position estimate. Mitigated by speed limits and recovery rotation; fixed properly by encoders.
+- Camera-only blind spots freeze both position and heading. The car stops rather than drives blind. Mitigated by speed limits and recovery rotation; fixed properly by an IMU and encoders.
 - Unsynchronised webcams degrade stereo on fast motion. Mitigated by the turn rate cap and approximate sync.
 - SFU's terraced campus means most building-to-building walks use stairs. Car routes will be longer via ramps. The accessibility map is the source of truth for ramps until the OSM footpath pull is fixed.
 - Rain and wet concrete glare. Not addressed in version one; the car stays indoors in rain.
@@ -222,7 +221,6 @@ Researched on 2026-10-02 and 2026-10-03.
 - bilawalsidhu/gods-eye-view: browser globe with live feeds and a voice agent. Its voice-agent-with-tools pattern is the model for section 9's voice agent. Nothing else transfers.
 - cartesiancs/map3d: React Three Fiber city renderer from OpenStreetMap. Could skin the phone app's map later. Not navigation.
 - DHu06/SFU-Burnaby-Interactive-map: source of the footprint snapshot and the proof that the SFU GIS server is public.
-- "godseye": ambiguous name, five unrelated repos. The one Alex linked is gods-eye-view above.
 
 Pretrained models chosen: SegFormer ADE20K (Hugging Face `nvidia/segformer-b2-finetuned-ade-512-512`), YOLO11n with ByteTrack (Ultralytics), PaddleOCR, faster-whisper small, Piper. Fallback upgrade for depth: NVlabs/Fast-FoundationStereo.
 
@@ -243,6 +241,24 @@ sfu-guide-car/
     guide_bringup/             launch files and parameters
 ```
 
-## 15. Not in scope for version one
+## 15. Plan B: no NVIDIA GPU
+
+If the laptop on the car has no NVIDIA GPU, the design stays the same and five components change how they run. Nothing is dropped. The laptop must still boot Ubuntu 24.04 and should have at least 4 performance cores and 16 GB of RAM. An Apple Silicon Mac cannot run ROS 2 natively and is not a candidate; the alternative purchase is a Jetson Orin Nano, which runs Ubuntu with an NVIDIA GPU built in.
+
+Components that never needed a GPU: RTAB-Map, OpenCV SGBM stereo, Nav2, robot_localization, the map pipeline, the phone app, the mission node, Piper text-to-speech, PaddleOCR.
+
+Components that change:
+
+- Floor segmentation: SegFormer-b0 instead of b2, exported to ONNX and run with ONNX Runtime on CPU at 2 Hz on a 320 x 180 crop of the lower image. On an Intel laptop the OpenVINO execution provider roughly doubles that; on an AMD laptop plain CPU is used. 2 Hz is enough because the car moves under 1 m/s and the costmap keeps the last mask.
+- Person detection: YOLO11n exported to ONNX, CPU, about 10 frames per second at 640 wide. Unchanged behaviour.
+- Speech to text: faster-whisper `base` with int8 quantisation on CPU. Commands are short so one to three seconds of latency is acceptable.
+- Depth upgrade path: Fast-FoundationStereo is not available. If SGBM fails on glass, the fallback is the ultrasonic bumper sensor, not a learned model.
+- Sign reading: PaddleOCR already runs on CPU; its rate drops from 2 Hz to 1 Hz to leave headroom.
+
+Expected CPU budget on a 4-core laptop at the rates above: RTAB-Map 1 core, SGBM at 10 Hz 1 core, SegFormer and YOLO sharing 1 core, everything else under 1 core. If this is exceeded, the first cut is SGBM to 5 Hz, the second is YOLO to 5 frames per second.
+
+Exit criteria in section 11 do not change. Phase 3's "9 of 10 signs" criterion is measured at the lower 1 Hz rate, which means the car may need to pass a sign more slowly.
+
+## 16. Not in scope for version one
 
 Buildings other than AQ, WMC and MBC. Driving in rain. Stairs. Autonomous elevator button pressing. Student accounts, trip history, or any backend beyond the laptop. Training any model. Running perception on the Raspberry Pi 4.
