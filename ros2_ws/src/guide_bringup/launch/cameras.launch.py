@@ -37,13 +37,15 @@ def cameras(context):
         nodes.append(Node(package="guide_bridge", executable="iphone", name="iphone", additional_env=env,
                           parameters=[cfg("guide.yaml"),
                                       {"publish_tf": LaunchConfiguration("iphone_tf").perform(context).lower() == "true"}]))
+    # capture:=720p captures the front pair at 1280x720 (1080p webcams; twice the stereo CPU).
+    size = {"360p": {}, "720p": {"image_width": 1280, "image_height": 720}}[LaunchConfiguration("capture").perform(context)]
     for side in () if front == "iphone" or not driver else ("left",) if mono else ("left", "right"):
         nodes.append(Node(
             package="usb_cam",
             executable="usb_cam_node_exe",
             name=f"{side}_camera",
             namespace=f"stereo/{side}",
-            parameters=[cfg("cameras.yaml"), {"camera_info_url": f"file://{calib}/{side}.yaml"}],
+            parameters=[cfg("cameras.yaml"), {"camera_info_url": f"file://{calib}/{side}.yaml", **size}],
         ))
     if mono:
         nodes.append(Node(package="image_proc", executable="rectify_node", name="left_rectify", namespace="stereo/left",
@@ -75,6 +77,7 @@ def generate_launch_description():
         DeclareLaunchArgument("calibration_dir", default_value="~/.ros/camera_info", description="left.yaml and right.yaml from the stereo calibrator"),
         DeclareLaunchArgument("rear", default_value="false", description="phase 6 rear camera"),
         DeclareLaunchArgument("cameras", default_value="stereo", choices=["stereo", "mono", "iphone"]),
+        DeclareLaunchArgument("capture", default_value="360p", choices=["360p", "720p"], description="front pair capture size"),
         DeclareLaunchArgument("iphone_tf", default_value="false", description="iPhone odometry publishes odom -> base_link (handheld mapping)"),
         DeclareLaunchArgument("record3d_path", default_value="", description="simulator: directory of the stand-in record3d library"),
         DeclareLaunchArgument("camera_driver", default_value="true", description="false: image_raw comes from elsewhere (simulator)"),

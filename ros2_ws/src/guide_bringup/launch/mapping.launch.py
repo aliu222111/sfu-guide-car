@@ -31,7 +31,7 @@ def setup(context):
     return [
         include("description.launch.py"),
         include("cameras.launch.py", calibration_dir=LaunchConfiguration("calibration_dir").perform(context),
-                cameras=cams, iphone_tf="true"),
+                cameras=cams, iphone_tf="true", capture=LaunchConfiguration("capture").perform(context)),
         include("rtabmap.launch.py", mode="mapping", handheld="true", database=repo_path("rtabmap_db", f"{floor}.db"),
                 fresh=LaunchConfiguration("fresh").perform(context), sensor="rgbd" if cams == "iphone" else "stereo"),
     ]
@@ -43,5 +43,6 @@ def generate_launch_description():
         DeclareLaunchArgument("calibration_dir", default_value="~/.ros/camera_info"),
         DeclareLaunchArgument("fresh", default_value="false"),
         DeclareLaunchArgument("cameras", default_value="stereo", choices=["stereo", "iphone"]),
+        DeclareLaunchArgument("capture", default_value="360p", choices=["360p", "720p"]),
         OpaqueFunction(function=setup),
     ])

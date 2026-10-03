@@ -146,6 +146,24 @@ and close the loop. Align it to the GIS frame at three or more doors:
 `ros2 run guide_mission align_floor --floor AQ-03 --graph maps/route_graph.json --out rtabmap_db/alignments.yaml --no-scale AQ-03:door:3150=x,y ...`
 with x,y read from RTAB-Map at each door.
 
+**Walking the campus with the rig** (optional, before or instead of the handheld mapping drive).
+Mount the two front cameras on a rigid plate, 10 cm apart, at the SAME height and tilt they will
+have on the car (RTAB-Map localizes by what the car later sees; a map taken from another height
+matches poorly), level side to side. Calibrate the pair once (phase 1), then on the walking laptop:
+
+```bash
+bash ros2_ws/src/guide_bringup/scripts/record_walk.sh aq3-concourse 720p   # Ctrl-C to stop
+bash ros2_ws/src/guide_bringup/scripts/map_from_walk.sh walks/<date>-aq3-concourse AQ-03
+```
+
+`record_walk.sh` records the raw pair, camera info, the phone's IMU and GPS (Sensor Logger pushing to
+this laptop) and the Adafruit GPS if plugged in, into `walks/`; `720p` captures 1280x720 (1080p
+cameras; about 11 GB an hour), `360p` the car's 640x360. Walk at the car's pace (0.5 m/s), no fast
+turns, down every corridor of the floor and back to where you started (a loop closure), past each
+door you will align at. `map_from_walk.sh` replays the bag into the same mapping pipeline the car
+uses and writes `rtabmap_db/<floor>.db`; align it at three doors (phase 1). The same bags test
+calibration, exposure and the perception nodes offline (`ros2 bag play`).
+
 **2, the RC car.** The car is a stock RC car with its stock pistol-grip controller; the laptop drives
 the controller. An ESP32-WROOM-32E's two DAC pins stand in for the controller's steering wheel and
 trigger potentiometers.
