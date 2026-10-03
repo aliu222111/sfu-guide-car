@@ -1,8 +1,10 @@
-"""Room-sign reader: publishes ``signs`` (String, JSON ``{"text": "AQ 3150", "conf": 0.93}``) per read."""
+"""Room-sign reader: publishes ``signs`` (String, JSON ``{"text": "AQ 3150", "conf": 0.93, "bearing": 0.2}``)
+per read; ``bearing`` (radians from the camera axis, left positive) only when the backend gives text boxes."""
 
 from __future__ import annotations
 
 import json
+import math
 
 from std_msgs.msg import Bool, String
 
@@ -36,7 +38,11 @@ class SignNode(CameraNode):
             self.get_logger().warn(f"sign read failed: {e}", throttle_duration_sec=10.0)
             return
         for r in reads:
-            self.pub.publish(String(data=json.dumps({"text": r.text, "conf": r.conf, "stamp": header.stamp.sec + header.stamp.nanosec * 1e-9})))
+            doc = {"text": r.text, "conf": r.conf, "stamp": header.stamp.sec + header.stamp.nanosec * 1e-9}
+            if r.u is not None and self.K is not None:
+                # Bearing of the sign from the camera axis, radians, left positive.
+                doc["bearing"] = math.atan2(-(r.u - self.K[0, 2]), self.K[0, 0])
+            self.pub.publish(String(data=json.dumps(doc)))
 
 
 def main():

@@ -88,6 +88,7 @@ class TripParams:
     voice_mode: bool = False  # no phone: "still with me?" at each turn (spec section 9)
     elevator_sigma: float = 1.5  # m, pose uncertainty on leaving an elevator
     passed_radius: float = 1.5  # m, a node counts as reached within this distance
+    nav_retries: int = 2  # Nav2 failures per leg retried without asking (a sign fix moved the pose)
 
 
 @dataclass
@@ -103,6 +104,7 @@ class Trip:
     state: str = "idle"
     destination: str = ""
     goal: str = ""
+    nav_failures: int = 0
     path: list[str] = field(default_factory=list)
     legs: list[Leg] = field(default_factory=list)
     leg_index: int = 0
@@ -158,6 +160,28 @@ class Trip:
         out.append(Speak(f"Let's go to {destination}. Follow me, it's about {round_distance(length)}."))
         out.append(DriveEnable(True))
         return out + self._begin_leg()
+
+    def replan_from(self, start_node: str) -> list:
+        """Re-plan the current trip from ``start_node``, silently.
+
+        For a trip asked for before the car knew where it was: the first plan
+        started from a guess. Call it once localization arrives, before
+        ``on_localization(True)`` resumes driving on the new path.
+        """
+        if not self.active or self.goal is None:
+            return []
+        try:
+            path, _ = self.rg.shortest_path(start_node, self.goal)
+        except RouteError:
+            return []
+        self.path = path
+        self.legs = self.rg.legs(path) if len(path) > 1 else []
+        self.leg_index = 0
+        self.progress = 0
+        self.turns = find_turns(self.rg, path)
+        self.announced = set()
+        self.elevator = None
+        return []
 
     def _begin_leg(self) -> list:
         leg = self.leg
@@ -240,12 +264,19 @@ class Trip:
         if self.state != "driving":
             return []  # a cancelled goal reporting back
         if not success:
-            # Nav2 gave up (blocked corridor). Wait for the student to clear it
-            # or pick another destination rather than guessing.
+            # Often transient: a localization fix moved the pose and the
+            # controller lost its path. Try again a couple of times first.
+            if self.nav_failures < self.params.nav_retries:
+                self.nav_failures += 1
+                return self._resume()
+            # Nav2 keeps giving up (blocked corridor). Wait for the student to
+            # clear it or pick another destination rather than guessing.
+            self.nav_failures = 0
             self.waiting_for = "blocked"
             out = self._set("waiting_for_help", "blocked")
             out.append(Speak("I'm stuck. Could you check the way ahead is clear and tell me when to try again?"))
             return out
+        self.nav_failures = 0
         self.leg_index += 1
         return self._begin_leg()
 

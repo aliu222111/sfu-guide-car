@@ -6,11 +6,10 @@ import sys
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration, PythonExpression
-from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 
 sys.path.insert(0, os.path.dirname(__file__))
-from common import cfg, repo_path  # noqa: E402
+from common import Node, cfg, repo_path  # noqa: E402
 
 
 def generate_launch_description():
@@ -27,7 +26,8 @@ def generate_launch_description():
              remappings=[("imu", "/guide/imu_abs"), ("gps/fix", "/gps/fix"), ("odometry/filtered", "/odometry/global"),
                          ("odometry/gps", "/odometry/gps")]),
         # Adafruit Ultimate GPS (MTK3339) on a USB serial adapter, 10 Hz after configuring it.
-        Node(package="nmea_navsat_driver", executable="nmea_serial_driver", name="gps",
+        # respawn: the driver exits if the port is missing (GPS unplugged, or enumerated late).
+        Node(package="nmea_navsat_driver", executable="nmea_serial_driver", name="gps", respawn=True, respawn_delay=3.0,
              parameters=[{"port": LaunchConfiguration("gps_port"), "baud": 9600, "frame_id": "gps_link"}],
              remappings=[("fix", "/gps/fix")]),
         Node(package="guide_bridge", executable="phone_imu", name="phone_imu", parameters=[guide]),

@@ -10,11 +10,14 @@ odometry and RTAB-Map publish TF themselves.
 """
 
 import os
+import sys
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, OpaqueFunction
 from launch.substitutions import LaunchConfiguration
-from launch_ros.actions import Node
+
+sys.path.insert(0, os.path.dirname(__file__))
+from common import Node  # noqa: E402
 
 
 def nodes(context):

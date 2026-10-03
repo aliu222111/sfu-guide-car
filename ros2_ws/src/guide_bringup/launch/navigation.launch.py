@@ -8,10 +8,9 @@ import sys
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, OpaqueFunction
 from launch.substitutions import LaunchConfiguration
-from launch_ros.actions import Node
 
 sys.path.insert(0, os.path.dirname(__file__))
-from common import SHARE, cfg, mono_nav2_params, repo_path  # noqa: E402
+from common import Node, SHARE, cfg, mono_nav2_params, repo_path  # noqa: E402
 
 SERVERS = ["map_server", "planner_server", "controller_server", "behavior_server", "bt_navigator"]
 

@@ -11,6 +11,14 @@ ekf_local:
     frequency: 30.0
     sensor_timeout: 0.5
     two_d_mode: true
+    # Visual odometry arrives about 0.5 s after its images and the phone sends
+    # batches: without smoothing the filter drops every measurement older than
+    # its last update (found in the HIL simulation). Rewind up to 2 s instead.
+    smooth_lagged_data: true
+    history_length: 2.0
+    # Post-date the transform a little so Nav2's lookups at "now" do not
+    # extrapolate into the future when the laptop is busy.
+    transform_time_offset: 0.1
     publish_tf: true
     map_frame: map
     odom_frame: odom
@@ -34,6 +42,14 @@ ekf_global:
     frequency: 30.0
     sensor_timeout: 0.5
     two_d_mode: true
+    # Visual odometry arrives about 0.5 s after its images and the phone sends
+    # batches: without smoothing the filter drops every measurement older than
+    # its last update (found in the HIL simulation). Rewind up to 2 s instead.
+    smooth_lagged_data: true
+    history_length: 2.0
+    # Post-date the transform a little so Nav2's lookups at "now" do not
+    # extrapolate into the future when the laptop is busy.
+    transform_time_offset: 0.1
     publish_tf: true
     map_frame: map
     odom_frame: odom

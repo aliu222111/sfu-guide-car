@@ -10,7 +10,7 @@ bt_navigator:
     robot_base_frame: base_link
     odom_topic: /odometry/local
     bt_loop_duration: 10
-    default_server_timeout: 20
+    default_server_timeout: 200      # ms for a server to accept a goal; 20 failed under load in the HIL simulator
     wait_for_service_timeout: 1000
     action_server_result_timeout: 900.0
     # Only NavigateThroughPoses: the mission node sends every leg as a pose list.

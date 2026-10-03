@@ -89,11 +89,13 @@ class PhoneImuNode(Node):
             except queue.Empty:
                 return
             try:
-                self.handle(recv, doc)
+                self.handle_push(recv, doc)
             except Exception as e:  # never let one bad push take the IMU down
                 self.get_logger().warn(f"dropped a phone push: {type(e).__name__}: {e}", throttle_duration_sec=5.0)
 
-    def handle(self, recv, doc):
+    def handle_push(self, recv, doc):  # not "handle": that is rclpy.Node's own attribute
+        if recv <= 0.0:
+            return  # no clock yet (sim time before the first /clock): it would poison the clock offset
         imus, mags, fixes = parse_payload(doc, self.accel_scale, self.yaw_offset)
         if not (imus or mags or fixes):
             return

@@ -10,6 +10,11 @@ Switches follow the phases in spec section 11:
     rssi:=true          phase 6 Bluetooth follow check
     cameras:=mono       one camera (spec section 18): left camera only, floor
                         odometry instead of RTAB-Map, no depth cloud
+
+For the hardware-in-the-loop simulator (guide_sim hil.launch.py):
+    camera_driver:=false  the simulator publishes the cameras' image_raw
+    sim_perception:=true  the simulator stands in for the model-based perception
+                          nodes (people, signs, floor); the gate still requires them
 """
 
 import os
@@ -19,10 +24,9 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, OpaqueFunction
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
-from launch_ros.actions import Node
 
 sys.path.insert(0, os.path.dirname(__file__))
-from common import ROSBRIDGE_PARAMS, cfg, repo_path  # noqa: E402
+from common import Node, ROSBRIDGE_PARAMS, cfg, repo_path  # noqa: E402
 
 HERE = os.path.dirname(__file__)
 
@@ -39,7 +43,8 @@ def setup(context):
     floor = LaunchConfiguration("start_floor").perform(context)
     guide = cfg("guide.yaml")
     graph = repo_path("maps", "route_graph.json")
-    perception = flag(context, "perception")
+    sim_perception = flag(context, "sim_perception")
+    perception = flag(context, "perception") and not sim_perception
     cams = LaunchConfiguration("cameras").perform(context)
     mono = cams == "mono"
     left = [("image", "/stereo/left/image_rect"), ("camera_info", "/stereo/left/camera_info")]
@@ -51,14 +56,15 @@ def setup(context):
     actions = [
         include("description.launch.py"),
         include("cameras.launch.py", calibration_dir=LaunchConfiguration("calibration_dir").perform(context),
-                rear=str(flag(context, "rear_camera")).lower(), mono=str(mono).lower()),
+                rear=str(flag(context, "rear_camera")).lower(), mono=str(mono).lower(),
+                camera_driver=str(flag(context, "camera_driver")).lower()),
         include("localization.launch.py", gps_port=LaunchConfiguration("gps_port").perform(context), cameras=cams),
         odometry,
         include("navigation.launch.py", start_floor=floor, cameras=cams),
         Node(package="guide_bridge", executable="serial_bridge", name="serial_bridge", parameters=[guide,
              {"port": LaunchConfiguration("motor_port").perform(context)}]),
         Node(package="guide_bridge", executable="velocity_gate", name="velocity_gate", parameters=[guide,
-             {"require_person_detector": perception,
+             {"require_person_detector": perception or sim_perception,
               "require_bumper": mono},     # one camera: nothing else sees glass or anything above the floor
              {"indoor_max": 0.4} if mono else {}]),
         Node(package="guide_mission", executable="mission", name="mission", parameters=[guide,
@@ -96,6 +102,8 @@ def generate_launch_description():
         DeclareLaunchArgument("gps_port", default_value="/dev/ttyUSB0"),
         DeclareLaunchArgument("perception", default_value="true"),
         DeclareLaunchArgument("cameras", default_value="stereo", choices=["stereo", "mono"]),
+        DeclareLaunchArgument("camera_driver", default_value="true"),
+        DeclareLaunchArgument("sim_perception", default_value="false"),
         DeclareLaunchArgument("voice", default_value="false"),
         DeclareLaunchArgument("voice_mode", default_value="false", description="no phone: ask 'still with me?' at turns"),
         DeclareLaunchArgument("rear_camera", default_value="false"),

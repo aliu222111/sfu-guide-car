@@ -1,13 +1,16 @@
 """Robot description: static transforms for base_link, cameras, phone and GPS."""
 
 import os
+import sys
 
 from launch import LaunchDescription
 from launch.substitutions import Command
-from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 
 from ament_index_python.packages import get_package_share_directory
+
+sys.path.insert(0, os.path.dirname(__file__))
+from common import Node  # noqa: E402
 
 
 def generate_launch_description():

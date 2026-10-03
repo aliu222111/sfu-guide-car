@@ -113,3 +113,12 @@ def test_waypoints_sparse_but_keep_turns_and_goal(campus):
     pts = [campus.nodes[n] for n in wp]
     for a, b in zip(pts, pts[1:]):
         assert math.hypot(b["x"] - a["x"], b["y"] - a["y"]) <= 25.0
+
+
+def test_sign_viewpoint_is_behind_the_sign():
+    from guide_mission.signs import viewpoint
+
+    x, y = viewpoint(10.0, 0.0, yaw=0.0, distance=2.5)  # driving east, sign straight ahead
+    assert (x, y) == (7.5, 0.0)
+    x, y = viewpoint(10.0, 0.0, yaw=0.0, bearing=math.pi / 2, distance=2.0)  # sign to the left
+    assert abs(x - 10.0) < 1e-9 and abs(y + 2.0) < 1e-9

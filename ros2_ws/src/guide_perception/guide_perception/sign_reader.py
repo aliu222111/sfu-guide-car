@@ -23,6 +23,7 @@ _NOT_ROOM = re.compile(r"^(19|20)\d\d$")  # years
 class SignRead:
     text: str  # "AQ 3150" or "3150"
     conf: float
+    u: float | None = None  # image column of the text's centre, when the backend gives boxes
 
 
 def extract_rooms(raw: str, conf: float = 1.0) -> list[SignRead]:
@@ -52,9 +53,10 @@ class PaddleBackend:
         result = self.ocr.ocr(upper_third(bgr), cls=False) or []
         reads = []
         for page in result:
-            for _box, (text, conf) in page or []:
+            for box, (text, conf) in page or []:
                 if conf >= self.min_conf:
-                    reads += extract_rooms(text, float(conf))
+                    u = sum(p[0] for p in box) / len(box) if box else None
+                    reads += [SignRead(r.text, r.conf, u) for r in extract_rooms(text, float(conf))]
         return reads
 
 

@@ -7,7 +7,9 @@ decides what it may fuse:
   and the phone's compass yaw (``phone/imu`` -> ``guide/imu_abs``);
 - indoors: RTAB-Map localization poses converted to the GIS frame with the
   floor's alignment (``rtabmap/localization_pose`` -> ``guide/indoor_pose``) and
-  sign fixes; the compass is dropped because steel and concrete distort it.
+  sign fixes; the compass only as a weak heading hint (``indoor_compass_sigma``,
+  2 Hz) because steel and concrete distort it: without it a cold start or a
+  recovery indoors has no heading at all until the vanishing point takes over.
 
 It loads the floor's occupancy grid into Nav2's map_server, asks RTAB-Map to
 switch database when ``rtabmap_msgs`` is available, forwards pose resets, and
@@ -75,6 +77,8 @@ class LocalizationManager(Node):
         # False with one camera (spec section 18): no RTAB-Map, indoor fixes come
         # from signs only, so no database or alignment is expected.
         self.use_rtabmap = bool(self.declare_parameter("use_rtabmap", True).value)
+        self.indoor_compass_sigma = float(self.declare_parameter("indoor_compass_sigma", 0.6).value)  # rad, about 35 deg
+        self.last_indoor_compass = -math.inf
         self.alignments = load_alignments(align_path)
         self.floor = None
         self.mode_set = False
@@ -196,15 +200,30 @@ class LocalizationManager(Node):
             self.gps_pub.publish(msg)
 
     def on_phone_imu(self, msg: Imu):
-        if self.outdoor and msg.orientation_covariance[0] >= 0:
+        if msg.orientation_covariance[0] < 0:
+            return
+        if self.outdoor:
             self.imu_abs_pub.publish(msg)
+            return
+        now = self.now()
+        if now - self.last_indoor_compass < 0.5:
+            return
+        self.last_indoor_compass = now
+        var = self.indoor_compass_sigma**2
+        msg.orientation_covariance = [var, 0.0, 0.0, 0.0, var, 0.0, 0.0, 0.0, var]
+        self.imu_abs_pub.publish(msg)
 
     def on_rtab_pose(self, msg: PoseWithCovarianceStamped):
         sim = self.alignments.get(self.floor) if self.floor else None
         if sim is None:
             return
+        pose = transform_pose(msg, sim, self.map_frame)
+        if not self.localized():
+            # First relocalization after a cold start, a floor change or odometry
+            # loss: the EKF would reject a pose this far from its guess, so reset it.
+            self.set_pose_pub.publish(pose)
         self.last_fix = self.now()
-        self.indoor_pose_pub.publish(transform_pose(msg, sim, self.map_frame))
+        self.indoor_pose_pub.publish(pose)
 
     def on_sign_fix(self, msg: PoseWithCovarianceStamped):
         if self.outdoor:

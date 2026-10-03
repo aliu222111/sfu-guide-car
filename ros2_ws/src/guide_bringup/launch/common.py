@@ -3,8 +3,23 @@
 import os
 
 from ament_index_python.packages import get_package_share_directory
+from launch.substitutions import LaunchConfiguration
+from launch_ros.actions import Node as _Node
+from launch_ros.parameter_descriptions import ParameterValue
 
 SHARE = get_package_share_directory("guide_bringup")
+
+
+# Sim time for the hardware-in-the-loop simulator (guide_sim): the launch
+# argument use_sim_time (default false) is every node's last parameter layer.
+# Not launch_ros SetParameter: a global parameter makes rcl drop dict
+# overrides of keys that guide.yaml also sets (motor port, indoor_max).
+SIM_TIME = {"use_sim_time": ParameterValue(LaunchConfiguration("use_sim_time", default="false"), value_type=bool)}
+
+
+def Node(**kw):  # noqa: N802 (drop-in for launch_ros.actions.Node)
+    kw["parameters"] = list(kw.get("parameters") or []) + [SIM_TIME]
+    return _Node(**kw)
 
 
 def cfg(name: str) -> str:

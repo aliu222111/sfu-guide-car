@@ -123,9 +123,12 @@ def test_localization_loss_stops_and_rotates(campus):
     assert trip.state == "driving"
 
 
-def test_nav_failure_waits_then_retries(campus):
+def test_nav_failure_retries_then_waits(campus):
     trip = new_trip(campus)
     trip.start("AQ 3150", "entrance:aq_convocation_mall")
+    for _ in range(trip.params.nav_retries):
+        out = trip.on_nav_result(False)  # transient: driven again without asking
+        assert trip.state == "driving" and any(isinstance(a, Navigate) for a in out)
     trip.on_nav_result(False)
     assert trip.state == "waiting_for_help"
     out = trip.on_confirm()
@@ -161,6 +164,18 @@ def test_first_leg_on_another_floor_waits_for_a_fix(campus):
     assert trip.state == "lost" and not any(isinstance(a, Navigate) for a in out)
     out = trip.on_localization(True)
     assert any(isinstance(a, Navigate) for a in out)
+
+
+def test_trip_asked_before_a_fix_is_replanned_from_the_fix(campus):
+    trip = new_trip(campus)
+    trip.localized = False  # cold start: no sign read yet, the estimate is a guess
+    out = trip.start("AQ 3150", "AQ-03:door:3046")  # planned from the guess
+    assert trip.state == "lost" and not any(isinstance(a, Navigate) for a in out)
+    trip.replan_from("entrance:aq_convocation_mall")  # the sign says the car is at the entrance
+    assert trip.path[0] == "entrance:aq_convocation_mall"
+    out = trip.on_localization(True)
+    nav = [a for a in out if isinstance(a, Navigate)]
+    assert nav and nav[0].nodes[0] == "entrance:aq_convocation_mall"
 
 
 def test_regained_localization_respects_pause_and_follow(campus):

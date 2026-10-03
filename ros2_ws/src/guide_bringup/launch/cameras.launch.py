@@ -12,19 +12,20 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, OpaqueFunction
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
-from launch_ros.actions import Node
 
 from ament_index_python.packages import get_package_share_directory
 
 sys.path.insert(0, os.path.dirname(__file__))
-from common import cfg  # noqa: E402
+from common import Node, cfg  # noqa: E402
 
 
 def cameras(context):
     calib = os.path.expanduser(LaunchConfiguration("calibration_dir").perform(context))
     mono = LaunchConfiguration("mono").perform(context).lower() == "true"
     nodes = []
-    for side in ("left",) if mono else ("left", "right"):
+    # camera_driver:=false: something else (the HIL simulator) publishes image_raw and camera_info.
+    driver = LaunchConfiguration("camera_driver").perform(context).lower() == "true"
+    for side in (("left",) if mono else ("left", "right")) if driver else ():
         nodes.append(Node(
             package="usb_cam",
             executable="usb_cam_node_exe",
@@ -47,7 +48,7 @@ def cameras(context):
                 "use_color": "False",
             }.items(),
         ))
-    if LaunchConfiguration("rear").perform(context).lower() == "true":
+    if driver and LaunchConfiguration("rear").perform(context).lower() == "true":
         nodes.append(Node(package="usb_cam", executable="usb_cam_node_exe", name="rear_camera", namespace="rear", parameters=[cfg("cameras.yaml")]))
     return nodes
 
@@ -57,5 +58,6 @@ def generate_launch_description():
         DeclareLaunchArgument("calibration_dir", default_value="~/.ros/camera_info", description="left.yaml and right.yaml from the stereo calibrator"),
         DeclareLaunchArgument("rear", default_value="false", description="phase 6 rear camera"),
         DeclareLaunchArgument("mono", default_value="false", description="one camera: left only, no depth"),
+        DeclareLaunchArgument("camera_driver", default_value="true", description="false: image_raw comes from elsewhere (simulator)"),
         OpaqueFunction(function=cameras),
     ])

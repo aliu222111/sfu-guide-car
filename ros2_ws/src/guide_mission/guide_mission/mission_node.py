@@ -32,7 +32,7 @@ from sfu_map.route import RouteGraph
 
 from .follow import FollowMonitor, FollowParams
 from .instructions import waypoints
-from .signs import match_sign
+from .signs import match_sign, viewpoint
 from .trip import (
     CancelNav,
     Creep,
@@ -115,7 +115,7 @@ class MissionNode(Node):
         sub(Empty, "guide/heartbeat", lambda _: self.follow.heartbeat(self.now()), 10)
         sub(Float32, "guide/phone_rssi", lambda m: self.follow.rssi(m.data, self.now()), 10)
         sub(Float32, "guide/student_distance", lambda m: self.follow.student(m.data, self.now()), 10)
-        sub(Bool, "guide/localized", lambda m: self.run(self.trip.on_localization(m.data)), 10)
+        sub(Bool, "guide/localized", self.on_localized, 10)
         sub(String, "signs", self.on_sign, 10)
 
         self.create_timer(0.2, self.tick)
@@ -125,6 +125,10 @@ class MissionNode(Node):
         self.create_timer(0.5, self.publish_drive_flags)
         self.create_timer(5.0, self.publish_route)
         self.last_state = {"state": "idle", "detail": ""}
+        self.replan_on_fix = False
+        self.sign_read_distance = float(self.declare_parameter("sign_read_distance", 2.5).value)
+        self.last_fix_xy = None
+        self.resume_after_reset = None  # (time, (x, y)) while waiting for the EKF reset to show in TF
         self.run([SetLocalization(start_floor), DriveEnable(False)])
 
     def now(self) -> float:
@@ -139,8 +143,28 @@ class MissionNode(Node):
         if start is None:
             self.say("I don't know where I am yet. Give me a moment.")
             return
+        # Asked before the car knows where it is: this plan starts from a guess,
+        # so plan again from the real position once localization arrives.
+        self.replan_on_fix = not self.trip.localized
         self.run(self.trip.start(text, start))
         self.publish_route()
+
+    def on_localized(self, msg: Bool):
+        if msg.data and self.replan_on_fix and self.trip.active and not self.trip.localized:
+            self.replan_on_fix = False
+            # From the fix itself: the EKF reset may not have reached TF yet.
+            start = self.start_node(self.last_fix_xy)
+            if start is not None:
+                self.get_logger().info(f"position found: planning the trip again from {start}")
+                self.run(self.trip.replan_from(start))
+                self.publish_route()
+                # Drive once the reset has reached TF, or Nav2 plans from the old guess.
+                self.resume_after_reset = (self.now(), self.last_fix_xy)
+                return
+        if not msg.data:
+            self.resume_after_reset = None
+        if self.resume_after_reset is None:
+            self.run(self.trip.on_localization(msg.data))
 
     def publish_route(self):
         if self.trip.path and self.trip.active:
@@ -148,10 +172,10 @@ class MissionNode(Node):
                 String(data=json.dumps([{"id": n, **{k: self.rg.nodes[n][k] for k in ("x", "y", "floor", "type")}} for n in self.trip.path]))
             )
 
-    def start_node(self):
-        if self.pose is None:
+    def start_node(self, xy=None):
+        if xy is None and self.pose is None:
             return None
-        x, y, _ = self.pose
+        x, y = xy if xy is not None else self.pose[:2]
         floor = self.trip.floor
         try:
             return self.rg.nearest_node(floor, x, y, types={"corridor", "corridor_junction", "entrance", "outdoor_junction", "elevator"})
@@ -164,12 +188,24 @@ class MissionNode(Node):
         except ValueError:
             return
         x, y = (self.pose[0], self.pose[1]) if self.pose else (None, None)
-        fix = match_sign(self.rg, str(read.get("text", "")), self.trip.floor, x, y, lost=self.trip.state == "lost")
+        # Not localized (cold start indoors, odometry lost) or lost after an elevator:
+        # the estimate cannot be trusted, so any matching door on the floor counts.
+        untrusted = self.trip.state == "lost" or not self.trip.localized
+        fix = match_sign(self.rg, str(read.get("text", "")), self.trip.floor, x, y, lost=untrusted)
         if fix is None:
             return
         yaw = self.pose[2] if self.pose else 0.0
+        bearing = read.get("bearing", 0.0)
+        bearing = float(bearing) if isinstance(bearing, (int, float)) and math.isfinite(bearing) else 0.0
+        fx, fy = viewpoint(fix.x, fix.y, yaw, bearing, self.sign_read_distance)
         self.get_logger().info(f"sign fix {fix.room} at {fix.distance:.1f} m from estimate")
-        self.sign_fix_pub.publish(self.pose_msg(fix.x, fix.y, yaw, fix.sigma, yaw_sigma=math.pi))
+        msg = self.pose_msg(fx, fy, yaw, fix.sigma, yaw_sigma=math.pi)
+        self.last_fix_xy = (fx, fy)
+        if untrusted:
+            # The EKF rejects a measurement far from its estimate (as it should for a
+            # misread sign while tracking), so an untrusted estimate is reset instead.
+            self.set_pose_pub.publish(msg)
+        self.sign_fix_pub.publish(msg)
 
     def tick(self):
         try:
@@ -178,6 +214,12 @@ class MissionNode(Node):
             self.pose = (tr.translation.x, tr.translation.y, quat_to_yaw(tr.rotation))
         except TransformException:
             pass
+        if self.resume_after_reset is not None:
+            since, (fx, fy) = self.resume_after_reset
+            arrived = self.pose is not None and math.hypot(self.pose[0] - fx, self.pose[1] - fy) < 3.0
+            if arrived or self.now() - since > 3.0:
+                self.resume_after_reset = None
+                self.run(self.trip.on_localization(True))
         out = self.trip.on_follow(self.follow.following(self.now()))
         if self.pose is not None:
             out += self.trip.on_position(self.pose[0], self.pose[1])
