@@ -42,7 +42,10 @@
 
   <xacro:camera name="left_camera" x="${cam_x}" y="${stereo_baseline/2}" z="${cam_z}" pitch="${cam_pitch}" yaw="0"/>
   <xacro:camera name="right_camera" x="${cam_x}" y="${-stereo_baseline/2}" z="${cam_z}" pitch="${cam_pitch}" yaw="0"/>
-  <!-- Phase 6 rear camera, facing backwards. -->
+  <!-- cameras:=iphone (spec section 19): the iPhone upright on the same mount, rear camera
+       forward. Match guide.yaml iphone mount_x / mount_y. -->
+  <xacro:camera name="iphone_camera" x="${cam_x}" y="0" z="${cam_z}" pitch="${cam_pitch}" yaw="0"/>
+  <!-- Phase 6 rear camera, facing backwards (with cameras:=iphone, the webcam). -->
   <xacro:camera name="rear_camera" x="${-base_length/2}" y="0" z="${cam_z}" pitch="0.1" yaw="${pi}"/>
 
   <!-- Phone lying flat, screen up, top edge forward (spec section 3). -->

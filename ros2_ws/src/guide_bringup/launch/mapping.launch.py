@@ -1,6 +1,7 @@
 """Phase 1: handheld stereo rig, build one floor's RTAB-Map database (spec section 11).
 
     ros2 launch guide_bringup mapping.launch.py floor:=AQ-03
+    ros2 launch guide_bringup mapping.launch.py floor:=AQ-03 cameras:=iphone   # carry the iPhone instead
 
 Carry the rig down every corridor of the floor and close a loop. Then align it
 to the GIS map with ``ros2 run guide_mission align_floor`` at three doors.
@@ -26,11 +27,13 @@ def include(name, **args):
 
 def setup(context):
     floor = LaunchConfiguration("floor").perform(context)
+    cams = LaunchConfiguration("cameras").perform(context)
     return [
         include("description.launch.py"),
-        include("cameras.launch.py", calibration_dir=LaunchConfiguration("calibration_dir").perform(context)),
+        include("cameras.launch.py", calibration_dir=LaunchConfiguration("calibration_dir").perform(context),
+                cameras=cams, iphone_tf="true"),
         include("rtabmap.launch.py", mode="mapping", handheld="true", database=repo_path("rtabmap_db", f"{floor}.db"),
-                fresh=LaunchConfiguration("fresh").perform(context)),
+                fresh=LaunchConfiguration("fresh").perform(context), sensor="rgbd" if cams == "iphone" else "stereo"),
     ]
 
 
@@ -39,5 +42,6 @@ def generate_launch_description():
         DeclareLaunchArgument("floor", default_value="AQ-03"),
         DeclareLaunchArgument("calibration_dir", default_value="~/.ros/camera_info"),
         DeclareLaunchArgument("fresh", default_value="false"),
+        DeclareLaunchArgument("cameras", default_value="stereo", choices=["stereo", "iphone"]),
         OpaqueFunction(function=setup),
     ])

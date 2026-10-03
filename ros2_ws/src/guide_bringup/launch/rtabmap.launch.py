@@ -1,5 +1,9 @@
 """Stereo visual odometry and RTAB-Map (spec section 6).
 
+sensor:=stereo     the webcam pair; stereo odometry publishes /vo.
+sensor:=rgbd       the iPhone (spec section 19): its driver publishes /vo (ARKit)
+                   and RTAB-Map uses its colour image and LiDAR depth.
+
 mode:=mapping      one database per floor, built on a drive of each corridor (phase 1).
 mode:=localization against that database; publishes rtabmap/localization_pose,
                    which the localization manager aligns to the GIS frame.
@@ -24,14 +28,19 @@ def nodes(context):
     mode = LaunchConfiguration("mode").perform(context)
     handheld = LaunchConfiguration("handheld").perform(context).lower() == "true"
     odom_imu = LaunchConfiguration("odom_imu").perform(context).lower() == "true"
+    rgbd = LaunchConfiguration("sensor").perform(context) == "rgbd"
     db = os.path.abspath(os.path.expanduser(LaunchConfiguration("database").perform(context)))
     os.makedirs(os.path.dirname(db), exist_ok=True)
-    stereo_remaps = [
-        ("left/image_rect", "/stereo/left/image_rect"),
-        ("right/image_rect", "/stereo/right/image_rect"),
-        ("left/camera_info", "/stereo/left/camera_info"),
-        ("right/camera_info", "/stereo/right/camera_info"),
-    ]
+    if rgbd:
+        sensor_remaps = [("rgb/image", "/front/image_rect"), ("depth/image", "/front/depth"),
+                         ("rgb/camera_info", "/front/camera_info")]
+    else:
+        sensor_remaps = [
+            ("left/image_rect", "/stereo/left/image_rect"),
+            ("right/image_rect", "/stereo/right/image_rect"),
+            ("left/camera_info", "/stereo/left/camera_info"),
+            ("right/camera_info", "/stereo/right/camera_info"),
+        ]
     common = {
         "frame_id": "base_link",
         "approx_sync": True,           # unsynchronised webcams (spec section 7)
@@ -52,7 +61,7 @@ def nodes(context):
         # The phone gyro reaches the EKF directly. Feeding it to stereo odometry too
         # is opt-in: in the simulator an IMU without orientation warped the first
         # corner of every lap (3.4 m worst error against 0.65 m without it).
-        remappings=stereo_remaps + [("odom", "/vo"), ("imu", "/phone/imu" if odom_imu else "imu_unused")],
+        remappings=sensor_remaps + [("odom", "/vo"), ("imu", "/phone/imu" if odom_imu else "imu_unused")],
     )
     localization = mode == "localization"
     slam = Node(
@@ -62,8 +71,8 @@ def nodes(context):
         namespace="rtabmap",
         arguments=[] if localization else ["--delete_db_on_start"] if LaunchConfiguration("fresh").perform(context).lower() == "true" else [],
         parameters=[common, {
-            "subscribe_stereo": True,
-            "subscribe_depth": False,
+            "subscribe_stereo": not rgbd,
+            "subscribe_depth": rgbd,
             "subscribe_rgb": False,
             "database_path": db,
             "map_frame_id": "map" if handheld else "rtabmap_map",
@@ -82,9 +91,9 @@ def nodes(context):
             "RGBD/OptimizeMaxError": "3.0",
             "Reg/Force3DoF": "true",       # the car stays on one floor plane
         }],
-        remappings=stereo_remaps + [("odom", "/vo" if handheld else "/odometry/local")],
+        remappings=sensor_remaps + [("odom", "/vo" if handheld else "/odometry/local")],
     )
-    return [odom, slam]
+    return [slam] if rgbd else [odom, slam]
 
 
 def generate_launch_description():
@@ -92,6 +101,7 @@ def generate_launch_description():
         DeclareLaunchArgument("mode", default_value="localization", choices=["mapping", "localization"]),
         DeclareLaunchArgument("database", default_value="rtabmap_db/AQ-03.db"),
         DeclareLaunchArgument("handheld", default_value="false"),
+        DeclareLaunchArgument("sensor", default_value="stereo", choices=["stereo", "rgbd"]),
         DeclareLaunchArgument("odom_imu", default_value="false", description="give stereo odometry the phone IMU"),
         DeclareLaunchArgument("fresh", default_value="false", description="mapping: start a new database"),
         OpaqueFunction(function=nodes),

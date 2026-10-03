@@ -71,6 +71,19 @@ vp_heading:
     # ratchet the heading away (HIL simulation: 20 deg let a 30 deg error in).
     max_disagreement_deg: 12.0
 
+iphone:                     # cameras:=iphone only (spec section 19): Record3D over USB
+  ros__parameters:
+    device_index: 0
+    out_width: 640            # colour image width for perception and RTAB-Map
+    min_confidence: 2         # LiDAR confidence 0..2: keep only high
+    max_depth: 5.0            # m, the LiDAR's useful range indoors
+    point_stride: 2           # every 2nd LiDAR pixel for the costmap cloud
+    points_rate: 10.0         # Hz
+    mount_x: 0.20             # phone camera on base_link: the URDF's iphone_camera
+    mount_y: 0.0
+    quarter_turns: 0          # rotate images if they arrive sideways (counter-clockwise)
+    velocity_variance: 0.0025 # (m/s)^2 and (rad/s)^2 for the EKFs
+
 mono_odometry:              # cameras:=mono only (spec section 18)
   ros__parameters:
     rate_hz: 10.0

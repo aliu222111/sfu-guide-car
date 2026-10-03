@@ -10,15 +10,13 @@ from launch.actions import DeclareLaunchArgument, OpaqueFunction
 from launch.substitutions import LaunchConfiguration
 
 sys.path.insert(0, os.path.dirname(__file__))
-from common import Node, SHARE, cfg, mono_nav2_params, repo_path  # noqa: E402
+from common import Node, SHARE, cfg, nav2_params, repo_path  # noqa: E402
 
 SERVERS = ["map_server", "planner_server", "controller_server", "behavior_server", "bt_navigator"]
 
 
 def nodes(context):
-    params = cfg("nav2.yaml")
-    if LaunchConfiguration("cameras").perform(context) == "mono":
-        params = mono_nav2_params(params)
+    params = nav2_params(cfg("nav2.yaml"), LaunchConfiguration("cameras").perform(context))
     floor = LaunchConfiguration("start_floor").perform(context)
     grid = repo_path("maps", "outdoor.yaml" if not floor else f"floors/{floor}.yaml")
     bt = os.path.join(SHARE, "behavior_trees", "navigate_through_poses.xml")
@@ -38,6 +36,6 @@ def nodes(context):
 def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument("start_floor", default_value="", description='floor id such as AQ-03, or "" for outdoors'),
-        DeclareLaunchArgument("cameras", default_value="stereo", choices=["stereo", "mono"]),
+        DeclareLaunchArgument("cameras", default_value="stereo", choices=["stereo", "mono", "iphone"]),
         OpaqueFunction(function=nodes),
     ])

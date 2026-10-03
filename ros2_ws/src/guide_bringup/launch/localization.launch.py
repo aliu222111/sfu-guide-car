@@ -5,6 +5,7 @@ import sys
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
+from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration, PythonExpression
 from launch_ros.parameter_descriptions import ParameterValue
 
@@ -17,7 +18,7 @@ def generate_launch_description():
     guide = cfg("guide.yaml")
     return LaunchDescription([
         DeclareLaunchArgument("gps_port", default_value="/dev/ttyUSB0"),
-        DeclareLaunchArgument("cameras", default_value="stereo", choices=["stereo", "mono"]),
+        DeclareLaunchArgument("cameras", default_value="stereo", choices=["stereo", "mono", "iphone"]),
         Node(package="robot_localization", executable="ekf_node", name="ekf_local", parameters=[ekf],
              remappings=[("odometry/filtered", "/odometry/local"), ("set_pose", "/ekf_local/set_pose")]),
         Node(package="robot_localization", executable="ekf_node", name="ekf_global", parameters=[ekf],
@@ -30,7 +31,10 @@ def generate_launch_description():
         Node(package="nmea_navsat_driver", executable="nmea_serial_driver", name="gps", respawn=True, respawn_delay=3.0,
              parameters=[{"port": LaunchConfiguration("gps_port"), "baud": 9600, "frame_id": "gps_link"}],
              remappings=[("fix", "/gps/fix")]),
-        Node(package="guide_bridge", executable="phone_imu", name="phone_imu", parameters=[guide]),
+        # With cameras:=iphone the phone is the camera: Record3D holds the screen, and
+        # its ARKit odometry carries the gyro's yaw rate on /vo.
+        Node(package="guide_bridge", executable="phone_imu", name="phone_imu", parameters=[guide],
+             condition=IfCondition(PythonExpression(["'", LaunchConfiguration("cameras"), "' != 'iphone'"]))),
         Node(package="guide_mission", executable="localization_manager", name="localization_manager",
              parameters=[guide, {"maps_dir": repo_path("maps"), "rtabmap_db_dir": repo_path("rtabmap_db"),
                                  "alignments": repo_path("rtabmap_db", "alignments.yaml"),

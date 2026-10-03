@@ -110,11 +110,13 @@ class Renderer:
 
     def camera_pose(self, x: float, y: float, yaw: float, side: str) -> tuple[float, float]:
         c = self.cam
-        lat = c.baseline / 2 if side == "left" else -c.baseline / 2
+        lat = {"left": c.baseline / 2, "right": -c.baseline / 2}.get(side, 0.0)  # "center": the iPhone
         cs, sn = math.cos(yaw), math.sin(yaw)
         return x + cs * c.x - sn * lat, y + sn * c.x + cs * lat
 
-    def render(self, world: FloorWorld, x: float, y: float, yaw: float, side: str, t: float = 0.0) -> np.ndarray:
+    def render(self, world: FloorWorld, x: float, y: float, yaw: float, side: str, t: float = 0.0,
+               with_depth: bool = False):
+        """The grey image; with ``with_depth`` also each pixel's depth (m, along the optical axis)."""
         c = self.cam
         px, py = self.camera_pose(x, y, yaw, side)
         hit = world.raycast(px, py, yaw + self.col_angle, max_range=25.0, t=t)
@@ -156,4 +158,10 @@ class Renderer:
         out = cv2.warpPerspective(level, self.H, (c.width, c.height), flags=cv2.INTER_LINEAR)
         if c.noise > 0:
             out = np.clip(out.astype(np.int16) + self.rng.normal(0, c.noise, out.shape).astype(np.int16), 0, 255).astype(np.uint8)
-        return out
+        if not with_depth:
+            return out
+        # Forward distance along the level axis, then along the tilted optical axis:
+        # a point (X, slope*z, z) in the level frame has z_t = sin(p)*slope*z + cos(p)*z.
+        z_level = np.where(wall, np.broadcast_to(depth[None, :], z_wall.shape), np.where(floor, t_floor, t_ceil))
+        z_tilt = (z_level * (math.sin(c.pitch) * slope + math.cos(c.pitch))).astype(np.float32)
+        return out, cv2.warpPerspective(z_tilt, self.H, (c.width, c.height), flags=cv2.INTER_NEAREST)

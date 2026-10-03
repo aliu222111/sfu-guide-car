@@ -3,7 +3,9 @@
 Runs the car's real firmware (compiled for the PC) behind a pseudo serial
 port that the real serial bridge opens, moves a tank chassis from the
 firmware's motor pins through the real AQ/MBC/WMC floor geometry, and feeds
-the real drivers: stereo images (as usb_cam publishes them), the phone's
+the real drivers: stereo images (as usb_cam publishes them), or with
+``cameras:=iphone`` the iPhone's Record3D USB stream (RGB, LiDAR depth, ARKit
+pose, read by the real iPhone driver through ``fake_record3d``), the phone's
 Sensor Logger HTTP pushes, NMEA from the GPS on a second pseudo port, the
 ultrasonic echo the firmware times. It owns the clock: everything else runs
 on /clock, so slow rendering slows simulated time instead of starving the
@@ -24,6 +26,7 @@ import os
 import time
 from pathlib import Path
 
+import cv2
 import numpy as np
 import rclpy
 from geometry_msgs.msg import PoseStamped, TransformStamped
@@ -35,7 +38,9 @@ from std_msgs.msg import Bool, Float32, Header, String
 from tf2_ros import TransformBroadcaster
 
 from .chassis import Chassis, ChassisParams
-from .devices import Phone, PtyPort, nmea_sentences, utc_at
+from guide_bridge.arkit import arkit_camera_pose
+
+from .devices import Phone, PtyPort, Record3DServer, nmea_sentences, utc_at
 from .emulators import SignReader, floor_clouds, nearest_person
 from .firmware import Firmware, default_ino
 from .render import CameraModel, Renderer
@@ -69,7 +74,8 @@ class HilSim(Node):
         start = P("start", "entrance:aq_convocation_mall")
         n = self.nodes[start]
         self.world = World(self.maps, n["floor"])
-        self.mono = P("cameras", "stereo") == "mono"
+        cameras = P("cameras", "stereo")
+        self.mono, self.iphone = cameras == "mono", cameras == "iphone"
         self.camera_rate = float(P("camera_rate", 10.0))
         self.rtf = float(P("max_rtf", 1.0))
         self.emulate_floor = bool(P("emulate_floor_segmentation", True))
@@ -95,6 +101,17 @@ class HilSim(Node):
         self.phone = Phone(P("phone_url", "http://127.0.0.1:8765/data"))
         self.cam = CameraModel()
         self.renderer = Renderer(self.cam)
+        if self.iphone:
+            # iPhone wide camera, landscape, about 65 deg across, on the stereo pair's mount.
+            # Its LiDAR depth is 256 x 192; ARKit's tracking drifts about 1 % of distance.
+            self.iphone_cam = CameraModel(width=640, height=480, fx=500.0, fy=500.0, cx=320.0, cy=240.0, baseline=0.0, noise=2.0)
+            self.iphone_renderer = Renderer(self.iphone_cam, seed=1)
+            self.r3d = Record3DServer(f"{link_dir}/record3d.sock")
+            self.ark = [0.0, 0.0, 0.0]  # ARKit's own estimate of base_link (its world starts at the car)
+            self.ark_last = None
+            self.ark_scale = float(P("arkit_scale_error", 0.01))
+            self.ark_yaw_drift = float(P("arkit_yaw_drift", 0.0005))  # rad/s
+            self.phone.enabled = False  # the phone is the camera now: no Sensor Logger
         self.button = False
         self.echo_m = math.inf
 
@@ -228,9 +245,9 @@ class HilSim(Node):
         self.get_logger().info(f"elevator: car now on {floor} at {there['id']}")
 
     # --- Simulation ------------------------------------------------------------------
-    def camera_xy(self, side="left"):
+    def camera_xy(self):
         s = self.chassis.s
-        return self.renderer.camera_pose(s.x, s.y, s.yaw, side)
+        return self.renderer.camera_pose(s.x, s.y, s.yaw, "center" if self.iphone else "left")
 
     def ultrasonic(self) -> float:
         s = self.chassis.s
@@ -260,7 +277,36 @@ class HilSim(Node):
         self.phone.update(t, s.yaw, s.w, (s.v - v_before) / PHYSICS_DT, outdoors=False)
         self.t = t
 
+    def publish_iphone(self):
+        s, c = self.chassis.s, self.iphone_cam
+        img, depth = self.iphone_renderer.render(self.world.here, s.x, s.y, s.yaw, "center", t=self.t, with_depth=True)
+        rgb = np.repeat(img[:, :, None], 3, axis=2)
+        d = cv2.resize(depth, (256, 192), interpolation=cv2.INTER_NEAREST)
+        d = (d + self.iphone_renderer.rng.normal(0, 1, d.shape) * (0.01 + 0.01 * d)).astype(np.float32)
+        conf = np.where((d > 0) & (d < 5.0), 2, 0).astype(np.uint8)  # beyond about 5 m the LiDAR has nothing
+        # ARKit: integrate the true motion with a scale error and a slow heading drift.
+        if self.ark_last is not None:
+            lx, ly, lyaw, lt = self.ark_last
+            dx, dy = s.x - lx, s.y - ly
+            if math.hypot(dx, dy) < 1.0:  # not the elevator teleport
+                fwd = math.cos(lyaw) * dx + math.sin(lyaw) * dy
+                lat = -math.sin(lyaw) * dx + math.cos(lyaw) * dy
+                k = 1.0 + self.ark_scale
+                dyaw = (s.yaw - lyaw + math.pi) % (2 * math.pi) - math.pi + self.ark_yaw_drift * (self.t - lt)
+                a = self.ark
+                a[0] += k * (math.cos(a[2]) * fwd - math.sin(a[2]) * lat)
+                a[1] += k * (math.sin(a[2]) * fwd + math.cos(a[2]) * lat)
+                a[2] += dyaw
+        self.ark_last = (s.x, s.y, s.yaw, self.t)
+        ax, ay, ayaw = self.ark
+        cx, cy = ax + c.x * math.cos(ayaw), ay + c.x * math.sin(ayaw)
+        pose = arkit_camera_pose(cx, cy, c.z, ayaw, c.pitch)
+        self.r3d.send(rgb, d, conf, (c.fx, c.fy, c.cx, c.cy), pose)
+
     def publish_cameras(self):
+        if self.iphone:
+            self.publish_iphone()
+            return
         s = self.chassis.s
         sides = ("left",) if self.mono else ("left", "right")
         for side in sides:
@@ -319,6 +365,7 @@ class HilSim(Node):
             "pwm": [self.fw.pwm(self.chassis.wiring.pwm_left), self.fw.pwm(self.chassis.wiring.pwm_right)],
             "phone_posts": self.phone.posted, "phone_failures": self.phone.failed,
             "rig_done": None if self.rig is None else self.rig["done"],
+            "iphone_frames": self.r3d.sent if self.iphone else None,
         })))
 
     def run(self):
@@ -354,6 +401,8 @@ class HilSim(Node):
         self.motor_port.close()
         self.gps_port.close()
         self.fw.close()
+        if self.iphone:
+            self.r3d.close()
 
 
 def main(args=None):

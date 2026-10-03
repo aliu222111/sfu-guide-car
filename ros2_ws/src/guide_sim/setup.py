@@ -8,7 +8,7 @@ setup(
     name=package_name,
     version="0.1.0",
     packages=find_packages(exclude=["test"]),
-    package_data={package_name: ["arduino/*.h", "arduino/*.cpp"]},
+    package_data={package_name: ["arduino/*.h", "arduino/*.cpp", "fake_record3d/*.py"]},
     include_package_data=True,
     data_files=[
         ("share/ament_index/resource_index/packages", ["resource/" + package_name]),

@@ -111,3 +111,69 @@ def test_pty_is_a_serial_port(tmp_path):
         s.close()
     finally:
         port.close()
+
+
+def test_render_depth_matches_geometry():
+    fw = corridor(length=12.0, width=3.0)
+    cam = CameraModel(width=640, height=480, fx=500.0, fy=500.0, cx=320.0, cy=240.0, baseline=0.0, noise=0.0, pitch=0.2)
+    img, depth = Renderer(cam).render(fw, 0.5, 0.0, 0.0, "center", with_depth=True)
+    assert img.shape == depth.shape == (480, 640)
+    # Bottom centre pixel sees the floor: its ray meets z = 0 at forward distance
+    # cam.z / tan(pitch + angle below the axis); depth is along the optical axis.
+    below = math.atan2(479.5 - cam.cy, cam.fy)
+    ahead = cam.z / math.tan(cam.pitch + below)
+    assert depth[479, 320] == pytest.approx(ahead / math.cos(cam.pitch + below) * math.cos(below), rel=0.03)
+    # The row looking level sees the far wall at x = 12.
+    level_row = int(cam.cy - cam.fy * math.tan(cam.pitch))
+    expect = (12.0 - 0.5 - cam.x) * math.cos(cam.pitch)
+    assert depth[level_row, 320] == pytest.approx(expect, rel=0.03)
+
+
+def test_iphone_driver_reads_the_simulated_phone(tmp_path, monkeypatch):
+    """The real iPhone driver, through fake_record3d, turns the simulated stream into /vo and points."""
+    import time
+
+    import rclpy
+    from nav_msgs.msg import Odometry
+    from sensor_msgs.msg import PointCloud2
+
+    from guide_bridge.arkit import arkit_camera_pose
+    from guide_sim.devices import Record3DServer
+
+    sock = str(tmp_path / "r3d.sock")
+    monkeypatch.setenv("R3D_SIM_SOCKET", sock)
+    monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[1] / "guide_sim" / "fake_record3d"))
+    sys.modules.pop("record3d", None)
+    server = Record3DServer(sock)
+    rclpy.init()
+    try:
+        from guide_bridge.iphone_node import IphoneNode
+
+        node = IphoneNode()
+        got = {"vo": [], "points": []}
+        node.create_subscription(Odometry, "/vo", got["vo"].append, 50)
+        node.create_subscription(PointCloud2, "front/points", got["points"].append, 5)
+        deadline = time.monotonic() + 5.0
+        while not server.clients and time.monotonic() < deadline:
+            rclpy.spin_once(node, timeout_sec=0.05)
+        assert server.clients, "driver never connected"
+        rgb = np.zeros((480, 640, 3), np.uint8)
+        depth = np.full((192, 256), 2.0, np.float32)
+        conf = np.full((192, 256), 2, np.uint8)
+        yaw = 0.8
+        t0 = time.monotonic()
+        while time.monotonic() - t0 < 1.0:  # 0.4 m/s forward, phone 0.2 m ahead of base_link
+            d = 0.4 * (time.monotonic() - t0)
+            pose = arkit_camera_pose((d + 0.2) * math.cos(yaw), (d + 0.2) * math.sin(yaw), 0.45, yaw, 0.2)
+            server.send(rgb, depth, conf, (500.0, 500.0, 320.0, 240.0), pose)
+            end = time.monotonic() + 1 / 30
+            while time.monotonic() < end:
+                rclpy.spin_once(node, timeout_sec=0.005)
+        vx = [m.twist.twist.linear.x for m in got["vo"]][5:]
+        assert vx and np.median(vx) == pytest.approx(0.4, abs=0.08)
+        assert abs(np.median([m.twist.twist.linear.y for m in got["vo"]])) < 0.05
+        assert got["points"] and got["points"][0].width > 1000
+        node.destroy_node()
+    finally:
+        rclpy.shutdown()
+        server.close()

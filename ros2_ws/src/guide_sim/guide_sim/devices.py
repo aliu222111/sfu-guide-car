@@ -6,6 +6,8 @@
 - ``Phone``: posts Sensor Logger JSON to the phone bridge's HTTP port, with the
   phone's own clock, axes, gyro bias and noise, batched as the app does.
 - ``nmea_sentences``: what the Adafruit GPS prints (GGA and RMC).
+- ``Record3DServer``: the iPhone streaming RGB, LiDAR depth and ARKit pose over
+  USB; the iPhone driver reads it through ``fake_record3d`` (spec section 19).
 """
 
 from __future__ import annotations
@@ -13,7 +15,10 @@ from __future__ import annotations
 import json
 import math
 import os
+import pickle
 import queue
+import socket
+import struct
 import threading
 import tty
 import urllib.request
@@ -55,6 +60,46 @@ class PtyPort:
             except OSError:
                 pass
         if os.path.islink(self.path):
+            os.remove(self.path)
+
+
+class Record3DServer:
+    """The simulated iPhone's USB stream: one frame per ``send``, to every connected driver."""
+
+    def __init__(self, path: str):
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        if os.path.exists(path):
+            os.remove(path)
+        self.path = path
+        self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self.sock.bind(path)
+        self.sock.listen(2)
+        self.clients: list[socket.socket] = []
+        self.sent = 0
+        threading.Thread(target=self._accept, daemon=True).start()
+
+    def _accept(self):
+        while True:
+            try:
+                c, _ = self.sock.accept()
+            except OSError:
+                return
+            self.clients.append(c)
+
+    def send(self, rgb, depth, conf, K, pose):
+        body = pickle.dumps({"rgb": rgb, "depth": depth, "conf": conf, "K": K, "pose": pose}, protocol=pickle.HIGHEST_PROTOCOL)
+        for c in list(self.clients):
+            try:
+                c.sendall(struct.pack("<I", len(body)) + body)
+                self.sent += 1
+            except OSError:
+                self.clients.remove(c)  # the driver restarted: it reconnects
+
+    def close(self):
+        for c in self.clients:
+            c.close()
+        self.sock.close()
+        if os.path.exists(self.path):
             os.remove(self.path)
 
 

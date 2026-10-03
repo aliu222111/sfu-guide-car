@@ -2,6 +2,7 @@
 
     ros2 launch guide_sim hil.launch.py                       # stereo, RTAB-Map (needs rtabmap_db/<floor>.db)
     ros2 launch guide_sim hil.launch.py cameras:=mono         # one camera, no database needed
+    ros2 launch guide_sim hil.launch.py cameras:=iphone       # LiDAR iPhone (needs its own database, as stereo)
     ros2 run guide_sim hil_trip "AQ 3046"                     # the student, through rosbridge like the phone app
 
 Stereo needs the floor's RTAB-Map database and alignment, made as in phase 1:
@@ -26,7 +27,11 @@ from launch_ros.actions import Node
 
 from ament_index_python.packages import get_package_share_directory
 
+import guide_sim
+
 LINKS = "/tmp/guide_sim"
+# The iPhone driver loads this stand-in record3d library, which reads the simulator's stream.
+RECORD3D = os.path.join(os.path.dirname(guide_sim.__file__), "fake_record3d")
 
 
 def sim_root(repo: str, root: str) -> str:
@@ -68,14 +73,17 @@ def setup(context):
             PythonLaunchDescriptionSource(os.path.join(share, "launch", name)),
             launch_arguments={"use_sim_time": "true", **kw}.items())
         db = os.path.join(os.environ.get("GUIDE_CAR_ROOT", repo), "rtabmap_db", f"{floor}.db")
-        rig = [inc("description.launch.py"), inc("cameras.launch.py", camera_driver="false"),
-               inc("rtabmap.launch.py", mode="mapping", handheld="true", fresh="true", database=db)]
+        iphone = a["cameras"] == "iphone"
+        rig = [inc("description.launch.py"),
+               inc("cameras.launch.py", camera_driver="false", cameras=a["cameras"], iphone_tf="true", record3d_path=RECORD3D),
+               inc("rtabmap.launch.py", mode="mapping", handheld="true", fresh="true", database=db,
+                   sensor="rgbd" if iphone else "stereo")]
         return [sim, TimerAction(period=4.0, actions=rig)]
     car = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(os.path.join(share, "launch", "guide_car.launch.py")),
         launch_arguments={
             "start_floor": floor, "cameras": a["cameras"], "camera_driver": "false", "sim_perception": "true",
-            "motor_port": f"{LINKS}/motor", "gps_port": f"{LINKS}/gps",
+            "motor_port": f"{LINKS}/motor", "gps_port": f"{LINKS}/gps", "record3d_path": RECORD3D,
             "use_sim_time": "true",  # every node of the car (guide_bringup common.Node)
         }.items(),
     )
@@ -85,7 +93,7 @@ def setup(context):
 
 def generate_launch_description():
     return LaunchDescription([
-        DeclareLaunchArgument("cameras", default_value="stereo", choices=["stereo", "mono"]),
+        DeclareLaunchArgument("cameras", default_value="stereo", choices=["stereo", "mono", "iphone"]),
         DeclareLaunchArgument("start", default_value="entrance:aq_convocation_mall", description="route graph node"),
         DeclareLaunchArgument("max_rtf", default_value="0.5", description="cap on simulated / real time"),
         DeclareLaunchArgument("clutter", default_value="6", description="unmapped boxes on the start floor"),

@@ -22,6 +22,7 @@ setup(
             "phone_imu = guide_bridge.phone_imu_node:main",
             "velocity_gate = guide_bridge.velocity_gate_node:main",
             "calibrate_turn = guide_bridge.calibrate_turn:main",
+            "iphone = guide_bridge.iphone_node:main",
         ],
     },
 )
