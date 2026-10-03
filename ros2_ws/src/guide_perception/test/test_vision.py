@@ -74,3 +74,15 @@ def test_claude_backend_with_fake_client():
     assert calls[0]["model"] == "claude-haiku-4-5"
     assert content[0]["type"] == "image" and content[0]["source"]["media_type"] == "image/jpeg"
     assert parse_claude_reply("no json") == []
+
+
+def test_claude_subscription_backend_parses_reader_reply():
+    from guide_perception.sign_reader import ClaudeSubscriptionBackend
+
+    class Reader:
+        def read_text(self, jpeg):
+            assert jpeg[:2] == b"\xff\xd8"
+            return 'Rooms: {"rooms": ["WMC 2260"]}'
+
+    reads = ClaudeSubscriptionBackend(reader=Reader()).read(np.zeros((360, 640, 3), np.uint8))
+    assert [r.text for r in reads] == ["WMC 2260"]

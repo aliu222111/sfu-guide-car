@@ -1,7 +1,9 @@
 """Room-number reading from the upper third of the left image (spec sections 7 and 16).
 
-Two backends: PaddleOCR on the laptop (default), or Claude Haiku 4.5 in the
-cloud (spec section 16, optional). Either returns ``SignRead`` items filtered
+Backends: PaddleOCR on the laptop (default), or Claude Haiku 4.5 in the cloud
+(spec section 16, optional) through the owner's Claude subscription
+(``ClaudeSubscriptionBackend``, via guide_claude) or an API key
+(``ClaudeBackend``). Either returns ``SignRead`` items filtered
 to ``[<AQ|WMC|MBC>] <3 or 4 digits>[letter]``.
 """
 
@@ -113,3 +115,24 @@ def parse_claude_reply(text: str) -> list[SignRead]:
     for r in rooms if isinstance(rooms, list) else []:
         reads += extract_rooms(str(r), 0.9)
     return reads
+
+
+class ClaudeSubscriptionBackend:
+    """Claude through the owner's Claude subscription (guide_claude, Claude Agent SDK)."""
+
+    def __init__(self, model: str = "claude-haiku-4-5", reader=None):
+        if reader is None:
+            from guide_claude.session import use_subscription_env
+            from guide_claude.signs import SubscriptionSignReader
+
+            use_subscription_env()
+            reader = SubscriptionSignReader(CLAUDE_PROMPT, model=model)
+        self.reader = reader
+
+    def read(self, bgr) -> list[SignRead]:
+        import cv2
+
+        ok, jpg = cv2.imencode(".jpg", upper_third(bgr), [cv2.IMWRITE_JPEG_QUALITY, 80])
+        if not ok:
+            return []
+        return parse_claude_reply(self.reader.read_text(jpg.tobytes()))

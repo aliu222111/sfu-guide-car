@@ -16,7 +16,7 @@ from std_msgs.msg import Bool, Empty, String
 
 from sfu_map.route import RouteGraph
 
-from .agent import Actions, VoiceAgent
+from .agent import SYSTEM, Actions, VoiceAgent
 from .speech import Recorder, Speaker, Transcriber, trim_silence
 
 
@@ -37,10 +37,24 @@ class VoiceNode(Node):
             self.declare_parameter("whisper_device", "auto").value,
             self.declare_parameter("whisper_compute", "int8").value,
         )
-        import anthropic
+        actions = Actions(self.set_destination, self.pause_or_resume, self.confirm)
+        model = self.declare_parameter("claude_model", "claude-haiku-4-5").value
+        auth = self.declare_parameter("claude_auth", "subscription").value
+        if auth == "subscription":
+            # The owner's Claude subscription through the Claude Agent SDK (guide_claude).
+            from guide_claude.session import subscription_status, use_subscription_env
+            from guide_claude.voice import SubscriptionVoiceAgent
 
-        self.agent = VoiceAgent(anthropic.Anthropic(timeout=15.0), Actions(self.set_destination, self.pause_or_resume, self.confirm),
-                                model=self.declare_parameter("claude_model", "claude-haiku-4-5").value)
+            if use_subscription_env():
+                self.get_logger().warn("ANTHROPIC_API_KEY ignored: claude_auth is subscription")
+            self.get_logger().info(f"Claude via subscription: {subscription_status()}")
+            self.agent = SubscriptionVoiceAgent(actions, SYSTEM, model=model)
+        elif auth == "api_key":
+            import anthropic
+
+            self.agent = VoiceAgent(anthropic.Anthropic(timeout=15.0), actions, model=model)
+        else:
+            raise ValueError(f"claude_auth must be subscription or api_key, not {auth!r}")
         self.dest_pub = self.create_publisher(String, "guide/destination", 10)
         self.pause_pub = self.create_publisher(Bool, "guide/pause", 10)
         self.confirm_pub = self.create_publisher(Empty, "guide/confirm", 10)
@@ -77,7 +91,7 @@ class VoiceNode(Node):
             context = f"{self.trip.get('state')}, {self.trip.get('detail', '')}".strip(", ")
             try:
                 reply = self.agent.handle(text, context)
-            except Exception as e:  # network loss: voice pauses (spec section 16)
+            except Exception as e:  # network loss or usage limit: voice pauses (spec section 16)
                 self.get_logger().error(f"agent failed: {e}")
                 reply = "Sorry, I can't reach my voice service right now. Please use the phone app."
             self.speaker.say(reply)

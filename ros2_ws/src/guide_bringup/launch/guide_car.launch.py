@@ -5,7 +5,7 @@
 Switches follow the phases in spec section 11:
     perception:=false   phase 2 driving tests before perception (the gate then
                         does not require the person detector)
-    voice:=true         phase 6 voice agent (needs ANTHROPIC_API_KEY)
+    voice:=true         phase 6 voice agent (your Claude subscription: CLAUDE_CODE_OAUTH_TOKEN)
     rear_camera:=true   phase 6 student tracking
     rssi:=true          phase 6 Bluetooth follow check
 """

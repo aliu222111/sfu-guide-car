@@ -55,8 +55,8 @@ person_detection:
 
 sign_reader:
   ros__parameters:
-    backend: paddle              # or claude (spec section 16)
-    rate_hz: 1.0                 # 2.0 with a GPU
+    backend: paddle              # paddle (local) | claude (your Claude subscription) | claude_api (API key)
+    rate_hz: 1.0                 # 2.0 with a GPU; with backend claude use 0.2 to stay inside subscription limits
 
 vp_heading:
   ros__parameters:
@@ -75,6 +75,7 @@ voice_agent:
     whisper_compute: int8
     piper_voice: voices/en_US-lessac-medium.onnx
     claude_model: claude-haiku-4-5
+    claude_auth: subscription    # your Claude subscription (claude setup-token); or api_key (ANTHROPIC_API_KEY)
 
 phone_rssi:
   ros__parameters:

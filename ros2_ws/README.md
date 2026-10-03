@@ -10,6 +10,7 @@ Maps come from phase 0 (`sfu_map/`, output in `maps/`).
 | `guide_mission` | trip state machine and mission node, localization manager, RTAB-Map to GIS alignment | 6, 8 |
 | `guide_ui` | phone web app and its server, Bluetooth signal monitor | 9 |
 | `guide_voice` | voice agent: faster-whisper, Claude Haiku 4.5 with three tools, Piper | 9 |
+| `guide_claude` | Claude for the voice agent and the cloud sign reader through your Claude subscription (Claude Agent SDK) | 9, 16 |
 | `guide_bringup` | robot description, launch files, Nav2 / EKF / navsat / camera parameters, simulator | 4 |
 
 Logic lives in plain modules (`trip.py`, `velocity_gate.py`, `vanishing.py`, ...) with tests that need no ROS.
@@ -23,7 +24,7 @@ sudo apt install ros-jazzy-desktop ros-jazzy-navigation2 ros-jazzy-robot-localiz
   ros-jazzy-rosbridge-server ros-jazzy-xacro python3-serial v4l-utils
 pip install -e sfu_map                                   # route graph, used by mission and voice
 pip install -r ros2_ws/src/guide_perception/requirements-perception.txt
-pip install faster-whisper sounddevice bleak anthropic   # phase 6
+pip install faster-whisper sounddevice bleak claude-agent-sdk   # phase 6 (anthropic too for API-key mode)
 cd ros2_ws && colcon build && source install/setup.bash
 ```
 
@@ -32,6 +33,25 @@ Models, once (nothing is trained): `python ros2_ws/src/guide_perception/scripts/
 
 Launch everything from the repository root: `maps/`, `models/`, `voices/` and `rtabmap_db/` are found
 relative to it (or set `GUIDE_CAR_ROOT`).
+
+## Claude: your subscription, not an API key
+
+The voice agent (and the sign reader with `backend: claude`) use Claude Haiku 4.5 through your own
+Claude Pro/Max subscription via the Claude Agent SDK, which runs the Claude Code CLI bundled in
+`claude-agent-sdk`. On the car laptop, once:
+
+```bash
+claude setup-token                      # sign in with your subscription; prints a long-lived token
+echo 'export CLAUDE_CODE_OAUTH_TOKEN=<token>' >> ~/.bashrc
+```
+
+Nothing else: no API key. If `ANTHROPIC_API_KEY` is set it would take precedence in Claude Code, so
+subscription mode removes it from the node's environment. The agent gets no Claude Code tools at all
+(no shell, no files), only the three car tools, and ignores your personal Claude Code settings.
+This is for your own use of the car; Anthropic does not allow offering claude.ai login to other
+people's products. Subscription usage limits apply: the voice agent uses a few requests per trip;
+the cloud sign reader should run at 0.2 Hz (`guide.yaml`), not the local OCR's 1 to 2 Hz. To use an
+API key instead: `claude_auth: api_key` (voice) or `backend: claude_api` (signs).
 
 ## Try it without hardware
 
@@ -76,7 +96,7 @@ wait for the person detector; never run that way near people).
 
 **5, mission and phone app.** Open `http://<laptop>:8080` on the phone (same WiFi).
 
-**6, voice and follow.** `voice:=true` (needs `ANTHROPIC_API_KEY`), `voice_mode:=true` for a student
+**6, voice and follow.** `voice:=true` (your Claude subscription, see above), `voice_mode:=true` for a student
 without a phone, `rear_camera:=true`, `rssi:=true`.
 
 ## Topics
