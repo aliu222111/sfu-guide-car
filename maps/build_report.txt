@@ -1,0 +1,129 @@
+sfu_map build report
+
+nodes 4941, edges 5145, destinations 1917
+node types: corridor 2240, corridor_junction 475, door 1917, doorway 178, elevator 55, entrance 1, stairs 75
+edge types: corridor 4938, door 89, elevator 86, stairs 32
+edges not yet verified on site: 175
+connectors: 14 elevators, 1 entrances, 0 links, 0 outdoor links, 0 door overrides
+
+classroom-category rooms with a door node: 98 of 98
+
+per floor: graph pieces (node counts; more than one piece needs a link in connectors.yaml)
+  AQ-01     3 pieces [54, 23, 8]
+  AQ-02     3 pieces [230, 10, 1]
+  AQ-03     2 pieces [453, 26]
+  AQ-04     1 pieces [48]
+  AQ-05     2 pieces [391, 10]
+  AQ-06     1 pieces [580]
+  MBC-00A   1 pieces [16]
+  MBC-00B   4 pieces [352, 19, 13, 1]
+  MBC-01    3 pieces [435, 9, 1]
+  MBC-02    3 pieces [224, 10, 6]
+  MBC-03    2 pieces [286, 23]
+  MBC-04    0 pieces []
+  WMC-P1    6 pieces [30, 13, 1, 1, 1, 1]
+  WMC-P2    0 pieces []
+  WMC-01    4 pieces [240, 185, 16, 9]
+  WMC-02    3 pieces [338, 71, 69]
+  WMC-03    2 pieces [402, 2]
+  WMC-04    2 pieces [127, 104]
+  WMC-05    2 pieces [54, 48]
+
+warnings (95):
+  AQ 1017: door node could not see a corridor edge
+  AQ 1014: door node could not see a corridor edge
+  AQ 1018: door node could not see a corridor edge
+  AQ 1016: door node could not see a corridor edge
+  AQ 1020: door node could not see a corridor edge
+  AQ 2111: door node could not see a corridor edge
+  AQ 2045: no free space within 12.0 m, no door node
+  AQ 2113: door node could not see a corridor edge
+  AQ 2114: door node could not see a corridor edge
+  AQ 3138C: door node could not see a corridor edge
+  AQ 5021: door node could not see a corridor edge
+  MBC 033: door node could not see a corridor edge
+  MBC 1311: door node could not see a corridor edge
+  MBC 142: door node could not see a corridor edge
+  MBC 1012: no free space within 12.0 m, no door node
+  MBC 1011: no free space within 12.0 m, no door node
+  MBC 1000.1: no free space within 12.0 m, no door node
+  MBC 1710: no free space within 12.0 m, no door node
+  MBC 1720: no free space within 12.0 m, no door node
+  MBC 1730: no free space within 12.0 m, no door node
+  MBC 1480.7: door node could not see a corridor edge
+  MBC 2108: no free space within 12.0 m, no door node
+  MBC 0242: door node could not see a corridor edge
+  MBC 2106: no free space within 12.0 m, no door node
+  MBC 2012: no free space within 12.0 m, no door node
+  MBC 2110: no free space within 12.0 m, no door node
+  MBC 2112: no free space within 12.0 m, no door node
+  MBC 2362.1: no free space within 12.0 m, no door node
+  MBC 2363.1: no free space within 12.0 m, no door node
+  MBC 3160: no free space within 12.0 m, no door node
+  MBC 3166: no free space within 12.0 m, no door node
+  MBC 3164: no free space within 12.0 m, no door node
+  MBC 3162: no free space within 12.0 m, no door node
+  MBC 3187: no free space within 12.0 m, no door node
+  MBC 4900: no free space within 12.0 m, no door node
+  MBC 4921: no free space within 12.0 m, no door node
+  MBC 4920: no free space within 12.0 m, no door node
+  MBC 4901: no free space within 12.0 m, no door node
+  MBC 411: door node could not see a corridor edge
+  MBC 410: door node could not see a corridor edge
+  MBC 414: door node could not see a corridor edge
+  MBC 4904: door node could not see a corridor edge
+  MBC 4902: door node could not see a corridor edge
+  WMC 049: door node could not see a corridor edge
+  WMC 048: door node could not see a corridor edge
+  WMC 047: no free space within 12.0 m, no door node
+  WMC 036: no free space within 12.0 m, no door node
+  WMC 039: no free space within 12.0 m, no door node
+  WMC 026: no free space within 12.0 m, no door node
+  WMC 070: door node could not see a corridor edge
+  WMC 037: no free space within 12.0 m, no door node
+  WMC 0611: no free space within 12.0 m, no door node
+  WMC 004.1: no free space within 12.0 m, no door node
+  WMC 004: no free space within 12.0 m, no door node
+  WMC 002.1: no free space within 12.0 m, no door node
+  WMC 002.2: no free space within 12.0 m, no door node
+  WMC 003: no free space within 12.0 m, no door node
+  WMC 002: no free space within 12.0 m, no door node
+  WMC 003.1: no free space within 12.0 m, no door node
+  WMC 0701: no free space within 12.0 m, no door node
+  WMC 019: no free space within 12.0 m, no door node
+  WMC 017B: no free space within 12.0 m, no door node
+  WMC 017A: no free space within 12.0 m, no door node
+  WMC 017D: no free space within 12.0 m, no door node
+  WMC 017E: no free space within 12.0 m, no door node
+  WMC 017C: no free space within 12.0 m, no door node
+  WMC 018: no free space within 12.0 m, no door node
+  WMC 020: no free space within 12.0 m, no door node
+  WMC 020A: no free space within 12.0 m, no door node
+  WMC 021: no free space within 12.0 m, no door node
+  WMC 004.2: no free space within 12.0 m, no door node
+  WMC 1407: door node could not see a corridor edge
+  WMC 1401: door node could not see a corridor edge
+  WMC S130: door node could not see a corridor edge
+  WMC S1324: door node could not see a corridor edge
+  WMC S1323: door node could not see a corridor edge
+  WMC S1321: door node could not see a corridor edge
+  WMC S1312: door node could not see a corridor edge
+  WMC S1310: door node could not see a corridor edge
+  WMC S1322: door node could not see a corridor edge
+  WMC 102: no free space within 12.0 m, no door node
+  WMC 102.1: no free space within 12.0 m, no door node
+  WMC 1390.5: door node could not see a corridor edge
+  WMC 2810: no free space within 12.0 m, no door node
+  WMC 2820: no free space within 12.0 m, no door node
+  WMC 2830: no free space within 12.0 m, no door node
+  WMC 2351.4: door node could not see a corridor edge
+  WMC 227: no free space within 12.0 m, no door node
+  WMC 228: no free space within 12.0 m, no door node
+  WMC 220: no free space within 12.0 m, no door node
+  WMC 219: no free space within 12.0 m, no door node
+  WMC 315: no free space within 12.0 m, no door node
+  WMC 300: no free space within 12.0 m, no door node
+  WMC 420: no free space within 12.0 m, no door node
+  WMC 450: no free space within 12.0 m, no door node
+
+check aq_convocation_mall -> AQ 3150: 275 m, 90 nodes

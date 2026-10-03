@@ -1,0 +1,76 @@
+# Hand-edited connectors for sfu_map: what the SFU GIS does not encode.
+# Spec: docs/superpowers/specs/2026-10-03-campus-guide-design.md, section 5.
+#
+# Positions take one of:
+#   xy: [x, y]            map frame metres (ENU, origin 49.278945, -122.916558)
+#   latlon: [lat, lon]    degrees
+#   shaft: FLOOR/ROOM     centroid of a GIS room polygon, e.g. AQ-03/E3
+# Floor ids are <building>-<GIS fl_id>: AQ-01..AQ-06, MBC-00A, MBC-00B,
+# MBC-01..MBC-04, WMC-P1, WMC-P2, WMC-01..WMC-05.
+#
+# verified: false until someone has stood there and checked it (spec section 12).
+# The car may still route over unverified edges; `sfu-map route --verified-only`
+# and the mission node's strict mode refuse them.
+
+# Elevators. Drafted by `sfu-map candidates` from GIS elevator shafts: the GIS
+# draws each shaft on one floor only, so the stops listed are a guess (floors
+# where the shaft footprint is clear and a corridor runs next to it). Check
+# every stop on site, then set verified: true.
+elevators:
+- {id: AQ-E1, shaft: AQ-02/E1, floors: [AQ-01, AQ-02, AQ-05, AQ-06], verified: false}
+- {id: AQ-E2, shaft: AQ-01/E2, floors: [AQ-01, AQ-02, AQ-03, AQ-05, AQ-06], verified: false}
+- {id: AQ-E3, shaft: AQ-03/E3, floors: [AQ-03, AQ-04, AQ-05, AQ-06], verified: false}
+- {id: AQ-E4, shaft: AQ-01/E4, floors: [AQ-01, AQ-02], verified: false}
+- {id: AQ-E5, shaft: AQ-03/E5, floors: [AQ-03, AQ-05, AQ-06], verified: false}
+- {id: AQ-E6, shaft: AQ-03/E6, floors: [AQ-03, AQ-05, AQ-06], verified: false}
+- {id: AQ-E7, shaft: AQ-02/E7, floors: [AQ-02, AQ-03, AQ-05, AQ-06], verified: false}
+- {id: MBC-ELEV1, shaft: MBC-00A/ELEV1, floors: [MBC-00A, MBC-00B, MBC-01, MBC-02, MBC-03], verified: false}
+- {id: MBC-ELEV2, shaft: MBC-00B/ELEV2, floors: [MBC-00B, MBC-01, MBC-02, MBC-03], verified: false}
+- {id: MBC-ELEV3, shaft: MBC-00B/ELEV3, floors: [MBC-00B, MBC-01, MBC-02, MBC-03], verified: false}
+- {id: MBC-ELEV4, shaft: MBC-00B/ELEV4, floors: [MBC-00B, MBC-01, MBC-02, MBC-03], verified: false}
+- {id: WMC-0159, shaft: WMC-01/0159, floors: [WMC-01, WMC-02, WMC-03, WMC-04, WMC-05], verified: false}
+- {id: WMC-029, shaft: WMC-P1/029, floors: [WMC-01, WMC-02, WMC-03, WMC-04, WMC-05], verified: false}
+- {id: WMC-043, shaft: WMC-P1/043, floors: [WMC-P1, WMC-01, WMC-03], verified: false}
+
+# Building entrances. The node is placed inside the nearest corridor; the given
+# point is kept as the outside end where outdoor links start.
+entrances:
+# Where the AQ 3000 level west corridors (304/305) meet the Convocation Mall
+# roof footprint in campus-geometry.json. Derived from the data, not seen.
+- id: aq_convocation_mall
+  label: AQ from Convocation Mall
+  floor: AQ-03
+  xy: [-63.0, 30.0]
+  verified: false
+# - id: mbc_convocation_mall
+#   label: MBC from Convocation Mall
+#   floor: MBC-0?            # which MBC level is at mall grade: check on site
+#   latlon: [49.27xxxx, -122.91xxxx]
+#   verified: false
+
+# Indoor links the GIS misses: a doorway in a wall line between two corridor
+# polygons wider than the automatic 0.45 m gap bridge, or a bridge between
+# buildings. type: door (car stops and asks the student to hold it) or corridor.
+links: []
+# - id: aq3_suite_3132
+#   type: door
+#   a: {floor: AQ-03, xy: [x, y]}
+#   b: {floor: AQ-03, xy: [x, y]}
+#   verified: false
+
+# Outdoor routes between entrances, drawn by hand from the accessibility map
+# (data/sfu_pdf/sfu_Accessibility_campus_map_2024.pdf) until the OSM footpath
+# pull works. step_free: false keeps the car off it (stairs on the way).
+# These polylines also become the outdoor occupancy grid.
+outdoor_links: []
+# - id: aq_to_mbc_mall
+#   from: aq_convocation_mall
+#   to: mbc_convocation_mall
+#   waypoints: [[49.27921, -122.91780], [49.27915, -122.91880]]
+#   step_free: true
+#   verified: false
+
+# Door position overrides for rooms whose door is not at the middle of the wall
+# they share with the corridor.
+doors: []
+# - {room: AQ 3150, xy: [x, y]}

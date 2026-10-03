@@ -242,6 +242,7 @@ sfu-guide-car/
   data/sfu_gis/                room polygons, footprints, previews
   data/sfu_pdf/                public SFU campus and accessibility maps
   sfu_map/                     phase 0, pure Python
+  maps/                        phase 0 output: floor grids, route graph, destination index
   ros2_ws/src/
     guide_bridge/
     guide_perception/
