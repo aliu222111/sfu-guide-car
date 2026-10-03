@@ -350,6 +350,12 @@ class MissionNode(Node):
             n = nodes[i]
             ref = nodes[i - 1]
             yaw = math.atan2(n["y"] - ref["y"], n["x"] - ref["x"])
+            if i + 1 < len(nodes):
+                # A corner, for a car that cannot turn on the spot: face halfway
+                # between the leg in and the leg out, so the path rounds it.
+                nxt = nodes[i + 1]
+                out = math.atan2(nxt["y"] - n["y"], nxt["x"] - n["x"])
+                yaw += ((out - yaw + math.pi) % (2 * math.pi) - math.pi) / 2
             p = PoseStamped()
             p.header.frame_id = self.map_frame
             p.header.stamp = self.get_clock().now().to_msg()

@@ -6,8 +6,18 @@ serial_bridge:
     port: /dev/ttyACM0
     baud: 115200
     rate_hz: 20.0
-    # The RC car's throttle is open loop: the speed sent is trimmed slowly
-    # towards the speed the odometry measures (guide_bridge/speed.py). 0 gain: off.
+    # The RC car (Ackermann steering), driven through its hand controller. Measure on
+    # the floor (README, "The RC car"); guide_bridge/ackermann.py uses these.
+    wheelbase: 0.48           # m, front to rear axle
+    max_steer: 0.52           # rad at full lock: atan(wheelbase / R) for a slow full-lock circle of radius R
+    steer_trim: 0.0           # steering value (-1..1) at which the car rolls straight
+    steer_reversed: false     # true if a positive (left) value turns it right
+    throttle_start: 0.15      # trigger (0..1) at which the car just starts to roll
+    throttle_limit: 0.40      # never more trigger than this (RC cars are fast)
+    speed_at_limit: 1.6       # m/s at throttle_limit
+    throttle_reversed: false
+    # The throttle is open loop: the speed sent is trimmed slowly towards the
+    # speed the odometry measures (guide_bridge/speed.py). 0 gain: off.
     speed_trim_gain: 0.8      # (m/s) per (m/s of error) per second
     speed_trim_limit: 0.3     # m/s
 
