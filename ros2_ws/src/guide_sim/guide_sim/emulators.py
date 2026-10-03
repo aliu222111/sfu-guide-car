@@ -18,7 +18,7 @@ import numpy as np
 
 from .world import FloorWorld
 
-HALF_FOV = math.radians(25.0)  # the 640 px wide webcam at fx 690 (the iPhone sees a little wider)
+HALF_FOV = math.radians(35.0)  # the 640 px wide 1080p webcam at fx 453
 
 
 def _visible(world: FloorWorld, cx: float, cy: float, yaw: float, tx: float, ty: float,

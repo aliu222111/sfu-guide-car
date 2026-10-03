@@ -27,14 +27,14 @@ PERSON_HEIGHT = 1.7
 class CameraModel:
     width: int = 640
     height: int = 360
-    fx: float = 690.0  # about 50 deg across: a Logitech C270-class 720p webcam (55 deg diagonal) at 640 x 360
-    fy: float = 690.0
+    fx: float = 453.0  # about 70 deg across: a Logitech C920-class 1080p webcam (78 deg diagonal) at 640 x 360
+    fy: float = 453.0
     cx: float = 320.0
     cy: float = 180.0
     # Mount on base_link (match the URDF: cam_x, cam_z, cam_pitch, stereo_baseline).
     x: float = 0.50
-    z: float = 0.45
-    pitch: float = 0.20  # rad, nose down
+    z: float = 0.28
+    pitch: float = -0.09  # rad, 5 deg nose up (the URDF's cam_pitch)
     baseline: float = 0.10
     noise: float = 3.0  # grey levels of sensor noise
 

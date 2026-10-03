@@ -14,8 +14,11 @@
   <!-- Stereo pair: 10 cm apart (lens centres), level, facing forward. With the 50 deg
        webcams and a 128-disparity search, stereo sees from 0.54 m out (spec section 3). -->
   <xacro:property name="cam_x" value="0.50"/>       <!-- ahead of the rear axle; the body ends at 0.63 -->
-  <xacro:property name="cam_z" value="0.45"/>       <!-- lens height above the floor -->
-  <xacro:property name="cam_pitch" value="0.20"/>   <!-- radians, nose down -->
+  <xacro:property name="cam_z" value="0.28"/>       <!-- lens height above the floor (the RC car's mount) -->
+  <!-- 5 deg nose UP (negative pitch): from 28 cm, level would see nothing above 1.1 m at 2 m; tilted up
+       the pair sees to 1.3 m at 2 m and 1.8 m at 3 m (door signs from about 2 m, with capture:=720p)
+       and the floor from 0.95 m ahead (the bumper covers nearer). -->
+  <xacro:property name="cam_pitch" value="-0.09"/>
   <xacro:property name="stereo_baseline" value="0.10"/>
 
   <link name="base_link">
