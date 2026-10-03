@@ -101,6 +101,10 @@ Tank steering in the sim: `sim.launch.py turn_slip:=1.5 pivot_stall:=0.2` makes 
 two thirds of the asked rate and not pivot below 0.2 rad/s; add `turn_gain:=1.5 min_pivot_rate:=0.15` for
 the serial bridge's compensation.
 
+Hardware in the loop (`guide_sim`): the real firmware, drivers and nodes against a simulated car and
+building; `hil.launch.py cameras:=stereo|mono|iphone`, then `ros2 run guide_sim hil_trip "AQ 3046"`.
+See the launch file's docstring for mapping first.
+
 One camera (spec section 18): `ros2 run guide_perception mono_odometry` on the left image publishes `/vo`;
 `rtabmap_check --mode odometry` scores it against `stereo_sim`.
 
@@ -136,6 +140,16 @@ wait for the person detector; never run that way near people).
 camera with `ros2 run camera_calibration cameracalibrator --size 8x6 --square 0.025 image:=/stereo/left/image_raw camera:=/stereo/left`,
 save it as `left.yaml`, measure its height and tilt into the URDF (`cam_z`, `cam_pitch`; 1 cm of height is
 2 % of distance), fit the ultrasonic bumper, then add `cameras:=mono` to any launch above. Spec section 18.
+
+**iPhone in front, webcam behind** (spec section 19). On the phone: Record3D, Settings, USB Streaming
+mode, then press record. On the laptop: `pip install record3d` (and `libusbmuxd`). Mount the phone
+upright, landscape, rear camera forward, on the stereo mount, and set `mount_x`/`mount_y` under `iphone:`
+in guide.yaml to match the URDF's `iphone_camera`. Check the axes once: push the car forward, `/vo`
+`linear.x` must be positive; turn it left, `angular.z` positive. Map each floor by carrying the phone:
+`ros2 launch guide_bringup mapping.launch.py floor:=AQ-03 fresh:=true cameras:=iphone`, align as in
+phase 1, then add `cameras:=iphone rear_camera:=true` to `guide_car.launch.py` (the webcam is the rear
+camera; calibrate it as `rear.yaml`, below). In the simulator: `hil.launch.py cameras:=iphone` with
+`mode:=map` first, as for stereo.
 
 **6, voice and follow.** Calibrate the rear camera like the left one (`cameracalibrator ... image:=/rear/image_raw camera:=/rear`)
 and save it as `rear.yaml` next to `left.yaml`: the follow tracker measures distance on rectified images. Then `voice:=true` (your Claude subscription, see above), `voice_mode:=true` for a student

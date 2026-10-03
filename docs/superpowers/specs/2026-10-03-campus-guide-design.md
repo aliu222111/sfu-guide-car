@@ -311,3 +311,42 @@ What changes:
 - **Calibration.** The monocular calibrator replaces the stereo one: `cameracalibrator --size 8x6 --square 0.025 image:=/stereo/left/image_raw camera:=/stereo/left`, saved as `left.yaml`. Measure lens height and tilt into the URDF (`cam_z`, `cam_pitch`).
 
 Measured in simulation (`stereo_sim`'s left image only, level camera at 0.45 m, 1.3 laps of a 60 m corridor loop): 74.8 m driven, never lost, 3.3 % drift (2.5 m at the end), almost all from heading picked up in the first corner, which on the car the gyro and vanishing point hold. Stereo odometry on the same run drifts 0.2 to 1 %. Expect more frequent sign fixes to be needed than with stereo, and indoor speed is kept at 0.4 m/s.
+
+## 19. Plan D: LiDAR iPhone in front, webcam behind
+
+For when the cameras in hand are one webcam and an iPhone with LiDAR (12 Pro or later Pro). Two iPhone
+lenses are not a usable stereo pair (1 to 1.5 cm apart: at 3 m one pixel of disparity is about 1.5 m of
+depth) and an iPhone plus a webcam has no shared clock, so neither is built. Instead the iPhone is the
+front sensor and the webcam is the rear (student-facing) camera. One launch switch, `cameras:=iphone`
+(add `rear_camera:=true` for the webcam).
+
+- **Link.** The Record3D app (USB streaming mode, a paid add-on in the app) streams over USB to the
+  laptop, read with the `record3d` Python library (`pip install record3d`, needs `libusbmuxd`). Per
+  frame: colour image, LiDAR depth in metres (256 x 192), a confidence image and ARKit's camera pose.
+  The `iphone` driver (guide_bridge) publishes `/front/image_rect` (640 wide, already undistorted),
+  `/front/depth` registered to it (only high-confidence depth within 5 m), `/front/points` for the
+  costmaps, and `/vo`.
+- **Odometry.** ARKit's visual-inertial tracking (camera plus the phone's own IMU) is the odometry,
+  converted to base_link velocity on `/vo`, the same topic and convention as stereo odometry, so the EKFs
+  are unchanged. A relocalisation jump (faster than the car can move) resets the velocity window instead
+  of passing a spike to the EKFs. The phone is mounted upright, landscape, rear camera facing forward,
+  on the stereo mount (`iphone_camera` in the URDF, `mount_x`/`mount_y` in guide.yaml).
+- **Indoor localization.** RTAB-Map as before, in RGB-D mode on the iPhone's colour and depth. Phase 1
+  maps each floor by carrying the iPhone (`mapping.launch.py cameras:=iphone`); the database is not
+  interchangeable with a stereo one.
+- **Obstacles.** The LiDAR cloud replaces the stereo cloud in Nav2's voxel layer; floor segmentation
+  still adds what is low and close. The LiDAR is accurate to about 1 cm within 2 to 3 m and useful to
+  about 5 m indoors; it misses glass and very dark or shiny surfaces, as stereo does. The ultrasonic
+  bumper stays optional, as with stereo.
+- **The phone is busy.** Record3D holds the screen, so Sensor Logger does not run and `phone_imu` is not
+  launched; ARKit's yaw rate reaches the EKFs through `/vo`. Outdoors there is no compass: heading comes
+  from GPS positions and odometry as the car moves. A second old phone lying flat with Sensor Logger
+  would bring the compass back with no code change other than launching `phone_imu`.
+- **Simulation.** The hardware-in-the-loop simulator renders the iPhone's view and depth and streams
+  them with a drifting ARKit pose (1 % scale, 0.03 deg/s heading) through a stand-in `record3d`
+  library, so the real driver, RTAB-Map RGB-D and the rest run unchanged
+  (`hil.launch.py cameras:=iphone`).
+
+Not testable here: a real iPhone, Record3D's actual frame orientation (if images arrive sideways set
+`quarter_turns` in guide.yaml) and ARKit's real pose convention. Check on the car: push it 1 m forward
+and `/vo` must show positive `linear.x`; turn it left and positive `angular.z`.

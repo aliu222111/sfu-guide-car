@@ -117,6 +117,19 @@ Fixed:
 - Simplicity: unused imports, parameters and state removed across sfu_map, the UI and the sim; the
   sim reuses the bridge's quaternion helper and the voice agent calls `run_tool` directly.
 
+Found by the regression run after these fixes (hardware in the loop, one camera, entrance to AQ 3046):
+
+- **A pivot floor set too high makes the car hunt.** With `MIN_PWM_PIVOT` 65 against tracks that
+  break loose at 0.10 m/s per side, the slowest pivot the car could make was about 0.48 rad/s, so
+  every small heading correction overshot; it spun in place near AQ 306 until localization timed
+  out. Now 55 (slowest pivot about 0.2 rad/s), and the run arrives (194 s, 0 collisions, 0.15 m
+  from the door, 0.41 m median localization error). On the real car, measure `MIN_PWM_PIVOT` with
+  `calibrate_turn` rather than guessing high.
+- **Paths hugged inside corners.** Wall cost ended 0.43 m out and fell steeply, so the car's centre
+  came within 0.38 m of walls (its side within 0.19 m). Inflation now reaches 1 m on the global
+  costmap (0.8 m local) with a gentler fall-off: closest approach 0.91 m, never under 0.5 m, and the
+  trip still arrives (187 s, 0 collisions).
+
 Not fixed, by decision:
 
 - **Nav2 death watchdog.** If Nav2 crashes mid-trip the mission waits for its action timeout.
