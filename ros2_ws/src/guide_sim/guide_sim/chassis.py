@@ -1,12 +1,13 @@
-"""The car's hardware below the microcontroller: motor driver, motors, tracks, body.
+"""The car's hardware below the microcontroller: steering servo, ESC, motor, body.
 
-The simulator reads the firmware's PWM and direction pins through ``Wiring``
-(which pin drives which motor, and that the right motor is mounted mirrored,
-as on the real car), turns duty cycle into track speed with a motor model
-(stiction, a top speed that need not match the firmware's MAX_WHEEL_SPEED, a
-time constant) and moves the body with skid-steer kinematics: the tracks slip
-sideways, so the car turns slower than the track speed difference says, and a
-pivot needs a minimum push before it starts. Nothing here knows about ROS.
+The RC car has Ackermann steering and four-wheel drive. The simulator reads the
+firmware's two servo pulses through ``Wiring``: the steering servo turns its
+pulse into a front-wheel angle (at a finite slew rate), the ESC turns its pulse
+into wheel speed (a deadband around neutral, a time constant). The body moves
+with the bicycle model, yaw rate = v tan(steer) / wheelbase, with a little
+understeer. The true full-lock angle and speed are deliberately not quite what
+the firmware's constants say, as on a real car before calibration. Nothing here
+knows about ROS.
 """
 
 from __future__ import annotations
@@ -17,29 +18,30 @@ from dataclasses import dataclass, field
 
 @dataclass
 class Wiring:
-    """Pins as wired on the car (match guide_motor.ino) and how the motors are mounted."""
+    """Pins as wired on the car (match guide_motor.ino) and how the servo and ESC respond."""
 
-    pwm_left: int = 5
-    dir_left: int = 4
-    pwm_right: int = 6
-    dir_right: int = 7
+    steer: int = 9
+    esc: int = 10
     button: int = 2
-    us_trig: int = 8
-    us_echo: int = 9
-    # Direction pin level that drives each track forward. The right motor faces
-    # the other way on the chassis, so LOW drives it forward (INVERT_R in the firmware).
-    left_forward_level: int = 1
-    right_forward_level: int = 0
+    us_trig: int = 11
+    us_echo: int = 12
+    steer_center_us: int = 1500  # the pulse at which the wheels point straight
+    steer_lock_us: int = 400  # pulse change for full lock
+    steer_left_longer: bool = False  # a shorter pulse steers left (STEER_REVERSED false)
+    esc_neutral_us: int = 1500
+    esc_forward_longer: bool = True  # a longer pulse drives forwards (ESC_REVERSED false)
 
 
 @dataclass
 class ChassisParams:
-    track_width: float = 0.34  # m between wheel centres (TRACK_WIDTH_M)
-    top_speed: float = 1.1  # m/s track speed at full duty, loaded, on this floor
-    stiction_duty: float = 0.19  # below this duty a track does not roll: PWM 48, just under MIN_PWM_DRIVE 50
-    motor_tau: float = 0.12  # s, speed response time constant
-    turn_slip: float = 1.45  # actual turn rate = geometric rate / turn_slip
-    pivot_breakaway: float = 0.06  # m/s per side to drag the tracks round: MIN_PWM_PIVOT 55 gives 0.03, so pivots under 0.2 rad/s stall
+    wheelbase: float = 0.48  # m, front to rear axle (WHEELBASE_M)
+    max_steer: float = 0.50  # rad at full lock: the firmware assumes 0.52
+    steer_rate: float = 4.0  # rad/s servo slew
+    esc_start_us: int = 70  # beyond neutral before the wheels turn: the firmware assumes 60
+    esc_limit_us: int = 180
+    speed_at_limit: float = 1.5  # m/s at esc_limit_us: the firmware assumes 1.6
+    motor_tau: float = 0.25  # s, speed response time constant (a heavier car than the tank)
+    understeer: float = 1.1  # actual yaw rate = geometric / understeer
     length: float = 0.75  # the RC car body, matches nav2.yaml
     width: float = 0.41
 
@@ -49,22 +51,12 @@ class BodyState:
     x: float = 0.0
     y: float = 0.0
     yaw: float = 0.0
-    v_left: float = 0.0  # track speeds, m/s
-    v_right: float = 0.0
-    v: float = 0.0  # body speed and turn rate after slip
-    w: float = 0.0
+    v: float = 0.0  # body speed, m/s
+    w: float = 0.0  # yaw rate, rad/s
+    steer: float = 0.0  # front wheel angle, rad, left positive
     collisions: int = 0
     in_collision: bool = False
     history: list = field(default_factory=list)
-
-
-def track_target(pwm: int, dir_level: int, forward_level: int, p: ChassisParams) -> float:
-    """Steady-state track speed for a driver input (m/s, signed)."""
-    duty = max(0, min(255, pwm)) / 255.0
-    if duty <= p.stiction_duty:
-        return 0.0
-    speed = (duty - p.stiction_duty) / (1.0 - p.stiction_duty) * p.top_speed
-    return speed if dir_level == forward_level else -speed
 
 
 class Chassis:
@@ -75,40 +67,44 @@ class Chassis:
 
     def place(self, x: float, y: float, yaw: float):
         self.s.x, self.s.y, self.s.yaw = x, y, yaw
-        self.s.v_left = self.s.v_right = self.s.v = self.s.w = 0.0
+        self.s.v = self.s.w = 0.0
 
     def targets(self, fw) -> tuple[float, float]:
+        """(wheel speed m/s, steering angle rad) the servo and ESC are being told to reach."""
         w, p = self.wiring, self.p
-        return (track_target(fw.pwm(w.pwm_left), fw.digital(w.dir_left), w.left_forward_level, p),
-                track_target(fw.pwm(w.pwm_right), fw.digital(w.dir_right), w.right_forward_level, p))
+        steer_us, esc_us = fw.servo_us(w.steer), fw.servo_us(w.esc)
+        steer = 0.0
+        if steer_us:
+            frac = (steer_us - w.steer_center_us) / w.steer_lock_us
+            steer = max(-1.0, min(1.0, frac if w.steer_left_longer else -frac)) * p.max_steer
+        speed = 0.0
+        step = esc_us - w.esc_neutral_us if esc_us else 0  # no pulse: the ESC is disarmed
+        if abs(step) > p.esc_start_us:
+            frac = min(1.0, (abs(step) - p.esc_start_us) / (p.esc_limit_us - p.esc_start_us))
+            speed = math.copysign(frac * p.speed_at_limit, step if w.esc_forward_longer else -step)
+        return speed, steer
 
-    def step(self, dt: float, target_left: float, target_right: float, blocked=None):
+    def step(self, dt: float, target_speed: float, target_steer: float, blocked=None):
         """Advance ``dt`` seconds. ``blocked(x, y, yaw)`` says if a pose collides."""
         p, s = self.p, self.s
-        a = 1.0 - math.exp(-dt / p.motor_tau)
-        s.v_left += a * (target_left - s.v_left)
-        s.v_right += a * (target_right - s.v_right)
-        v = (s.v_left + s.v_right) / 2
-        half_diff = (s.v_right - s.v_left) / 2
-        if abs(v) < 0.03 and abs(half_diff) < p.pivot_breakaway:
-            w = 0.0  # the tracks stick: not enough push to drag them sideways
-        else:
-            w = (s.v_right - s.v_left) / (p.track_width * p.turn_slip)
+        s.v += (1.0 - math.exp(-dt / p.motor_tau)) * (target_speed - s.v)
+        d = target_steer - s.steer
+        s.steer += max(-p.steer_rate * dt, min(p.steer_rate * dt, d))
+        w = s.v * math.tan(s.steer) / (p.wheelbase * p.understeer)
         yaw = s.yaw + w * dt
-        x = s.x + v * math.cos(s.yaw + w * dt / 2) * dt
-        y = s.y + v * math.sin(s.yaw + w * dt / 2) * dt
+        x = s.x + s.v * math.cos(s.yaw + w * dt / 2) * dt
+        y = s.y + s.v * math.sin(s.yaw + w * dt / 2) * dt
         if blocked is not None and blocked(x, y, yaw):
             # One collision until the car has got 0.2 m clear of where it hit.
             if not s.in_collision:
                 s.collisions += 1
                 s.history.append((s.x, s.y))
             s.in_collision = True
-            s.v = s.w = 0.0
-            s.v_left = s.v_right = 0.0  # stalled against the wall
+            s.v = s.w = 0.0  # stopped against the wall
             return
         if s.in_collision and math.hypot(x - s.history[-1][0], y - s.history[-1][1]) > 0.2:
             s.in_collision = False
-        s.x, s.y, s.yaw, s.v, s.w = x, y, yaw, v, w
+        s.x, s.y, s.yaw, s.w = x, y, yaw, w
 
     def footprint(self, x=None, y=None, yaw=None, spacing: float = 0.05) -> list[tuple[float, float]]:
         """Points on the footprint outline in the world frame."""

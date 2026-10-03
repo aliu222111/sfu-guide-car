@@ -6,10 +6,10 @@ serial_bridge:
     port: /dev/ttyACM0
     baud: 115200
     rate_hz: 20.0
-    # Tank steering: the car turns slower than commanded because the tracks
-    # slip. Measure on the floor it drives: ros2 run guide_bridge calibrate_turn
-    turn_gain: 1.0
-    min_pivot_rate: 0.0   # rad/s: slower pivots stall, so they are raised to this
+    # The RC car's throttle is open loop: the speed sent is trimmed slowly
+    # towards the speed the odometry measures (guide_bridge/speed.py). 0 gain: off.
+    speed_trim_gain: 0.8      # (m/s) per (m/s of error) per second
+    speed_trim_limit: 0.3     # m/s
 
 phone_imu:
   ros__parameters:

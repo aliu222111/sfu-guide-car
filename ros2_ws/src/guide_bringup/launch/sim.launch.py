@@ -34,11 +34,7 @@ def setup(context):
     guide = cfg("guide.yaml")
     return [
         Node(package="guide_bringup", executable="fake_robot", name="fake_robot",
-             parameters=[{"x": n["x"], "y": n["y"], "yaw": float(LaunchConfiguration("yaw").perform(context)), "indoor": bool(floor),
-                         "turn_slip": float(LaunchConfiguration("turn_slip").perform(context)),
-                         "pivot_stall": float(LaunchConfiguration("pivot_stall").perform(context)),
-                         "turn_gain": float(LaunchConfiguration("turn_gain").perform(context)),
-                         "min_pivot_rate": float(LaunchConfiguration("min_pivot_rate").perform(context))}]),
+             parameters=[{"x": n["x"], "y": n["y"], "yaw": float(LaunchConfiguration("yaw").perform(context)), "indoor": bool(floor)}]),
         IncludeLaunchDescription(PythonLaunchDescriptionSource(os.path.join(HERE, "navigation.launch.py")),
                                  launch_arguments={"start_floor": floor}.items()),
         Node(package="guide_bridge", executable="velocity_gate", name="velocity_gate", parameters=[guide]),
@@ -54,10 +50,6 @@ def setup(context):
 
 def generate_launch_description():
     return LaunchDescription([
-        DeclareLaunchArgument("turn_slip", default_value="1.0", description="tank chassis: commanded / actual turn rate"),
-        DeclareLaunchArgument("pivot_stall", default_value="0.0", description="tank chassis: slowest pivot that turns, rad/s"),
-        DeclareLaunchArgument("turn_gain", default_value="1.0", description="serial bridge compensation, as in guide.yaml"),
-        DeclareLaunchArgument("min_pivot_rate", default_value="0.0", description="serial bridge compensation, as in guide.yaml"),
         DeclareLaunchArgument("start_floor", default_value="AQ-03"),
         DeclareLaunchArgument("start", default_value="entrance:aq_convocation_mall"),
         DeclareLaunchArgument("yaw", default_value="0.0"),

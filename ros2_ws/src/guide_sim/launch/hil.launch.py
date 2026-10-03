@@ -45,8 +45,8 @@ def sim_root(repo: str, root: str) -> str:
 
 def setup(context):
     a = {k: LaunchConfiguration(k).perform(context) for k in
-         ("cameras", "start", "max_rtf", "clutter", "people", "seed", "camera_rate", "turn_slip", "mode",
-          "rig_destination", "sim_root", "min_pivot_rate")}
+         ("cameras", "start", "max_rtf", "clutter", "people", "seed", "camera_rate", "understeer", "mode",
+          "rig_destination", "sim_root")}
     repo = os.environ.get("GUIDE_CAR_ROOT", os.getcwd())
     nodes = {n["id"]: n for n in json.load(open(os.path.join(repo, "maps", "route_graph.json")))["nodes"]}
     floor = nodes[a["start"]]["floor"]
@@ -60,7 +60,7 @@ def setup(context):
         "use_sim_time": False,  # it is the clock
         "start": a["start"], "cameras": a["cameras"], "max_rtf": float(a["max_rtf"]),
         "clutter": int(a["clutter"]), "people": int(a["people"]), "seed": int(a["seed"]),
-        "camera_rate": float(a["camera_rate"]), "turn_slip": float(a["turn_slip"]), "link_dir": LINKS,
+        "camera_rate": float(a["camera_rate"]), "understeer": float(a["understeer"]), "link_dir": LINKS,
         "maps_dir": os.path.join(repo, "maps"),
         "firmware": os.path.join(repo, "ros2_ws", "src", "guide_bridge", "firmware", "guide_motor", "guide_motor.ino"),
         "rig_destination": a["rig_destination"] if mapping else "",
@@ -84,10 +84,6 @@ def setup(context):
         launch_arguments={
             "start_floor": floor, "cameras": a["cameras"], "camera_driver": "false", "sim_perception": "true",
             "motor_port": f"{LINKS}/motor", "gps_port": f"{LINKS}/gps", "record3d_path": RECORD3D,
-            # The serial bridge calibrated to the simulated chassis, as calibrate_turn
-            # does on the real one: it turns 1 / turn_slip of the asked rate, and its
-            # tracks do not break loose below about 0.2 rad/s (chassis.py).
-            "turn_gain": a["turn_slip"], "min_pivot_rate": a["min_pivot_rate"],
             # Here the stereo pipeline shares 4 cores with the simulated world and gets
             # about 2 clouds per simulated second at max_rtf 0.1; the car's 0.5 s limit
             # would stop the controller. The car itself keeps nav2.yaml's value.
@@ -108,8 +104,7 @@ def generate_launch_description():
         DeclareLaunchArgument("people", default_value="3", description="people walking the start floor"),
         DeclareLaunchArgument("seed", default_value="7"),
         DeclareLaunchArgument("camera_rate", default_value="10.0"),
-        DeclareLaunchArgument("turn_slip", default_value="1.45", description="tank: geometric / actual turn rate"),
-        DeclareLaunchArgument("min_pivot_rate", default_value="0.2", description="serial bridge: slowest pivot sent ("" = guide.yaml, uncalibrated)"),
+        DeclareLaunchArgument("understeer", default_value="1.1", description="Ackermann car: geometric / actual turn rate"),
         DeclareLaunchArgument("mode", default_value="trip", choices=["trip", "map"]),
         DeclareLaunchArgument("rig_destination", default_value="", description="mode:=map: map the route to this room and back"),
         DeclareLaunchArgument("sim_root", default_value="", description="scratch root with maps/ and rtabmap_db/ (stereo)"),

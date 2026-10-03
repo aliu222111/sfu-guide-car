@@ -88,7 +88,7 @@ class HilSim(Node):
         self.rig = None
 
         # Hardware ----------------------------------------------------------------
-        cp = ChassisParams(turn_slip=float(P("turn_slip", 1.45)), top_speed=float(P("top_speed", 1.1)))
+        cp = ChassisParams(understeer=float(P("understeer", 1.1)), speed_at_limit=float(P("speed_at_limit", 1.5)))
         self.chassis = Chassis(cp)
         yaw = P("start_yaw", float("nan"))
         if not math.isfinite(yaw):
@@ -269,10 +269,10 @@ class HilSim(Node):
         if self.rig is not None:
             self.rig_step(PHYSICS_DT)
         else:
-            tl, tr = self.chassis.targets(fw)
-            moving = abs(tl) + abs(tr) + abs(s.v_left) + abs(s.v_right) > 1e-4
+            speed, steer = self.chassis.targets(fw)
+            moving = abs(speed) + abs(s.v) > 1e-4
             here = self.world.here
-            self.chassis.step(PHYSICS_DT, tl, tr,
+            self.chassis.step(PHYSICS_DT, speed, steer,
                               (lambda x, y, yaw: here.collides(self.chassis.footprint(x, y, yaw), t)) if moving else None)
         self.phone.update(t, s.yaw, s.w, (s.v - v_before) / PHYSICS_DT, outdoors=False)
         self.t = t
@@ -362,7 +362,8 @@ class HilSim(Node):
             "t": round(self.t, 2), "floor": self.world.floor, "x": round(s.x, 2), "y": round(s.y, 2),
             "yaw": round(s.yaw, 3), "v": round(s.v, 3), "w": round(s.w, 3), "collisions": s.collisions,
             "collision_at": s.history[-5:], "bumper_m": None if not math.isfinite(self.echo_m) else round(self.echo_m, 2),
-            "pwm": [self.fw.pwm(self.chassis.wiring.pwm_left), self.fw.pwm(self.chassis.wiring.pwm_right)],
+            "servo_us": [self.fw.servo_us(self.chassis.wiring.steer), self.fw.servo_us(self.chassis.wiring.esc)],
+            "steer": round(s.steer, 3),
             "phone_posts": self.phone.posted, "phone_failures": self.phone.failed,
             "rig_done": None if self.rig is None else self.rig["done"],
             "iphone_frames": self.r3d.sent if self.iphone else None,

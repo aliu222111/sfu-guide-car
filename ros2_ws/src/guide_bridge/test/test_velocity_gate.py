@@ -1,5 +1,7 @@
 import math
 
+import pytest
+
 from guide_bridge.velocity_gate import GateParams, VelocityGate
 
 
@@ -63,9 +65,15 @@ def test_non_finite_commands_are_dropped():
     assert g.speed_cap(0.3) == 0.0
 
 
-def test_turn_rate_cap():
-    _, ang, _ = ramp(gate(), 0, 0.3, 3.0)
+def test_turn_rate_cap_slows_the_car_on_the_same_curve():
+    lin, ang, _ = ramp(gate(), 0, 0.3, 3.0)  # a 0.1 m radius at 3 rad/s
     assert abs(ang - math.radians(30)) < 1e-9
+    assert ang / lin == pytest.approx(10.0)  # same curvature: the Ackermann car follows the same arc
+
+
+def test_speed_caps_keep_the_curve():
+    lin, ang, _ = bumper_ramp(gate(), 0, 0.6, 0.6, ang=0.3)  # 2 m radius, something 0.6 m ahead
+    assert lin < 0.6 and ang / lin == pytest.approx(0.5)
 
 
 def test_acceleration_limited_braking_not():
@@ -128,7 +136,7 @@ def bumper_ramp(g, t0, lin, dist, ang=0.0, secs=5.0):
 def test_bumper_stops_forward_only():
     g = gate()
     lin, ang, why = bumper_ramp(g, 0, 0.5, 0.3, ang=0.2)
-    assert lin == 0.0 and ang == 0.2 and why == "bumper"  # may still pivot away
+    assert lin == 0.0 and ang == 0.0 and why == "bumper"  # an Ackermann car cannot turn away without moving
     lin, _, _ = bumper_ramp(g, 10, -0.1, 0.3)
     assert lin == -0.1  # and back off
 

@@ -17,8 +17,6 @@ Switches follow the phases in spec section 11:
 For the hardware-in-the-loop simulator (guide_sim hil.launch.py):
     camera_driver:=false  the simulator publishes the cameras' image_raw
     record3d_path:=...    the simulator's stand-in for the iPhone's USB stream
-    turn_gain:=, min_pivot_rate:=  override guide.yaml's serial bridge calibration
-                          (the simulator passes its chassis's values)
     sim_perception:=true  the simulator stands in for the model-based perception
                           nodes (people, signs, floor); the gate still requires them
 """
@@ -72,8 +70,7 @@ def setup(context):
         include("navigation.launch.py", start_floor=floor, cameras=cams,
                 depth_period=LaunchConfiguration("depth_period").perform(context)),
         Node(package="guide_bridge", executable="serial_bridge", name="serial_bridge", parameters=[guide,
-             {"port": LaunchConfiguration("motor_port").perform(context)},
-             {k: float(v) for k in ("turn_gain", "min_pivot_rate") if (v := LaunchConfiguration(k).perform(context))}]),
+             {"port": LaunchConfiguration("motor_port").perform(context)}]),
         Node(package="guide_bridge", executable="velocity_gate", name="velocity_gate", parameters=[guide,
              {"require_person_detector": perception or sim_perception,
               "require_bumper": mono},     # one camera: nothing else sees glass or anything above the floor
@@ -116,8 +113,6 @@ def generate_launch_description():
         DeclareLaunchArgument("camera_driver", default_value="true"),
         DeclareLaunchArgument("record3d_path", default_value=""),
         DeclareLaunchArgument("depth_period", default_value="", description="simulator only: max age of the depth cloud, s"),
-        DeclareLaunchArgument("turn_gain", default_value="", description="override guide.yaml (calibrate_turn)"),
-        DeclareLaunchArgument("min_pivot_rate", default_value="", description="override guide.yaml (calibrate_turn)"),
         DeclareLaunchArgument("sim_perception", default_value="false"),
         DeclareLaunchArgument("voice", default_value="false"),
         DeclareLaunchArgument("voice_mode", default_value="false", description="no phone: ask 'still with me?' at turns"),

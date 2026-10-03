@@ -19,13 +19,15 @@ class GateParams:
     outdoor_max: float = 1.0
     indoor_max: float = 0.6
     reverse_max: float = 0.2
-    turn_max: float = math.radians(30.0)
+    turn_max: float = math.radians(30.0)  # over this the car slows down (the curve stays the same)
     accel_max: float = 0.5  # m/s^2, speeding up only
     stale_after: float = 0.5  # s
     person_stop: float = 1.0  # m
     person_slow: float = 3.0  # m
     person_slow_speed: float = 0.25  # m/s cap at person_stop distance
-    recovery_rate: float = math.radians(15.0)  # rad/s, slow rotation when lost
+    # rad/s turned on the spot when lost. The Ackermann car cannot turn on the spot,
+    # so it stands still while signs and RTAB-Map relocalize from what it sees.
+    recovery_rate: float = 0.0
     person_timeout: float = 1.0  # s without a detector message
     require_person_detector: bool = True  # False only for phase 2 tests before perception
     flag_timeout: float = 1.5  # s: enable, recovery and phone liveness must keep arriving
@@ -164,6 +166,7 @@ class VelocityGate:
         else:
             return self._out(0.0, 0.0, "stale")
 
+        wanted = lin
         cap = self.speed_cap(now)
         if cap == 0.0:
             return self._out(0.0, 0.0, "person")
@@ -173,7 +176,6 @@ class VelocityGate:
             if fwd == 0.0:
                 why = "bumper"
         lin = max(-p.reverse_max, min(cap, lin))
-        ang = max(-p.turn_max, min(p.turn_max, ang))
         last = s.last_linear
         if lin * last < 0:
             # Reversing: stop for one tick, then ramp up from zero.
@@ -182,6 +184,13 @@ class VelocityGate:
             # Rate limit speeding up only; braking is never delayed.
             max_step = p.accel_max * dt if dt > 0 else 0.05
             lin = math.copysign(min(abs(lin), abs(last) + max_step), lin)
+        # Ackermann steering: the turn rate follows the speed, so a slower car
+        # drives the same curve (steering angle = atan(wheelbase * w / v)).
+        if wanted != 0.0:
+            ang *= lin / wanted
+        if abs(ang) > p.turn_max:  # too fast for this curve: slow down, keep the curve
+            k = p.turn_max / abs(ang)
+            lin, ang = lin * k, ang * k
         return self._out(lin, ang, why)
 
     def _out(self, lin, ang, why):

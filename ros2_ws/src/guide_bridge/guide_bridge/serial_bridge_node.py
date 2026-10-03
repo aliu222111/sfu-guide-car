@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import rclpy
 from geometry_msgs.msg import Twist
+from nav_msgs.msg import Odometry
 from rclpy.node import Node
 from sensor_msgs.msg import Range
 from std_msgs.msg import Bool, Int32MultiArray
 
 from .protocol import Button, Encoders, LineBuffer, Ultrasonic, format_velocity, parse_line
-from .skid import compensate
+from .speed import SpeedTrim
 
 
 class SerialBridge(Node):
@@ -19,16 +20,18 @@ class SerialBridge(Node):
         self.baud = self.declare_parameter("baud", 115200).value
         rate = self.declare_parameter("rate_hz", 20.0).value
         self.cmd_timeout = self.declare_parameter("cmd_timeout", 0.3).value
-        # Tank steering: the tracks slip sideways, so the car turns slower than
-        # commanded. Measured with calibrate_turn (guide_bridge/skid.py).
-        self.turn_gain = float(self.declare_parameter("turn_gain", 1.0).value)
-        self.min_pivot = float(self.declare_parameter("min_pivot_rate", 0.0).value)
+        # The RC throttle is open loop: trim it on the measured speed (speed.py).
+        self.trim = SpeedTrim(gain=float(self.declare_parameter("speed_trim_gain", 0.8).value),
+                              limit=float(self.declare_parameter("speed_trim_limit", 0.3).value))
+        self.period = 1.0 / rate
+        self.measured = None  # (forward speed m/s, time)
         self.linear = 0.0
         self.angular = 0.0
         self.last_cmd = None
         self.serial = None
         self.buf = LineBuffer()
         self.create_subscription(Twist, "cmd_vel", self.on_cmd, 10)
+        self.create_subscription(Odometry, "odometry/local", self.on_odom, 10)
         self.enc_pub = self.create_publisher(Int32MultiArray, "encoders", 10)
         self.ptt_pub = self.create_publisher(Bool, "voice/ptt", 10)
         self.range_pub = self.create_publisher(Range, "bumper/range", 10)
@@ -37,6 +40,12 @@ class SerialBridge(Node):
     def on_cmd(self, msg: Twist):
         self.linear, self.angular = msg.linear.x, msg.angular.z
         self.last_cmd = self.get_clock().now()
+
+    def on_odom(self, msg: Odometry):
+        self.measured = (msg.twist.twist.linear.x, self.now())
+
+    def now(self) -> float:
+        return self.get_clock().now().nanoseconds * 1e-9
 
     def open(self) -> bool:
         if self.serial is not None:
@@ -57,7 +66,8 @@ class SerialBridge(Node):
         lin, ang = self.linear, self.angular
         if self.last_cmd is None or (self.get_clock().now() - self.last_cmd).nanoseconds * 1e-9 > self.cmd_timeout:
             lin = ang = 0.0
-        lin, ang = compensate(lin, ang, self.turn_gain, self.min_pivot)
+        speed, age = (self.measured[0], self.now() - self.measured[1]) if self.measured else (None, 0.0)
+        lin, ang = self.trim.command(lin, ang, speed, age, self.period)
         try:
             self.serial.write(format_velocity(lin, ang))
             data = self.serial.read(256)

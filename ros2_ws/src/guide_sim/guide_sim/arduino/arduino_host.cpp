@@ -14,6 +14,7 @@ uint64_t now_us = 0;              // virtual time
 uint8_t mode_[NUM_PINS];          // pinMode
 uint8_t level_[NUM_PINS];         // digitalWrite output level
 int pwm_[NUM_PINS];               // analogWrite duty, -1 when the pin is driven digitally
+int servo_[NUM_PINS];             // Servo pulse width in microseconds, 0 = no pulses
 uint8_t input_[NUM_PINS];         // levels the simulator drives onto input pins
 void (*isr_[NUM_PINS])() = {};
 std::deque<uint8_t> rx_;           // laptop -> board
@@ -109,6 +110,10 @@ void detachInterrupt(int interrupt) {
 void noInterrupts() { interrupts_on_ = false; }
 void interrupts() { interrupts_on_ = true; }
 
+void host_servo_write(uint8_t pin, int us) {
+  if (valid(pin)) servo_[pin] = us;
+}
+
 // Provided by the firmware (.ino).
 void setup();
 void loop();
@@ -119,6 +124,7 @@ void host_reset() {
   memset(mode_, 0, sizeof mode_);
   memset(level_, 0, sizeof level_);
   for (int &p : pwm_) p = -1;
+  memset(servo_, 0, sizeof servo_);
   memset(input_, 0xFF, sizeof input_);
   for (auto &f : isr_) f = nullptr;
   rx_.clear();
@@ -144,6 +150,7 @@ int host_tx(uint8_t *out, int max) {
 }
 int host_pin_mode(int pin) { return valid(pin) ? mode_[pin] : -1; }
 int host_digital(int pin) { return valid(pin) ? level_[pin] : 0; }
+int host_servo_us(int pin) { return valid(pin) ? servo_[pin] : 0; }
 int host_pwm(int pin) {
   if (!valid(pin)) return 0;
   return pwm_[pin] >= 0 ? pwm_[pin] : (level_[pin] ? 255 : 0);
