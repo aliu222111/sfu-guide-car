@@ -46,7 +46,7 @@ def sim_root(repo: str, root: str) -> str:
 def setup(context):
     a = {k: LaunchConfiguration(k).perform(context) for k in
          ("cameras", "start", "max_rtf", "clutter", "people", "seed", "camera_rate", "turn_slip", "mode",
-          "rig_destination", "sim_root")}
+          "rig_destination", "sim_root", "min_pivot_rate")}
     repo = os.environ.get("GUIDE_CAR_ROOT", os.getcwd())
     nodes = {n["id"]: n for n in json.load(open(os.path.join(repo, "maps", "route_graph.json")))["nodes"]}
     floor = nodes[a["start"]]["floor"]
@@ -84,6 +84,10 @@ def setup(context):
         launch_arguments={
             "start_floor": floor, "cameras": a["cameras"], "camera_driver": "false", "sim_perception": "true",
             "motor_port": f"{LINKS}/motor", "gps_port": f"{LINKS}/gps", "record3d_path": RECORD3D,
+            # The serial bridge calibrated to the simulated chassis, as calibrate_turn
+            # does on the real one: it turns 1 / turn_slip of the asked rate, and its
+            # tracks do not break loose below about 0.2 rad/s (chassis.py).
+            "turn_gain": a["turn_slip"], "min_pivot_rate": a["min_pivot_rate"],
             "use_sim_time": "true",  # every node of the car (guide_bringup common.Node)
         }.items(),
     )
@@ -101,6 +105,7 @@ def generate_launch_description():
         DeclareLaunchArgument("seed", default_value="7"),
         DeclareLaunchArgument("camera_rate", default_value="10.0"),
         DeclareLaunchArgument("turn_slip", default_value="1.45", description="tank: geometric / actual turn rate"),
+        DeclareLaunchArgument("min_pivot_rate", default_value="0.2", description="serial bridge: slowest pivot sent ("" = guide.yaml, uncalibrated)"),
         DeclareLaunchArgument("mode", default_value="trip", choices=["trip", "map"]),
         DeclareLaunchArgument("rig_destination", default_value="", description="mode:=map: map the route to this room and back"),
         DeclareLaunchArgument("sim_root", default_value="", description="scratch root with maps/ and rtabmap_db/ (stereo)"),
