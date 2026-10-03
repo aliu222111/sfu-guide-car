@@ -26,21 +26,46 @@ class VoiceNode(Node):
         graph = self.declare_parameter("graph", "maps/route_graph.json").value
         self.rg = RouteGraph.load(graph)
         self.trip = {"state": "idle", "detail": ""}
-        self.speaker = Speaker(
-            self.declare_parameter("piper_voice", "voices/en_US-lessac-medium.onnx").value,
-            self.declare_parameter("piper_bin", "piper").value,
-            self.declare_parameter("player", "aplay").value,
-        )
-        self.recorder = Recorder(self.declare_parameter("mic_device", "").value or None)
-        self.stt = Transcriber(
-            self.declare_parameter("whisper_model", "base").value,
-            self.declare_parameter("whisper_device", "auto").value,
-            self.declare_parameter("whisper_compute", "int8").value,
-        )
+        P = lambda name, default: self.declare_parameter(name, default).value  # noqa: E731
+        log = self.get_logger().warn
+        piper = (P("piper_voice", "voices/en_US-lessac-medium.onnx"), P("piper_bin", "piper"), P("player", "aplay"))
+        tts = P("tts", "piper")
+        if tts == "elevenlabs":  # ElevenLabs voice, Piper when it cannot (ELEVENLABS_API_KEY)
+            from .cloud import ElevenLabsSpeaker
+
+            self.speaker = ElevenLabsSpeaker(*piper, voice_id=P("elevenlabs_voice_id", "21m00Tcm4TlvDq8ikWAM"),
+                                             model=P("elevenlabs_tts_model", "eleven_flash_v2_5"), log=log)
+        elif tts == "piper":
+            self.speaker = Speaker(*piper)
+        else:
+            raise ValueError(f"tts must be piper or elevenlabs, not {tts!r}")
+        self.recorder = Recorder(P("mic_device", "") or None)
+        stt = P("stt", "whisper")
+        whisper = Transcriber(P("whisper_model", "base"), P("whisper_device", "auto"), P("whisper_compute", "int8"))
+        if stt == "elevenlabs":  # the student's voice goes to ElevenLabs; whisper when it cannot
+            from .cloud import ElevenLabsTranscriber
+
+            self.stt = ElevenLabsTranscriber(whisper, model=P("elevenlabs_stt_model", "scribe_v1"), log=log)
+        elif stt == "whisper":
+            self.stt = whisper
+        else:
+            raise ValueError(f"stt must be whisper or elevenlabs, not {stt!r}")
         actions = Actions(self.set_destination, self.pause_or_resume, self.confirm)
+        llm = P("llm", "claude")
         model = self.declare_parameter("claude_model", "claude-haiku-4-5").value
         auth = self.declare_parameter("claude_auth", "subscription").value
-        if auth == "subscription":
+        if llm == "gemini":  # Google Gemini (GEMINI_API_KEY)
+            from google import genai
+            from google.genai import types
+
+            from .gemini_agent import GeminiVoiceAgent
+
+            client = genai.Client(http_options=types.HttpOptions(timeout=15000))
+            self.agent = GeminiVoiceAgent(client, actions, model=P("gemini_model", "gemini-flash-latest"))
+            self.get_logger().info(f"voice agent: Gemini {self.agent.model}")
+        elif llm != "claude":
+            raise ValueError(f"llm must be claude or gemini, not {llm!r}")
+        elif auth == "subscription":
             # The owner's Claude subscription through the Claude Agent SDK (guide_claude).
             from guide_claude.session import subscription_status, use_subscription_env
             from guide_claude.voice import SubscriptionVoiceAgent

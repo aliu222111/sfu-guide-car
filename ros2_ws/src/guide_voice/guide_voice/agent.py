@@ -62,6 +62,23 @@ class Actions:
     confirm: Callable[[], str]
 
 
+def run_tool(actions: Actions, name: str, args: dict) -> tuple[str, bool]:
+    """Run one of the three tools; (result text for the model, is_error)."""
+    try:
+        if name == "set_destination":
+            room = args.get("room")
+            if not isinstance(room, str) or not room.strip():
+                return "Error: room is required.", True
+            return actions.set_destination(room.strip()), False
+        if name == "pause_or_resume":
+            return actions.pause_or_resume(), False
+        if name == "confirm":
+            return actions.confirm(), False
+    except Exception as e:  # report to the model rather than crash the node
+        return f"Error: {e}", True
+    return f"Error: unknown tool {name}.", True
+
+
 @dataclass
 class VoiceAgent:
     client: object
@@ -74,19 +91,7 @@ class VoiceAgent:
     last_time: float = 0.0
 
     def _run_tool(self, name: str, args: dict) -> tuple[str, bool]:
-        try:
-            if name == "set_destination":
-                room = args.get("room")
-                if not isinstance(room, str) or not room.strip():
-                    return "Error: room is required.", True
-                return self.actions.set_destination(room.strip()), False
-            if name == "pause_or_resume":
-                return self.actions.pause_or_resume(), False
-            if name == "confirm":
-                return self.actions.confirm(), False
-        except Exception as e:  # report to the model rather than crash the node
-            return f"Error: {e}", True
-        return f"Error: unknown tool {name}.", True
+        return run_tool(self.actions, name, args)
 
     def _trim(self):
         # Keep whole exchanges: cut only at a user message that is plain text.

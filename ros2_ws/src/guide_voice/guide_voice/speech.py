@@ -1,4 +1,7 @@
-"""Audio in and out: push-to-talk recording, faster-whisper, Piper (spec section 9)."""
+"""Audio in and out: push-to-talk recording, faster-whisper, Piper (spec section 9).
+
+Cloud alternatives (ElevenLabs) are in ``cloud.py`` and fall back to these.
+"""
 
 from __future__ import annotations
 
@@ -112,6 +115,10 @@ class Speaker:
         else:
             self._held.clear()
 
+    def synthesize(self, text: str, wav: Path):
+        """Write ``text`` as speech to ``wav``. Piper here; cloud voices override it."""
+        subprocess.run([self.piper_bin, "--model", self.voice_model, "--output_file", str(wav)], input=text.encode(), check=True, capture_output=True, timeout=30)
+
     def _loop(self):
         while True:
             text = self.q.get()
@@ -120,7 +127,7 @@ class Speaker:
             try:
                 with tempfile.TemporaryDirectory() as d:
                     wav = Path(d) / "say.wav"
-                    subprocess.run([self.piper_bin, "--model", self.voice_model, "--output_file", str(wav)], input=text.encode(), check=True, capture_output=True, timeout=30)
+                    self.synthesize(text, wav)
                     if self._held.is_set():
                         self.q.put(text)  # interrupted before playing: say it after
                         continue

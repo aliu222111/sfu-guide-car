@@ -86,3 +86,26 @@ def test_claude_subscription_backend_parses_reader_reply():
 
     reads = ClaudeSubscriptionBackend(reader=Reader()).read(np.zeros((360, 640, 3), np.uint8))
     assert [r.text for r in reads] == ["WMC 2260"]
+
+
+def test_gemini_backend_with_fake_client():
+    pytest = __import__("pytest")
+    pytest.importorskip("google.genai")
+    from guide_perception.sign_reader import GeminiBackend
+
+    calls = []
+
+    class FakeModels:
+        def generate_content(self, **kw):
+            calls.append(kw)
+            return SimpleNamespace(text='{"rooms": ["MBC 1100A"]}')
+
+    backend = GeminiBackend(client=SimpleNamespace(models=FakeModels()))
+    reads = backend.read(np.zeros((360, 640, 3), np.uint8))
+    assert [r.text for r in reads] == ["MBC 1100A"]
+    image, prompt = calls[0]["contents"]
+    assert image.inline_data.mime_type == "image/jpeg" and image.inline_data.data[:2] == b"\xff\xd8"
+    assert "rooms" in prompt and calls[0]["config"].response_mime_type == "application/json"
+    calls.clear()
+    FakeModels.generate_content = lambda self, **kw: SimpleNamespace(text=None)  # blocked or empty reply
+    assert backend.read(np.zeros((360, 640, 3), np.uint8)) == []

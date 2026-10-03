@@ -60,6 +60,7 @@ class PaddleBackend:
         return reads
 
 
+# Shared by every cloud backend (Claude and Gemini).
 CLAUDE_PROMPT = (
     "This is the top of a camera frame from a robot driving down a corridor at Simon Fraser "
     "University. List every room number visible on door signs. Room numbers look like "
@@ -117,6 +118,43 @@ def parse_claude_reply(text: str) -> list[SignRead]:
     for r in rooms if isinstance(rooms, list) else []:
         reads += extract_rooms(str(r), 0.9)
     return reads
+
+
+class GeminiBackend:
+    """Sends the frame to Google Gemini (GEMINI_API_KEY). Same prompt and reply as the Claude backends.
+
+    Use a paid key: on the free tier Google may use the frames, which can show
+    students, to improve its products, and the daily request cap runs out in
+    well under an hour at one frame a second. Network loss just means no reads.
+    """
+
+    def __init__(self, model: str = "gemini-flash-latest", timeout: float = 4.0, client=None):
+        if client is None:
+            from google import genai
+            from google.genai import types
+
+            client = genai.Client(http_options=types.HttpOptions(timeout=int(timeout * 1000)))
+        self.client = client
+        self.model = model
+
+    def read(self, bgr) -> list[SignRead]:
+        import cv2
+        from google.genai import types
+
+        ok, jpg = cv2.imencode(".jpg", upper_third(bgr), [cv2.IMWRITE_JPEG_QUALITY, 80])
+        if not ok:
+            return []
+        response = self.client.models.generate_content(
+            model=self.model,
+            contents=[types.Part.from_bytes(data=jpg.tobytes(), mime_type="image/jpeg"), CLAUDE_PROMPT],
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                max_output_tokens=256,
+                temperature=0.0,
+                thinking_config=types.ThinkingConfig(thinking_budget=0),  # a lookup, not a puzzle: no thinking tokens
+            ),
+        )
+        return parse_claude_reply(response.text or "")
 
 
 class ClaudeSubscriptionBackend:

@@ -9,7 +9,7 @@ import math
 from std_msgs.msg import Bool, String
 
 from .base_node import CameraNode, spin
-from .sign_reader import ClaudeBackend, ClaudeSubscriptionBackend, PaddleBackend
+from .sign_reader import ClaudeBackend, ClaudeSubscriptionBackend, GeminiBackend, PaddleBackend
 
 
 class SignNode(CameraNode):
@@ -21,10 +21,12 @@ class SignNode(CameraNode):
             self.reader = ClaudeSubscriptionBackend(model)
         elif backend == "claude_api":  # an Anthropic API key
             self.reader = ClaudeBackend(model)
+        elif backend == "gemini":  # a Google Gemini API key (GEMINI_API_KEY)
+            self.reader = GeminiBackend(self.declare_parameter("gemini_model", "gemini-flash-latest").value)
         elif backend == "paddle":
             self.reader = PaddleBackend(self.declare_parameter("min_conf", 0.8).value)
         else:
-            raise ValueError(f"backend must be paddle, claude or claude_api, not {backend!r}")
+            raise ValueError(f"backend must be paddle, claude, claude_api or gemini, not {backend!r}")
         self.indoor = False
         self.create_subscription(Bool, "guide/outdoor", lambda m: setattr(self, "indoor", not m.data), 10)
         self.pub = self.create_publisher(String, "signs", 10)

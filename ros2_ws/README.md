@@ -25,6 +25,7 @@ sudo apt install ros-jazzy-desktop ros-jazzy-navigation2 ros-jazzy-robot-localiz
 pip install -e sfu_map                                   # route graph, used by mission and voice
 pip install -r ros2_ws/src/guide_perception/requirements-perception.txt
 pip install faster-whisper sounddevice bleak claude-agent-sdk   # phase 6 (anthropic too for API-key mode)
+pip install google-genai elevenlabs                              # optional: Gemini, ElevenLabs
 cd ros2_ws && colcon build && source install/setup.bash
 ```
 
@@ -52,6 +53,21 @@ This is for your own use of the car; Anthropic does not allow offering claude.ai
 people's products. Subscription usage limits apply: the voice agent uses a few requests per trip;
 the cloud sign reader should run at 0.2 Hz (`guide.yaml`), not the local OCR's 1 to 2 Hz. To use an
 API key instead: `claude_auth: api_key` (voice) or `backend: claude_api` (signs).
+
+## Gemini and ElevenLabs (optional)
+
+Switches in `guide.yaml`, keys in the environment:
+
+| what | setting | key |
+|---|---|---|
+| Voice agent's brain on Gemini | `voice_agent: llm: gemini` | `GEMINI_API_KEY` |
+| Cloud sign reading on Gemini | `sign_reader: backend: gemini` (0.2 Hz) | `GEMINI_API_KEY` |
+| ElevenLabs voice | `voice_agent: tts: elevenlabs` | `ELEVENLABS_API_KEY` |
+| ElevenLabs speech-to-text | `voice_agent: stt: elevenlabs` | `ELEVENLABS_API_KEY` |
+
+The voice and transcription fall back to Piper and faster-whisper on any failure, so keep those installed.
+Use a paid Gemini key: on the free tier Google may use the prompts and camera frames. With
+`stt: elevenlabs` students' voices leave the laptop; tell them (a sign on the car).
 
 ## Try it without hardware
 
