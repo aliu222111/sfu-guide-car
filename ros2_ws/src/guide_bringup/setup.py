@@ -18,7 +18,7 @@ setup(
         ("share/" + package_name + "/scripts", glob("scripts/*")),
     ],
     install_requires=["setuptools"],
-    entry_points={"console_scripts": ["fake_robot = guide_bringup.fake_robot:main", "sim_trip = guide_bringup.sim_trip:main"]},
+    entry_points={"console_scripts": ["fake_robot = guide_bringup.fake_robot:main", "sim_trip = guide_bringup.sim_trip:main", "stereo_sim = guide_bringup.stereo_sim:main", "rtabmap_check = guide_bringup.rtabmap_check:main"]},
     zip_safe=True,
     maintainer="Alex Liu",
     maintainer_email="alexthespacexfan@gmail.com",

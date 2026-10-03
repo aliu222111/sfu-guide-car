@@ -2,8 +2,10 @@
 
 Applies, in order: source selection (manual creep > recovery rotation > Nav2),
 staleness, the mission's enable flag, the person stop and slow-down
-(spec section 7), indoor/outdoor speed caps (section 2), the 30 deg/s turn cap
-(section 6) and an acceleration limit. Braking is never rate limited.
+(spec section 7), the ultrasonic bumper's stop and slow-down (forward only;
+required with one camera, section 18), indoor/outdoor speed caps (section 2),
+the 30 deg/s turn cap (section 6) and an acceleration limit. Braking is never
+rate limited.
 """
 
 from __future__ import annotations
@@ -27,6 +29,11 @@ class GateParams:
     person_timeout: float = 1.0  # s without a detector message
     require_person_detector: bool = True  # False only for phase 2 tests before perception
     flag_timeout: float = 1.5  # s: enable, recovery and phone liveness must keep arriving
+    bumper_stop: float = 0.35  # m: nothing ahead closer than this
+    bumper_slow: float = 1.0  # m
+    bumper_slow_speed: float = 0.15  # m/s cap at bumper_stop distance
+    bumper_timeout: float = 0.5  # s without a reading
+    require_bumper: bool = False  # True with one camera: no reading, creep
 
 
 @dataclass
@@ -57,6 +64,8 @@ class GateState:
     phone_alive: _Flag = field(default_factory=_Flag)
     person_distance: float = math.inf
     person_stamp: float = -math.inf
+    bumper_distance: float = math.inf
+    bumper_stamp: float = -math.inf
     last_linear: float = 0.0
     last_time: float | None = None
 
@@ -98,6 +107,11 @@ class VelocityGate:
         self.s.person_distance = distance if distance == distance else 0.0  # NaN: assume the worst
         self.s.person_stamp = now
 
+    def bumper(self, distance: float, now: float):
+        """Ultrasonic range ahead, metres; inf when nothing echoes."""
+        self.s.bumper_distance = distance if distance == distance else 0.0  # NaN: assume the worst
+        self.s.bumper_stamp = now
+
     # Output -------------------------------------------------------------------
     def speed_cap(self, now: float) -> float:
         p = self.p
@@ -114,6 +128,21 @@ class VelocityGate:
         if d < p.person_slow:
             frac = (d - p.person_stop) / (p.person_slow - p.person_stop)
             cap = min(cap, p.person_slow_speed + frac * (cap - p.person_slow_speed))
+        return cap
+
+    def forward_cap(self, now: float, cap: float) -> float:
+        """Forward speed limit from the bumper (reversing and turning are not limited)."""
+        p = self.p
+        d = self.s.bumper_distance
+        if now - self.s.bumper_stamp > p.bumper_timeout:
+            if p.require_bumper:
+                return min(cap, p.bumper_slow_speed)
+            return cap
+        if d < p.bumper_stop:
+            return 0.0
+        if d < p.bumper_slow:
+            frac = (d - p.bumper_stop) / (p.bumper_slow - p.bumper_stop)
+            return min(cap, p.bumper_slow_speed + frac * (cap - p.bumper_slow_speed))
         return cap
 
     def step(self, now: float) -> tuple[float, float, str]:
@@ -136,6 +165,11 @@ class VelocityGate:
         cap = self.speed_cap(now)
         if cap == 0.0:
             return self._out(0.0, 0.0, "person")
+        fwd = self.forward_cap(now, cap)
+        if lin > fwd:
+            lin = fwd
+            if fwd == 0.0:
+                why = "bumper"
         lin = max(-p.reverse_max, min(cap, lin))
         ang = max(-p.turn_max, min(p.turn_max, ang))
         last = s.last_linear

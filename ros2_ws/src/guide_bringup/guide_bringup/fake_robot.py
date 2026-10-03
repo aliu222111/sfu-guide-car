@@ -1,6 +1,7 @@
 """A kinematic stand-in for the car, for testing the software without hardware.
 
-Integrates /cmd_vel (unicycle), publishes odom -> base_link and map -> odom
+Integrates /cmd_vel (unicycle; ``turn_slip`` and ``pivot_stall`` imitate an
+uncalibrated tank chassis), publishes odom -> base_link and map -> odom
 (identity) on TF, /vo odometry for the localization manager, empty sensor
 clouds so Nav2's costmaps stay current, and "no person in view" for the
 velocity gate, and the phone app's heartbeat. Indoors it sends one sign fix at start so the localization
@@ -20,6 +21,8 @@ from sensor_msgs_py import point_cloud2
 from std_msgs.msg import Empty, Float32, Header
 from tf2_ros import StaticTransformBroadcaster, TransformBroadcaster
 
+from guide_bridge.skid import compensate
+
 
 class FakeRobot(Node):
     def __init__(self):
@@ -29,6 +32,13 @@ class FakeRobot(Node):
         self.yaw = self.declare_parameter("yaw", 0.0).value
         self.indoor = self.declare_parameter("indoor", True).value
         self.fake_phone = self.declare_parameter("fake_phone", True).value
+        # Tank steering: the car turns at 1/turn_slip of the commanded rate, and a
+        # pivot (nearly no forward speed) slower than pivot_stall does not turn.
+        self.turn_slip = float(self.declare_parameter("turn_slip", 1.0).value)
+        self.pivot_stall = float(self.declare_parameter("pivot_stall", 0.0).value)
+        # What the serial bridge would do to /cmd_vel before the motors (guide.yaml).
+        self.turn_gain = float(self.declare_parameter("turn_gain", 1.0).value)
+        self.min_pivot = float(self.declare_parameter("min_pivot_rate", 0.0).value)
         self.v = self.w = 0.0
         self.odom = TransformBroadcaster(self)
         StaticTransformBroadcaster(self).sendTransform(self.tf("map", "odom", 0.0, 0.0, 0.0))
@@ -51,7 +61,10 @@ class FakeRobot(Node):
         return t
 
     def on_cmd(self, msg: Twist):
-        self.v, self.w = msg.linear.x, msg.angular.z
+        v, w = compensate(msg.linear.x, msg.angular.z, self.turn_gain, self.min_pivot)
+        self.v, self.w = v, w / self.turn_slip
+        if abs(v) < 0.05 and abs(w) < self.pivot_stall:
+            self.w = 0.0
 
     def step(self):
         self.ticks += 1

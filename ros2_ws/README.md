@@ -70,6 +70,24 @@ End-to-end check, playing the student (it answers door and elevator prompts and 
 ros2 run guide_bringup sim_trip "AQ 6106" --timeout 600   # AQ-03 -> elevator -> AQ-06 -> two doors
 ```
 
+RTAB-Map without cameras: `stereo_sim` ray-traces a textured ring corridor (60 m round) as a
+rectified stereo pair; `rtabmap_check` scores odometry drift, map nodes, loop closures and
+localization against its ground truth.
+
+```bash
+ros2 launch guide_bringup rtabmap.launch.py mode:=mapping handheld:=true fresh:=true database:=/tmp/sim.db &
+ros2 run guide_bringup stereo_sim --ros-args -p laps:=1.3 &
+ros2 run guide_bringup rtabmap_check --mode mapping --duration 215
+# then mode:=localization (same database), stereo_sim -p start_s:=20, rtabmap_check --mode localization --start-s 20
+```
+
+Tank steering in the sim: `sim.launch.py turn_slip:=1.5 pivot_stall:=0.2` makes the fake car turn at
+two thirds of the asked rate and not pivot below 0.2 rad/s; add `turn_gain:=1.5 min_pivot_rate:=0.15` for
+the serial bridge's compensation.
+
+One camera (spec section 18): `ros2 run guide_perception mono_odometry` on the left image publishes `/vo`;
+`rtabmap_check --mode odometry` scores it against `stereo_sim`.
+
 Kill leftover nodes between runs (`pkill -f ros2_ws/install/`): a second mission node from an old run
 fights the new one.
 
@@ -85,7 +103,9 @@ and close the loop. Align it to the GIS frame at three or more doors:
 with x,y read from RTAB-Map at each door.
 
 **2, chassis and outdoor driving.** Flash `guide_bridge/firmware/guide_motor/guide_motor.ino` (set pins,
-wheel base, max wheel speed). Phone: Sensor Logger, HTTP push to `http://<laptop>:8765/data` at 100 Hz.
+track width, max track speed, `MIN_PWM`). Tank steering slips in turns: with the serial bridge and phone
+IMU running (no Nav2, no gate), `ros2 run guide_bridge calibrate_turn --yes` spins the car in place and prints
+`turn_gain` and `min_pivot_rate` for `guide.yaml`; rerun with `--current-gain <new gain>` to check. Phone: Sensor Logger, HTTP push to `http://<laptop>:8765/data` at 100 Hz.
 Draw the outdoor route in `sfu_map/connectors.yaml` (`outdoor_links`) and rebuild maps, then
 `ros2 launch guide_bringup guide_car.launch.py perception:=false` (without perception the gate does not
 wait for the person detector; never run that way near people).
@@ -95,6 +115,11 @@ wait for the person detector; never run that way near people).
 **4, indoor driving.** `guide_car.launch.py start_floor:=AQ-03` once the floor's database and alignment exist.
 
 **5, mission and phone app.** Open `http://<laptop>:8080` on the phone (same WiFi).
+
+**One camera.** If a webcam dies or the stereo mount will not hold calibration: calibrate the remaining
+camera with `ros2 run camera_calibration cameracalibrator --size 8x6 --square 0.025 image:=/stereo/left/image_raw camera:=/stereo/left`,
+save it as `left.yaml`, measure its height and tilt into the URDF (`cam_z`, `cam_pitch`; 1 cm of height is
+2 % of distance), fit the ultrasonic bumper, then add `cameras:=mono` to any launch above. Spec section 18.
 
 **6, voice and follow.** `voice:=true` (your Claude subscription, see above), `voice_mode:=true` for a student
 without a phone, `rear_camera:=true`, `rssi:=true`.
@@ -131,6 +156,6 @@ publishes no TF on the car; its poses reach the EKF through the localization man
 ## Tests
 
 ```bash
-for p in guide_bridge guide_mission guide_perception guide_ui guide_voice; do
-  PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONPATH=src/$p python3 -m pytest -q src/$p/test; done
+for p in guide_bridge guide_claude guide_mission guide_perception guide_ui guide_voice; do
+  PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONPATH=src/$p:src/guide_claude python3 -m pytest -q src/$p/test; done
 ```

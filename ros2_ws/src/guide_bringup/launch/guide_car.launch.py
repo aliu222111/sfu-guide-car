@@ -8,6 +8,8 @@ Switches follow the phases in spec section 11:
     voice:=true         phase 6 voice agent (your Claude subscription: CLAUDE_CODE_OAUTH_TOKEN)
     rear_camera:=true   phase 6 student tracking
     rssi:=true          phase 6 Bluetooth follow check
+    cameras:=mono       one camera (spec section 18): left camera only, floor
+                        odometry instead of RTAB-Map, no depth cloud
 """
 
 import os
@@ -38,17 +40,27 @@ def setup(context):
     guide = cfg("guide.yaml")
     graph = repo_path("maps", "route_graph.json")
     perception = flag(context, "perception")
+    cams = LaunchConfiguration("cameras").perform(context)
+    mono = cams == "mono"
+    left = [("image", "/stereo/left/image_rect"), ("camera_info", "/stereo/left/camera_info")]
+    if mono:
+        odometry = Node(package="guide_perception", executable="mono_odometry", name="mono_odometry",
+                        parameters=[guide], remappings=left + [("vo", "/vo")])
+    else:
+        odometry = include("rtabmap.launch.py", mode="localization", database=repo_path("rtabmap_db", f"{floor or 'AQ-03'}.db"))
     actions = [
         include("description.launch.py"),
         include("cameras.launch.py", calibration_dir=LaunchConfiguration("calibration_dir").perform(context),
-                rear=str(flag(context, "rear_camera")).lower()),
-        include("localization.launch.py", gps_port=LaunchConfiguration("gps_port").perform(context)),
-        include("rtabmap.launch.py", mode="localization", database=repo_path("rtabmap_db", f"{floor or 'AQ-03'}.db")),
-        include("navigation.launch.py", start_floor=floor),
+                rear=str(flag(context, "rear_camera")).lower(), mono=str(mono).lower()),
+        include("localization.launch.py", gps_port=LaunchConfiguration("gps_port").perform(context), cameras=cams),
+        odometry,
+        include("navigation.launch.py", start_floor=floor, cameras=cams),
         Node(package="guide_bridge", executable="serial_bridge", name="serial_bridge", parameters=[guide,
              {"port": LaunchConfiguration("motor_port").perform(context)}]),
         Node(package="guide_bridge", executable="velocity_gate", name="velocity_gate", parameters=[guide,
-             {"require_person_detector": perception}]),
+             {"require_person_detector": perception,
+              "require_bumper": mono},     # one camera: nothing else sees glass or anything above the floor
+             {"indoor_max": 0.4} if mono else {}]),
         Node(package="guide_mission", executable="mission", name="mission", parameters=[guide,
              {"graph": graph, "start_floor": floor, "voice_mode": flag(context, "voice_mode")}]),
         Node(package="guide_ui", executable="ui_server", name="ui_server", parameters=[guide, {"maps_dir": repo_path("maps")}]),
@@ -57,7 +69,6 @@ def setup(context):
              remappings=[("image", "/stereo/left/image_rect"), ("camera_info", "/stereo/left/camera_info")]),
     ]
     if perception:
-        left = [("image", "/stereo/left/image_rect"), ("camera_info", "/stereo/left/camera_info")]
         models = {"model": repo_path("models", "segformer-b0-ade.onnx"), "labels": repo_path("models", "segformer-b0-ade.labels.json")}
         actions += [
             Node(package="guide_perception", executable="floor_segmentation", name="floor_segmentation", parameters=[guide, models], remappings=left),
@@ -84,6 +95,7 @@ def generate_launch_description():
         DeclareLaunchArgument("motor_port", default_value="/dev/ttyACM0"),
         DeclareLaunchArgument("gps_port", default_value="/dev/ttyUSB0"),
         DeclareLaunchArgument("perception", default_value="true"),
+        DeclareLaunchArgument("cameras", default_value="stereo", choices=["stereo", "mono"]),
         DeclareLaunchArgument("voice", default_value="false"),
         DeclareLaunchArgument("voice_mode", default_value="false", description="no phone: ask 'still with me?' at turns"),
         DeclareLaunchArgument("rear_camera", default_value="false"),

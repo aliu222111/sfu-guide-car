@@ -1,12 +1,14 @@
 """Line protocol to the motor microcontroller (spec section 10).
 
 Downlink, 20 Hz:  ``V <linear m/s> <angular rad/s>\\n``
-Uplink, optional: ``E <left ticks> <right ticks>\\n`` from encoders and
-``B <0|1>\\n`` from the push-to-talk button on the car (spec section 9).
+Uplink, optional: ``E <left ticks> <right ticks>\\n`` from encoders,
+``B <0|1>\\n`` from the push-to-talk button on the car (spec section 9) and
+``U <cm>\\n`` from the forward ultrasonic sensor (0: no echo, nothing in range).
 """
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 # Never send more than this; the microcontroller clamps again.
@@ -23,6 +25,11 @@ class Encoders:
 @dataclass(frozen=True)
 class Button:
     pressed: bool
+
+
+@dataclass(frozen=True)
+class Ultrasonic:
+    metres: float  # inf when nothing echoed
 
 
 def _clamp(v: float, lim: float) -> float:
@@ -45,6 +52,11 @@ def parse_line(line: bytes | str):
             return Encoders(int(parts[1]), int(parts[2]))
         if len(parts) == 2 and parts[0] == "B" and parts[1] in ("0", "1"):
             return Button(parts[1] == "1")
+        if len(parts) == 2 and parts[0] == "U":
+            cm = int(parts[1])
+            if cm < 0:
+                return None
+            return Ultrasonic(math.inf if cm == 0 else cm / 100.0)
     except ValueError:
         return None
     return None

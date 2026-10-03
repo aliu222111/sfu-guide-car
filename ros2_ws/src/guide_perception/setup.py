@@ -25,6 +25,7 @@ setup(
             "sign_reader = guide_perception.sign_node:main",
             "vp_heading = guide_perception.vp_heading_node:main",
             "student_tracker = guide_perception.student_node:main",
+            "mono_odometry = guide_perception.mono_odometry_node:main",
         ],
     },
 )

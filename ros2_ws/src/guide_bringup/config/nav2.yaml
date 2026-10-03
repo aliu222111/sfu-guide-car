@@ -45,7 +45,19 @@ controller_server:
       xy_goal_tolerance: 0.5     # waypoints are graph nodes; the door node is "within 2 m" (spec section 1)
       yaw_goal_tolerance: 3.14   # no heading requirement at waypoints
     FollowPath:
-      plugin: "dwb_core::DWBLocalPlanner"
+      # Tank steering: pivot in place to face the path, then let DWB follow it.
+      # A skid-steer car turns on the spot well but scrubs its tracks on tight
+      # arcs, so turning first gives straighter, more predictable driving.
+      plugin: "nav2_rotation_shim_controller::RotationShimController"
+      primary_controller: "dwb_core::DWBLocalPlanner"
+      angular_dist_threshold: 0.6       # rad off the path heading before pivoting first
+      angular_disengage_threshold: 0.3  # rad: pivot until within this, then drive
+      forward_sampling_distance: 0.5
+      rotate_to_heading_angular_vel: 0.45   # under the 0.52 rad/s cap, above the tracks' stall rate
+      max_angular_accel: 1.0
+      simulate_ahead_time: 1.0
+      rotate_to_goal_heading: false
+      # DWB, the primary controller, reads the rest of this block.
       debug_trajectory_details: False
       min_vel_x: 0.0
       min_vel_y: 0.0

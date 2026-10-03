@@ -114,3 +114,35 @@ def test_manual_beats_recovery_beats_nav_and_recovery_expires():
 
 def test_reverse_limited():
     assert abs(ramp(gate(), 0, -1.0)[0] + 0.2) < 1e-9
+
+
+def bumper_ramp(g, t0, lin, dist, ang=0.0, secs=5.0):
+    t, out = t0, None
+    while t < t0 + secs:
+        g.bumper(dist, t)
+        out = tick(g, t, lin, ang)
+        t += 0.05
+    return out
+
+
+def test_bumper_stops_forward_only():
+    g = gate()
+    lin, ang, why = bumper_ramp(g, 0, 0.5, 0.3, ang=0.2)
+    assert lin == 0.0 and ang == 0.2 and why == "bumper"  # may still pivot away
+    lin, _, _ = bumper_ramp(g, 10, -0.1, 0.3)
+    assert lin == -0.1  # and back off
+
+
+def test_bumper_slows_in_between():
+    g = gate()
+    lin, _, _ = bumper_ramp(g, 0, 0.6, 0.675)  # halfway between stop (0.35) and slow (1.0)
+    assert 0.15 < lin < 0.6
+    lin, _, _ = bumper_ramp(g, 10, 0.6, math.inf)
+    assert lin == 0.6
+
+
+def test_bumper_optional_unless_required():
+    g = gate()
+    assert ramp(g, 0, 0.5)[0] == 0.5  # no sensor fitted: no limit
+    g = gate(require_bumper=True)
+    assert ramp(g, 0, 0.5)[0] == GateParams().bumper_slow_speed  # required but silent: creep

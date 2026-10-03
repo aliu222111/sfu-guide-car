@@ -23,9 +23,9 @@ def project_to_ground(K, R, t, u, v, max_range: float = 8.0):
     d = rays(K, u, v) @ np.asarray(R, dtype=float).T
     t = np.asarray(t, dtype=float)
     dz = d[..., 2]
-    with np.errstate(divide="ignore", invalid="ignore"):
+    with np.errstate(divide="ignore", invalid="ignore"):  # rays at the horizon: masked below
         s = -t[2] / dz
-    pts = t + s[..., None] * d
+        pts = t + s[..., None] * d
     ok = (dz < -1e-6) & (s > 0) & (np.hypot(pts[..., 0], pts[..., 1]) <= max_range)
     return pts, ok
 

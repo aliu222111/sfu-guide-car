@@ -72,6 +72,9 @@ class LocalizationManager(Node):
         self.map_frame = self.declare_parameter("map_frame", "map").value
         self.odom_timeout = self.declare_parameter("odom_timeout", 0.5).value
         self.rtab_frame = self.declare_parameter("rtabmap_frame", "rtabmap_map").value
+        # False with one camera (spec section 18): no RTAB-Map, indoor fixes come
+        # from signs only, so no database or alignment is expected.
+        self.use_rtabmap = bool(self.declare_parameter("use_rtabmap", True).value)
         self.alignments = load_alignments(align_path)
         self.floor = None
         self.mode_set = False
@@ -101,12 +104,14 @@ class LocalizationManager(Node):
         from nav2_msgs.srv import LoadMap
 
         self.load_map = self.create_client(LoadMap, "map_server/load_map")
-        try:
-            from rtabmap_msgs.srv import LoadDatabase  # noqa: F401
+        self.load_db = None
+        if self.use_rtabmap:
+            try:
+                from rtabmap_msgs.srv import LoadDatabase  # noqa: F401
 
-            self.load_db = self.create_client(LoadDatabase, "rtabmap/load_database")
-        except ImportError:
-            self.load_db = None
+                self.load_db = self.create_client(LoadDatabase, "rtabmap/load_database")
+            except ImportError:
+                pass
         self.pending_map = None
         self.map_call = None
         self.create_timer(0.2, self.publish_localized)
@@ -142,7 +147,7 @@ class LocalizationManager(Node):
         else:
             self.pending_map = str(grid.resolve())
             self.send_map()
-        if floor is not None and floor not in self.alignments:
+        if self.use_rtabmap and floor is not None and floor not in self.alignments:
             self.get_logger().warn(f"no RTAB-Map alignment for {floor}; run align_floor (spec section 6)")
         if self.load_db is not None and floor is not None:
             from rtabmap_msgs.srv import LoadDatabase
@@ -153,7 +158,7 @@ class LocalizationManager(Node):
                 req.database_path = str(db.resolve())
                 req.clear = False
                 self.load_db.call_async(req)
-            elif not db.exists():
+            elif not db.exists() and self.use_rtabmap:
                 self.get_logger().warn(f"no RTAB-Map database {db}")
 
     def send_map(self):

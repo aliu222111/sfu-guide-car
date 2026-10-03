@@ -5,6 +5,7 @@ from __future__ import annotations
 import rclpy
 from geometry_msgs.msg import Twist
 from rclpy.node import Node
+from sensor_msgs.msg import Range
 from std_msgs.msg import Bool, Float32, String
 
 from .velocity_gate import GateParams, VelocityGate
@@ -24,6 +25,7 @@ class VelocityGateNode(Node):
         self.create_subscription(Bool, "guide/outdoor", lambda m: self.gate.set_outdoor(m.data), 10)
         self.create_subscription(Bool, "phone/alive", lambda m: self.gate.set_phone_alive(m.data, self.now()), 10)
         self.create_subscription(Float32, "people/nearest", lambda m: self.gate.person(m.data, self.now()), 10)
+        self.create_subscription(Range, "bumper/range", lambda m: self.gate.bumper(m.range, self.now()), 10)
         self.pub = self.create_publisher(Twist, "cmd_vel", 10)
         self.reason_pub = self.create_publisher(String, "guide/gate_reason", 10)
         self.last_reason = None

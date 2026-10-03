@@ -20,6 +20,7 @@ from launch_ros.actions import Node
 def nodes(context):
     mode = LaunchConfiguration("mode").perform(context)
     handheld = LaunchConfiguration("handheld").perform(context).lower() == "true"
+    odom_imu = LaunchConfiguration("odom_imu").perform(context).lower() == "true"
     db = os.path.abspath(os.path.expanduser(LaunchConfiguration("database").perform(context)))
     os.makedirs(os.path.dirname(db), exist_ok=True)
     stereo_remaps = [
@@ -45,7 +46,10 @@ def nodes(context):
             "Vis/MinInliers": "15",
             "Odom/ResetCountdown": "0",    # stay lost (and stopped) rather than silently reset
         }],
-        remappings=stereo_remaps + [("odom", "/vo"), ("imu", "/phone/imu")],
+        # The phone gyro reaches the EKF directly. Feeding it to stereo odometry too
+        # is opt-in: in the simulator an IMU without orientation warped the first
+        # corner of every lap (3.4 m worst error against 0.65 m without it).
+        remappings=stereo_remaps + [("odom", "/vo"), ("imu", "/phone/imu" if odom_imu else "imu_unused")],
     )
     localization = mode == "localization"
     slam = Node(
@@ -60,8 +64,16 @@ def nodes(context):
             "subscribe_rgb": False,
             "database_path": db,
             "map_frame_id": "map" if handheld else "rtabmap_map",
-            "odom_frame_id": "odom",
+            # No odom_frame_id here: with it set, RTAB-Map ignores the odometry topic
+            # and reads odom -> base_link from TF at each image's stamp, which fails
+            # for every frame stereo odometry skipped. Subscribing to the topic pairs
+            # each image with the odometry computed from it.
             "publish_tf": handheld,
+            # odom_sensor_sync re-reads odom -> base_link at each image's stamp. On the
+            # car that is the 30 Hz EKF. On the handheld rig it is stereo odometry,
+            # which skips frames when slower than the cameras, so the lookup would
+            # fail and RTAB-Map would drop almost every frame.
+            "odom_sensor_sync": not handheld,
             "Mem/IncrementalMemory": "false" if localization else "true",
             "Mem/InitWMWithAllNodes": "true" if localization else "false",
             "RGBD/OptimizeMaxError": "3.0",
@@ -77,6 +89,7 @@ def generate_launch_description():
         DeclareLaunchArgument("mode", default_value="localization", choices=["mapping", "localization"]),
         DeclareLaunchArgument("database", default_value="rtabmap_db/AQ-03.db"),
         DeclareLaunchArgument("handheld", default_value="false"),
+        DeclareLaunchArgument("odom_imu", default_value="false", description="give stereo odometry the phone IMU"),
         DeclareLaunchArgument("fresh", default_value="false", description="mapping: start a new database"),
         OpaqueFunction(function=nodes),
     ])

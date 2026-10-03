@@ -24,7 +24,7 @@ Stated by Alex:
 - Buildings for version one: AQ, WMC, MBC.
 - Compute: a laptop that can dual-boot Ubuntu, riding on the car. An NVIDIA GPU is the main plan; section 15 is the plan without one; section 16 is the optional cloud split. The laptop is the main plan either way. A Raspberry Pi 4 is in hand but is not enough for stereo SLAM and is not used for perception.
 - Sensors in hand: two 720p USB webcams, Adafruit Ultimate GPS, WiFi, Bluetooth.
-- Chassis: Alex is building it. Steering geometry is open. No wheel encoders for now. An old phone strapped to the car is the IMU (gyro, accelerometer, compass) and a second GPS.
+- Chassis: Alex is building it, tank-style (skid) steering. No wheel encoders for now. An old phone strapped to the car is the IMU (gyro, accelerometer, compass) and a second GPS.
 - Interaction: phone web app is the main controller. An LLM voice agent on the car serves students without a phone. Follow-aware behaviour is required. Elevators and doors are handled by asking the student.
 - Learned vision wanted: floor segmentation, room-sign reading, person detection, and glass handling.
 - Localization: Alex was not sure. RTAB-Map stereo odometry with the phone IMU, GPS outdoors, room-sign reading and corridor vanishing-point heading indoors, is the recommendation and is adopted here.
@@ -33,7 +33,7 @@ Stated by Alex:
 
 Assumptions made by Claude and open to correction:
 
-- Differential drive chassis, so the car can turn in place in corridors. If Alex builds Ackermann steering instead, Nav2 needs the Smac Hybrid-A* planner and the Regulated Pure Pursuit controller, and in-place rotation recovery is disabled. Everything else is unchanged.
+- Tank-style (skid-steer) chassis, decided after the interview: each side's track or wheels driven together, turning by driving the sides at different speeds. Kinematically it is a differential drive, so it turns in place and Nav2's model holds; section 10 covers what skid steering changes.
 - The car drives at 0.6 to 1.0 m/s outdoors and 0.4 to 0.6 m/s indoors.
 - SFU WiFi is available for the voice agent's LLM calls. The phone app runs on campus WiFi.
 - The laptop runs Ubuntu 24.04 and ROS 2 Jazzy.
@@ -142,7 +142,7 @@ Crossing an entrance node switches the EKF between the GPS-fused outdoor configu
 
 ### Without encoders
 
-Visual odometry needs texture. On blank walls, glass, darkness or motion blur it reports no motion and the EKF holds the last position; heading keeps updating from the phone gyro and the vanishing point. Nothing on the car measures distance rolled, so the mission node stops the motors the moment RTAB-Map reports lost, rather than driving blind. Mitigations: speed limits above, turn rate capped at 30 degrees per second so rolling-shutter smear stays small, cameras set to fixed exposure, and a recovery behaviour that rotates slowly in place until RTAB-Map reacquires or a sign is read. Adding encoders later is a one-line EKF change.
+Visual odometry needs texture. On blank walls, glass, darkness or motion blur it reports no motion and the EKF holds the last position; heading keeps updating from the phone gyro and the vanishing point. Nothing on the car measures distance rolled, so the mission node stops the motors the moment RTAB-Map reports lost, rather than driving blind. Mitigations: speed limits above, turn rate capped at 30 degrees per second so rolling-shutter smear stays small, cameras set to fixed exposure, and a recovery behaviour that rotates slowly in place until RTAB-Map reacquires or a sign is read. Adding encoders later is a one-line EKF change, for forward speed only: tracks slip sideways in every turn, so encoder yaw is never fused; heading stays with the gyro, visual odometry and the vanishing point.
 
 Phone IMU caveats: readings arrive over WiFi with 20 to 80 ms of jitter, so the bridge node uses the phone's own timestamps and estimates a clock offset once at start. If a WiFi hop drops the stream for more than 1 s the EKF falls back to visual odometry heading and the car slows to indoor speed until the stream returns.
 
@@ -187,7 +187,15 @@ Push-to-talk button on the car or a wake word. Audio to text with faster-whisper
 
 `guide_bridge` is a ROS 2 node that opens one USB serial port. Downlink at 20 Hz: one line `V <linear m/s> <angular rad/s>\n`. Uplink is optional: if encoders are added, `E <left ticks> <right ticks>\n`. The phone IMU does not go through serial; a second small node in `guide_bridge` receives the phone app's HTTP posts and publishes `sensor_msgs/Imu`, `MagneticField` and `NavSatFix`. Any microcontroller that can parse those lines works. A watchdog on the microcontroller stops the motors if no `V` line arrives for 500 ms.
 
-If the chassis is Ackermann, the `V` line stays the same and the microcontroller converts angular velocity to a steering angle. The Nav2 plugin change is noted in section 2.
+### Tank steering
+
+The microcontroller mixes `V` into side speeds the textbook way, `v -/+ w * track / 2`. A skid-steer car drags its tracks sideways to turn, so on a real floor it turns slower than that mix says, by an amount that depends on the floor (more on carpet than on concrete), and below some turn rate a pivot in place does not start at all. Three things handle it:
+
+- The serial bridge scales the turn rate by `turn_gain` and raises deliberate pivots (car nearly stopped, request above 0.05 rad/s) to at least `min_pivot_rate`. Both live in `guide.yaml`, so recalibrating for a new floor needs no reflash. `ros2 run guide_bridge calibrate_turn` measures both with the phone gyro: it spins the car in place both ways at 0.15 to 0.45 rad/s and compares what the gyro saw with what was asked.
+- The firmware maps any non-zero side speed onto `MIN_PWM`..255, so small commands still move a track; `MIN_PWM` is measured on the floor.
+- Nav2's controller is the Rotation Shim around DWB: when the path heading is more than 0.6 rad off, the car pivots to face it first (at 0.45 rad/s), then DWB follows. A tank turns on the spot well and scrubs on tight arcs, so turning first is straighter and more predictable.
+
+Heading never comes from the tracks (section 6). In simulation (`sim.launch.py turn_slip:=1.5 pivot_stall:=0.2`, a car that turns at two thirds of the asked rate and does not pivot below 0.2 rad/s), the uncompensated car stalls at a waypoint and the trip ends blocked; with the gain and minimum pivot rate the calibration would print, it arrives as fast as an ideal chassis.
 
 ## 11. Phases and exit criteria
 
@@ -288,3 +296,18 @@ Behaviour on network loss: sign reading and voice simply pause; the mission node
 ## 17. Not in scope for version one
 
 Buildings other than AQ, WMC and MBC. Driving in rain. Stairs. Autonomous elevator button pressing. Student accounts, trip history, or any backend beyond the laptop. Training any model. Running perception on the Raspberry Pi 4.
+
+## 18. Plan C: one camera
+
+For when only one webcam works: one breaks or goes missing, the stereo mount will not hold its calibration, or the second camera is wanted as the rear camera. One launch switch, `cameras:=mono`, on any launch file that starts the cameras. Everything else in this design stays.
+
+Already single-camera, unchanged: floor segmentation and person detection (both place things on the ground plane from the camera's known height and tilt, section 7), sign reading, vanishing-point heading, the rear camera.
+
+What changes:
+
+- **Odometry.** `mono_odometry` replaces RTAB-Map's stereo odometry on the same `/vo` topic with the same "lost" convention, so the EKFs, the localization manager and the velocity gate are untouched. It tracks corners on the floor between frames, puts both ends of each track on the ground plane, and fits the car's 2D motion with RANSAC; walls, people and furniture are not on the plane and fall out as outliers. Scale is metric because the camera height is known, so measure it to the millimetre: 1 cm of height error is 2 % of distance. The camera keeps the 0.2 rad downward tilt from the URDF, which puts more floor in view. It needs a floor with some texture (carpet, terrazzo, tile, scuffed concrete); polished plain floor reads as lost, like stereo on a blank wall.
+- **Indoor localization.** No RTAB-Map, so no mapping drive, no database and no alignment. The car is placed and re-placed by sign reads at doors, as after an elevator ride today; heading is held by the phone gyro and the vanishing point; between signs position drifts with odometry. The localization manager runs with `use_rtabmap: false`. If signs prove too far apart in testing, the next step is AMCL on the GIS floor grid fed by a pseudo laser scan made from floor segmentation's floor edge (`/floor/free`); it needs no mapping drive either. Not built until tests ask for it.
+- **Obstacles.** No stereo depth cloud. Nav2's costmaps take obstacles from floor segmentation only (the launch rewrites `nav2.yaml` without the voxel layer). That sees anything standing on the floor but not what overhangs it: table tops, railings, open doors at height, and glass. So the forward ultrasonic sensor (HC-SR04 on the bumper, `HAVE_ULTRASONIC` in the firmware, `U <cm>` on the serial line) becomes required: the velocity gate stops forward motion under 0.35 m, slows from 1 m, and creeps at 0.15 m/s if the sensor goes silent. Turning and backing away stay allowed. A GPU laptop could add a monocular metric depth network (Depth Anything V2 Metric Indoor) as a depth cloud later; not built.
+- **Calibration.** The monocular calibrator replaces the stereo one: `cameracalibrator --size 8x6 --square 0.025 image:=/stereo/left/image_raw camera:=/stereo/left`, saved as `left.yaml`. Measure lens height and tilt into the URDF (`cam_z`, `cam_pitch`).
+
+Measured in simulation (`stereo_sim`'s left image only, level camera at 0.45 m, 1.3 laps of a 60 m corridor loop): 74.8 m driven, never lost, 3.3 % drift (2.5 m at the end), almost all from heading picked up in the first corner, which on the car the gyro and vanishing point hold. Stereo odometry on the same run drifts 0.2 to 1 %. Expect more frequent sign fixes to be needed than with stereo, and indoor speed is kept at 0.4 m/s.

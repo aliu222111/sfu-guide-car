@@ -1,19 +1,32 @@
 // Motor controller for the SFU guide car (spec section 10).
 //
 // Reads "V <linear m/s> <angular rad/s>\n" over USB serial at 115200 baud and
-// drives a differential chassis through a two-channel driver with one PWM and
+// drives a tank-steered (skid-steer: tracks, or four wheels with each side
+// driven together) or two-wheel differential chassis through a two-channel driver with one PWM and
 // one direction pin per side (Cytron MDD10A, Pololu DRV8838/G2 and similar; a
 // TB6612FNG or L298N needs IN1/IN2 per side, so adapt drive()). Stops the
 // motors if no V line arrives for 500 ms. Sends "B <0|1>\n" when the
 // push-to-talk button changes. If encoders are fitted, define HAVE_ENCODERS and
-// it sends "E <left> <right>\n" at 20 Hz.
+// it sends "E <left> <right>\n" at 20 Hz. With an HC-SR04 ultrasonic sensor on
+// the front bumper (required with one camera, spec section 18), define
+// HAVE_ULTRASONIC and it sends "U <cm>\n" at 10 Hz, 0 when nothing echoes.
+//
+// Tank steering: the tracks slip sideways in turns, so the car turns slower
+// than this geometric mix says. The laptop's serial bridge scales the turn rate
+// up (turn_gain, measured with "ros2 run guide_bridge calibrate_turn"), so
+// nothing here changes when the floor does. Set TRACK_WIDTH_M to the distance
+// between the track centres and MIN_PWM to the PWM at which a track just
+// starts to move when the car pivots on the floor (tracks need more than
+// wheels to break loose).
 //
 // Ackermann chassis: replace mix() so angular velocity becomes a steering angle
 // (spec section 10); the serial protocol stays the same.
 
 // ---- Configure for the chassis --------------------------------------------
-const float WHEEL_BASE_M = 0.30;       // distance between left and right wheels
+const float TRACK_WIDTH_M = 0.30;      // between the centres of the left and right tracks (or wheels)
 const float MAX_WHEEL_SPEED = 1.2;     // m/s at full PWM, measure on the bench
+const int MIN_PWM = 60;                // 0..255: below this a side does not move; measure on the floor
+const float STOP_SPEED = 0.01;         // m/s: side speeds under this are a stop, not MIN_PWM
 const unsigned long WATCHDOG_MS = 500;
 const int PWM_L = 5, DIR_L = 4, PWM_R = 6, DIR_R = 7;
 const int BUTTON_PIN = 2;              // to ground, internal pull-up
@@ -24,6 +37,12 @@ const int ENC_LA = 18, ENC_LB = 19, ENC_RA = 20, ENC_RB = 21;  // interrupt pins
 volatile long ticksL = 0, ticksR = 0;
 void isrL() { ticksL += digitalRead(ENC_LB) ? -1 : 1; }
 void isrR() { ticksR += digitalRead(ENC_RB) ? 1 : -1; }
+#endif
+// #define HAVE_ULTRASONIC
+#ifdef HAVE_ULTRASONIC
+const int US_TRIG = 8, US_ECHO = 9;
+const unsigned long US_TIMEOUT_US = 25000;  // about 4 m; also bounds how long loop() waits
+unsigned long lastUs = 0;
 #endif
 // ---------------------------------------------------------------------------
 
@@ -40,12 +59,14 @@ void drive(int pwmPin, int dirPin, bool invert, float speed) {
   if (f < -1) f = -1;
   bool forward = (f >= 0) != invert;
   digitalWrite(dirPin, forward ? HIGH : LOW);
-  analogWrite(pwmPin, (int)(fabs(f) * 255));
+  // Map the speed onto MIN_PWM..255 so small commands still move the track.
+  int pwm = fabs(speed) < STOP_SPEED ? 0 : MIN_PWM + (int)(fabs(f) * (255 - MIN_PWM));
+  analogWrite(pwmPin, pwm);
 }
 
 void mix(float v, float w) {
-  drive(PWM_L, DIR_L, INVERT_L, v - w * WHEEL_BASE_M / 2);
-  drive(PWM_R, DIR_R, INVERT_R, v + w * WHEEL_BASE_M / 2);
+  drive(PWM_L, DIR_L, INVERT_L, v - w * TRACK_WIDTH_M / 2);
+  drive(PWM_R, DIR_R, INVERT_R, v + w * TRACK_WIDTH_M / 2);
 }
 
 void stopMotors() { mix(0, 0); }
@@ -74,6 +95,10 @@ void setup() {
   pinMode(ENC_RA, INPUT_PULLUP); pinMode(ENC_RB, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(ENC_LA), isrL, RISING);
   attachInterrupt(digitalPinToInterrupt(ENC_RA), isrR, RISING);
+#endif
+#ifdef HAVE_ULTRASONIC
+  pinMode(US_TRIG, OUTPUT); digitalWrite(US_TRIG, LOW);
+  pinMode(US_ECHO, INPUT);
 #endif
   stopMotors();
 }
@@ -109,6 +134,14 @@ void loop() {
     lastEnc = millis();
     noInterrupts(); long l = ticksL, r = ticksR; interrupts();
     Serial.print("E "); Serial.print(l); Serial.print(' '); Serial.println(r);
+  }
+#endif
+#ifdef HAVE_ULTRASONIC
+  if (millis() - lastUs >= 100) {
+    lastUs = millis();
+    digitalWrite(US_TRIG, HIGH); delayMicroseconds(10); digitalWrite(US_TRIG, LOW);
+    unsigned long echo = pulseIn(US_ECHO, HIGH, US_TIMEOUT_US);  // 0 on timeout
+    Serial.print("U "); Serial.println(echo / 58);                // microseconds to cm
   }
 #endif
 }

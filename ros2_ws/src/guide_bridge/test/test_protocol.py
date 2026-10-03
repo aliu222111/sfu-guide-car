@@ -1,3 +1,5 @@
+import math
+
 from guide_bridge.protocol import MAX_LINEAR, Button, Encoders, LineBuffer, format_velocity, parse_line
 
 
@@ -22,3 +24,12 @@ def test_line_buffer_splits_and_drops_overlong():
     assert b.feed(b"1\n") == [b"B 1"]
     assert b.feed(b"x" * 20) == []
     assert b.buf == b""
+
+
+def test_ultrasonic():
+    from guide_bridge.protocol import Ultrasonic
+
+    assert parse_line(b"U 87") == Ultrasonic(0.87)
+    assert parse_line("U 0") == Ultrasonic(math.inf)
+    assert parse_line("U -3") is None
+    assert parse_line("U x") is None

@@ -84,16 +84,40 @@ Results on the final code and maps, run with `ros2 run guide_bringup sim_trip`:
 ## Open items, not fixable without the hardware or site visits
 
 - **Verify on site:** every connector in `sfu_map/connectors.yaml` (14 elevators, 1 entrance) and
-  all 92 inferred doorways are `verified: false`.
-- **No outdoor paths.** There is no car route between buildings until `outdoor_links` are drawn or
-  OSM footpaths are imported.
-- **Disconnected corridor pieces.** Several floors still have pieces the GIS separates by more than
-  0.45 m; `maps/build_report.txt` lists them. Each needs a `links` entry after a look on site.
-- **RTAB-Map** is not packaged for RoboStack, so `rtabmap.launch.py` is untested here. Its parameter
-  names follow the rtabmap_ros documentation.
+  all 131 inferred doorways (door edges between corridor pieces) are `verified: false`.
+- **Outdoor paths come from a drawing.** The walkways between AQ, MBC and WMC are traced from SFU's
+  2024 accessibility map PDF (`sfu-map walkways`, georeferenced to the GIS footprints, accurate to a
+  few metres), with 19 entrances from its level labels. Each entrance still needs a look on site.
+- **Disconnected corridor pieces.** Open public rooms (lobbies, lounges, study areas, dining) now count
+  as free space, and pieces facing one room across a thin wall are joined through it (two places,
+  flagged "check on site"). From the AQ Convocation Mall entrance 1764 of 1923 destinations and 96
+  of 98 classrooms are car-reachable; `maps/build_report.txt` lists the rest (WMC 2200 and 2202,
+  MBC-04, some suites), each needing a `links` entry after a look on site.
+- **RTAB-Map** is not packaged for RoboStack. Here it was built from source (core 0.23 without GUI,
+  rtabmap_ros `ros2` branch, `rtabmap_util` patched not to require the GUI component); on Ubuntu
+  `apt install ros-jazzy-rtabmap-ros` needs none of that. `stereo_sim` (a ray-traced textured 60 m
+  ring corridor) and `rtabmap_check` test it against ground truth. Three launch bugs found and fixed:
+  (1) `odom_frame_id` on the rtabmap node made it ignore the odometry topic and read TF at each image
+  stamp, which fails for every frame stereo odometry skipped, so it kept 2 map nodes in 78 m (and on
+  the car would have ignored `/odometry/local`); (2) `odom_sensor_sync` has the same failure on the
+  handheld rig; (3) giving stereo odometry an IMU without orientation warped the first corner of
+  every lap (3.4 m worst error), so `odom_imu` is now opt-in and the gyro reaches only the EKF.
+  Result: mapping 1.3 laps, 0.2 % odometry drift, 208 map nodes, 46 loop closures; localization
+  against that map from a different start, median error 0.47 m. Real webcams, real texture and real
+  lighting are still untested.
+- **Tank steering** (decided after the audit): `turn_gain` and `min_pivot_rate` in the serial bridge,
+  `MIN_PWM` in the firmware, `calibrate_turn` to measure them, Rotation Shim controller. In the sim a
+  car turning at 2/3 of the asked rate and stalling below 0.2 rad/s ends blocked without compensation
+  and arrives with it (AQ 3046 in 86 s; AQ 6106 via elevator and two doors in 323 s). The real
+  slip is floor-dependent and must be measured.
+- **One camera** (spec section 18, `cameras:=mono`): floor-plane odometry drifts 3.3 % in the sim
+  (stereo: 0.2 to 1 %), there is no RTAB-Map, and the ultrasonic bumper becomes required. Untested
+  on a real floor.
 - **Not exercised here:** usb_cam, nmea_navsat_driver, the perception models (SegFormer, YOLO11,
-  PaddleOCR, Whisper, Piper) and the Claude API calls. Their logic is unit-tested with fakes, and the
-  real calls need the laptop and an `ANTHROPIC_API_KEY`.
+  PaddleOCR, Whisper, Piper) and the real Claude calls. Claude now runs through the owner's
+  Claude subscription (Claude Agent SDK, `CLAUDE_CODE_OAUTH_TOKEN` from `claude setup-token`) with
+  the API key as a fallback. Both are unit-tested with fakes; the real calls need the laptop and
+  the token.
 - **CPU cost.** Nav2's global costmap covers the whole building at 5 cm (3,594 × 3,613 cells for AQ).
   In this 4-core container the planner took about 1 s per plan and the controller ran at about 5 Hz.
   If the laptop struggles, crop grids to each floor's corridors, or plan on a 10 cm copy.
