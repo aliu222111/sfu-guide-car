@@ -16,7 +16,7 @@ from dataclasses import dataclass
 
 @dataclass
 class FollowParams:
-    heartbeat_timeout: float = 2.0
+    heartbeat_timeout: float = 2.5  # 1 Hz heartbeats: two missed (spec section 9)
     rssi_threshold: float = -80.0  # dBm, calibrate per phone
     rssi_hold: float = 3.0
     student_max_distance: float = 6.0  # m behind the car, rear camera (phase 6)

@@ -1,8 +1,9 @@
 // Motor controller for the SFU guide car (spec section 10).
 //
 // Reads "V <linear m/s> <angular rad/s>\n" over USB serial at 115200 baud and
-// drives a differential chassis through a two-channel H-bridge with one PWM and
-// one direction pin per side (TB6612FNG, Cytron MDD10A and similar). Stops the
+// drives a differential chassis through a two-channel driver with one PWM and
+// one direction pin per side (Cytron MDD10A, Pololu DRV8838/G2 and similar; a
+// TB6612FNG or L298N needs IN1/IN2 per side, so adapt drive()). Stops the
 // motors if no V line arrives for 500 ms. Sends "B <0|1>\n" when the
 // push-to-talk button changes. If encoders are fitted, define HAVE_ENCODERS and
 // it sends "E <left> <right>\n" at 20 Hz.
@@ -29,6 +30,7 @@ void isrR() { ticksR += digitalRead(ENC_RB) ? 1 : -1; }
 char line[48];
 uint8_t len = 0;
 unsigned long lastCmd = 0;
+bool discarding = false;  // inside an overlong line: ignore until its newline
 bool lastButton = false;
 unsigned long lastEnc = 0;
 
@@ -79,9 +81,18 @@ void setup() {
 void loop() {
   while (Serial.available()) {
     char c = Serial.read();
-    if (c == '\n') { handleLine(); len = 0; }
-    else if (len < sizeof(line) - 1) line[len++] = c;
-    else len = 0;  // overlong line: drop it
+    if (c == '\n') {
+      if (!discarding) handleLine();
+      len = 0;
+      discarding = false;
+    } else if (discarding) {
+      // drop the rest of an overlong line so it cannot become a command
+    } else if (len < sizeof(line) - 1) {
+      line[len++] = c;
+    } else {
+      len = 0;
+      discarding = true;
+    }
   }
   if (millis() - lastCmd > WATCHDOG_MS) stopMotors();
 

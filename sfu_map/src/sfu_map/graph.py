@@ -40,6 +40,8 @@ STAIRS_IOU = 0.3
 ELEVATOR_BASE = 20.0
 ELEVATOR_PER_LEVEL = 4.0
 STAIRS_PER_LEVEL = 8.0
+# Must match the Nav2 floor grids (cli.py --resolution).
+GRID_RESOLUTION = 0.05
 
 
 @dataclass
@@ -105,20 +107,22 @@ class FloorGraphBuilder:
     def _line(self, a, b):
         return LineString([self._xy(a), self._xy(b)])
 
-    def inset_point(self, target: BaseGeometry, toward: BaseGeometry | None = None) -> Point | None:
+    def inset_point(self, target: BaseGeometry, toward: BaseGeometry | None = None, region: BaseGeometry | None = None) -> Point | None:
         """A point in free space near ``target``, as far from the walls as ``DOOR_INSETS`` allow.
 
         Nodes are Nav2 goals, so they must sit outside the car's footprint plus
         inflation: 0.8 m from the wall where the corridor is wide enough, less
         in narrow corridors. ``toward`` picks which part of ``target`` to start
-        from; by default its representative point.
+        from; by default its representative point. ``region`` keeps the point
+        inside one piece of the floor's free space (both sides of a doorway).
         """
-        if self.free.is_empty:
+        area = self.free if region is None else region
+        if area.is_empty:
             return None
         src = toward if toward is not None else target.representative_point()
-        _, p = nearest_points(src, self.free)
+        _, p = nearest_points(src, area)
         for d in DOOR_INSETS:
-            inner = self._inner(d)
+            inner = self._inner(d) if region is None else region.buffer(-d)
             if inner.is_empty:
                 continue
             _, q = nearest_points(p, inner)
@@ -252,9 +256,15 @@ def build_graph(floors: dict[str, Floor], connectors: Connectors, spacing: float
     _add_elevators(g, floors, builders, connectors)
     _add_entrances(g, floors, builders, connectors)
     _add_links(g, floors, builders, connectors)
+    from .checks import prune_to_grid
+    from .raster import GridSpec, rasterize
+
     for fb in builders.values():
         fb.finish()
         _snap_inside(g, fb)
+        if not fb.free.is_empty:
+            spec = GridSpec.around(fb.free.bounds, GRID_RESOLUTION, margin=1.0)
+            g.warnings.extend(prune_to_grid(g, fb.floor.id, rasterize(fb.free, spec), spec))
     _add_outdoor(g, connectors)
     return g, dict(sorted(destinations.items()))
 
@@ -296,8 +306,11 @@ def _bridge_gaps(g: Graph, fb: FloorGraphBuilder):
         else:
             mid_b = nearest_points(a, b)[1]
         mid_a = nearest_points(mid_b, a)[1]
-        pa = fb.inset_point(a, toward=mid_a)
-        pb = fb.inset_point(b, toward=mid_b)
+        pa = fb.inset_point(a, toward=mid_a, region=a)
+        pb = fb.inset_point(b, toward=mid_b, region=b)
+        if pa is None or pb is None or pa.distance(pb) < 0.1:
+            g.warnings.append(f"{fb.floor.id}: could not place a doorway between two corridor pieces near ({mid_b.x:.1f}, {mid_b.y:.1f})")
+            continue
         na, nb = f"{fb.floor.id}:gap{k}a", f"{fb.floor.id}:gap{k}b"
         g.add_node(na, "doorway", fb.floor.id, pa.x, pa.y)
         g.add_node(nb, "doorway", fb.floor.id, pb.x, pb.y)
@@ -464,10 +477,13 @@ def _add_outdoor(g: Graph, connectors: Connectors):
 
 
 def outdoor_geometry(g: Graph) -> BaseGeometry:
-    """Polylines of all outdoor edges, for the outdoor occupancy grid."""
+    """Polylines of all outdoor edges, for the outdoor occupancy grid.
+
+    Includes the threshold edges between an entrance and the outside, so the car
+    can drive the door leg in and out of a building on this grid."""
     lines = []
     for e in g.edges.values():
         a, b = g.nodes[e["a"]], g.nodes[e["b"]]
-        if a["floor"] is None and b["floor"] is None:
+        if a["floor"] is None or b["floor"] is None:
             lines.append(LineString([(a["x"], a["y"]), (b["x"], b["y"])]))
     return unary_union(lines) if lines else LineString()

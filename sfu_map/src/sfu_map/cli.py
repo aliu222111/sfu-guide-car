@@ -34,12 +34,20 @@ def cmd_build(args) -> int:
         old = building_bounds.get(fl.building, b)
         building_bounds[fl.building] = (min(old[0], b[0]), min(old[1], b[1]), max(old[2], b[2]), max(old[3], b[3]))
 
+    graph, destinations = build_graph(floors, connectors, spacing=args.spacing)
+    openings = doorway_openings(graph)
+
     floor_meta = {}
     specs = {}
+    masks = {}
     for fid, fl in floors.items():
         spec = GridSpec.around(building_bounds[fl.building], args.resolution, margin=2.0)
         specs[fid] = spec
         mask = rasterize(fl.free_space, spec)
+        masks[fid] = mask.copy()  # GIS free space only, for the graph check
+        if fid in openings:
+            # Doorways the graph crosses: the GIS draws a wall line there.
+            mask |= rasterize(openings[fid], spec)
         yaml_path = write_nav2_map(mask, spec, out / "floors" / f"{fid}{ext}")
         floor_meta[fid] = {
             "building": fl.building,
@@ -51,7 +59,6 @@ def cmd_build(args) -> int:
         }
         print(f"grid {fid:8s} {spec.width}x{spec.height} free {fl.free_space.area:7.0f} m2", file=sys.stderr)
 
-    graph, destinations = build_graph(floors, connectors, spacing=args.spacing)
 
     outdoor = outdoor_geometry(graph)
     if not outdoor.is_empty:
@@ -74,6 +81,11 @@ def cmd_build(args) -> int:
         json.dump(destinations, f, indent=1)
 
     report = _report(floors, graph, destinations, connectors)
+    from .checks import grid_splits
+
+    splits = [m for fid in floors for m in grid_splits(graph, fid, masks[fid], specs[fid])]
+    report.append(f"graph pieces the Nav2 grid splits for the car ({len(splits)}; must be 0):")
+    report.extend("  " + m for m in splits)
     rg = RouteGraph(doc, destinations)
     for start, goal in args.check:
         try:
@@ -134,6 +146,23 @@ def _report(floors, graph, destinations, connectors) -> list[str]:
     lines.extend("  " + w for w in graph.warnings)
     lines.append("")
     return lines
+
+
+DOOR_WIDTH = 0.9  # metres carved into the grid along each door edge
+
+
+def doorway_openings(graph) -> dict:
+    """Per floor, the strips to open in the grid along same-floor door edges."""
+    from shapely.geometry import LineString
+    from shapely.ops import unary_union
+
+    strips: dict[str, list] = {}
+    for e in graph.edges.values():
+        a, b = graph.nodes[e["a"]], graph.nodes[e["b"]]
+        if e["type"] == "door" and a["floor"] and a["floor"] == b["floor"]:
+            line = LineString([(a["x"], a["y"]), (b["x"], b["y"])])
+            strips.setdefault(a["floor"], []).append(line.buffer(DOOR_WIDTH / 2, cap_style="flat"))
+    return {f: unary_union(v) for f, v in strips.items()}
 
 
 def cmd_route(args) -> int:

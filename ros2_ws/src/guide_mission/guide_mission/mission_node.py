@@ -23,6 +23,7 @@ from nav2_msgs.action import NavigateThroughPoses
 from rclpy.action import ActionClient
 from rclpy.duration import Duration
 from rclpy.node import Node
+from rclpy.qos import DurabilityPolicy, QoSProfile
 from rclpy.time import Time
 from std_msgs.msg import Bool, Empty, Float32, Float64, String
 from tf2_ros import Buffer, TransformException, TransformListener
@@ -30,6 +31,7 @@ from tf2_ros import Buffer, TransformException, TransformListener
 from sfu_map.route import RouteGraph
 
 from .follow import FollowMonitor, FollowParams
+from .instructions import waypoints
 from .signs import match_sign
 from .trip import (
     CancelNav,
@@ -44,6 +46,10 @@ from .trip import (
     Trip,
     TripParams,
 )
+
+
+# Latched topics: a node that starts late still gets the last value.
+LATCHED = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
 
 
 def yaw_to_quat(yaw):
@@ -80,18 +86,23 @@ class MissionNode(Node):
         self.nav = ActionClient(self, NavigateThroughPoses, "navigate_through_poses")
         self.goal_seq = 0
         self.goal_handle = None
-        self.creep_until = None
+        self.creep_left = 0.0  # seconds of creep still to drive
         self.creep_speed = 0.0
+        self.turn_left = 0.0  # seconds of in-place turn before the creep
+        self.turn_rate = 0.0
+        self.creep_turn_speed = self.declare_parameter("creep_turn_rate", 0.4).value  # rad/s
+        self.enable = False
+        self.recovery = False
         self.pose = None  # (x, y, yaw) in map
 
         pub = lambda t, typ, q=10: self.create_publisher(typ, t, q)
         self.state_pub = pub("guide/state", String)
         self.speech_pub = pub("guide/speech", String)
-        self.route_pub = pub("guide/route", String)
+        self.route_pub = pub("guide/route", String, LATCHED)
         self.enable_pub = pub("guide/drive_enable", Bool)
         self.recovery_pub = pub("guide/recovery_rotate", Bool)
         self.manual_pub = pub("guide/cmd_vel_manual", Twist)
-        self.locmode_pub = pub("guide/localization_mode", String)
+        self.locmode_pub = pub("guide/localization_mode", String, LATCHED)
         self.set_pose_pub = pub("guide/set_pose", PoseWithCovarianceStamped)
         self.sign_fix_pub = pub("guide/sign_fix", PoseWithCovarianceStamped)
         self.axis_pub = pub("guide/corridor_axis", Float64)
@@ -110,6 +121,9 @@ class MissionNode(Node):
         self.create_timer(0.2, self.tick)
         self.create_timer(0.1, self.creep_tick)
         self.create_timer(1.0, self.publish_state)
+        # The velocity gate drops enable and recovery unless they keep arriving.
+        self.create_timer(0.5, self.publish_drive_flags)
+        self.create_timer(5.0, self.publish_route)
         self.last_state = {"state": "idle", "detail": ""}
         self.run([SetLocalization(start_floor), DriveEnable(False)])
 
@@ -126,7 +140,10 @@ class MissionNode(Node):
             self.say("I don't know where I am yet. Give me a moment.")
             return
         self.run(self.trip.start(text, start))
-        if self.trip.path:
+        self.publish_route()
+
+    def publish_route(self):
+        if self.trip.path and self.trip.active:
             self.route_pub.publish(
                 String(data=json.dumps([{"id": n, **{k: self.rg.nodes[n][k] for k in ("x", "y", "floor", "type")}} for n in self.trip.path]))
             )
@@ -189,6 +206,7 @@ class MissionNode(Node):
                 self.navigate(a)
             elif isinstance(a, CancelNav):
                 self.cancel_nav()
+                self.stop_creep()
             elif isinstance(a, SetLocalization):
                 self.locmode_pub.publish(String(data=json.dumps({"floor": a.floor})))
             elif isinstance(a, SetPose):
@@ -197,11 +215,21 @@ class MissionNode(Node):
                 self.set_pose_pub.publish(self.pose_msg(n["x"], n["y"], yaw, a.sigma, yaw_sigma=math.pi))
             elif isinstance(a, Creep):
                 self.creep_speed = a.speed
-                self.creep_until = self.now() + a.distance / max(a.speed, 0.05)
+                self.creep_left = a.distance / max(a.speed, 0.05)
+                self.turn_left = abs(a.turn) / self.creep_turn_speed
+                self.turn_rate = math.copysign(self.creep_turn_speed, a.turn) if a.turn else 0.0
             elif isinstance(a, Recovery):
-                self.recovery_pub.publish(Bool(data=a.on))
+                self.recovery = a.on
+                self.publish_drive_flags()
             elif isinstance(a, DriveEnable):
-                self.enable_pub.publish(Bool(data=a.on))
+                self.enable = a.on
+                if not a.on:
+                    self.stop_creep()
+                self.publish_drive_flags()
+
+    def publish_drive_flags(self):
+        self.enable_pub.publish(Bool(data=self.enable))
+        self.recovery_pub.publish(Bool(data=self.recovery))
 
     def say(self, text: str):
         self.get_logger().info(f"say: {text}")
@@ -216,6 +244,7 @@ class MissionNode(Node):
             "leg": self.trip.leg_index,
             "legs": len(self.trip.legs),
             "leg_kind": leg.kind if leg else None,
+            "paused": self.trip.paused,
             "pose": list(self.pose) if self.pose else None,
         }
         self.state_pub.publish(String(data=json.dumps(doc)))
@@ -237,7 +266,7 @@ class MissionNode(Node):
     def navigate(self, a: Navigate):
         self.cancel_nav()
         poses = []
-        nodes = [self.rg.nodes[n] for n in a.nodes]
+        nodes = [self.rg.nodes[n] for n in waypoints(self.rg, a.nodes)]
         # Skip the first node: it is where the car already is.
         for i in range(1, len(nodes)):
             n = nodes[i]
@@ -288,18 +317,31 @@ class MissionNode(Node):
             self.goal_handle.cancel_goal_async()
             self.goal_handle = None
 
+    def stop_creep(self):
+        if self.creep_left > 0 or self.turn_left > 0:
+            self.creep_left = self.turn_left = 0.0
+            self.manual_pub.publish(Twist())
+
     def creep_tick(self):
-        if self.creep_until is None:
+        """Drive the elevator creep; it pauses while the trip is paused or the student is away."""
+        if self.creep_left <= 0:
+            return
+        if self.trip.paused or not self.trip.following:
+            self.manual_pub.publish(Twist())
             return
         t = Twist()
-        if self.now() < self.creep_until:
+        if self.turn_left > 0:
+            self.turn_left -= 0.1
+            t.angular.z = self.turn_rate
+            self.manual_pub.publish(t)
+            return
+        self.creep_left -= 0.1
+        if self.creep_left > 0:
             t.linear.x = self.creep_speed
             self.manual_pub.publish(t)
             return
-        self.creep_until = None
         self.manual_pub.publish(t)
         self.run(self.trip.on_creep_done())
-
 
 def main(args=None):
     rclpy.init(args=args)

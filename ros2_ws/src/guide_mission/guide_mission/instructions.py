@@ -115,3 +115,33 @@ def arrival_text(rg: RouteGraph, path: list[str], destination: str) -> str:
     else:
         side = "on your left" if cross > 0 else "on your right"
     return f"We've arrived. {destination} is {side}."
+
+
+KEEP_TYPES = {"corridor_junction", "door", "doorway", "elevator", "entrance", "outdoor_junction"}
+
+
+def waypoints(rg: RouteGraph, nodes: list[str], min_gap: float = 6.0, max_gap: float = 20.0) -> list[str]:
+    """The nodes of a leg worth sending to Nav2 as poses.
+
+    Nav2 drives through every pose it is given; passing within a corner node's
+    radius is not guaranteed, and a pose left behind makes the car turn back.
+    The grid planner follows corridors by itself, so keep only junctions, turns
+    and transitions at least ``min_gap`` apart, a pose at least every
+    ``max_gap`` metres so the route between them cannot change, and the goal.
+    """
+    if len(nodes) <= 2:
+        return list(nodes)
+    turn_nodes = {t.node for t in find_turns(rg, nodes)}
+    kept = [nodes[0]]
+    since = 0.0
+    for prev, nid in zip(nodes, nodes[1:-1]):
+        a, b = rg.nodes[prev], rg.nodes[nid]
+        since += math.hypot(b["x"] - a["x"], b["y"] - a["y"])
+        last = rg.nodes[kept[-1]]
+        gap = math.hypot(b["x"] - last["x"], b["y"] - last["y"])
+        key = nid in turn_nodes or b["type"] in KEEP_TYPES
+        if (key and gap >= min_gap) or since >= max_gap:
+            kept.append(nid)
+            since = 0.0
+    kept.append(nodes[-1])
+    return kept

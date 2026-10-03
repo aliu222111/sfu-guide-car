@@ -26,6 +26,7 @@ class GateParams:
     recovery_rate: float = math.radians(15.0)  # rad/s, slow rotation when lost
     person_timeout: float = 1.0  # s without a detector message
     require_person_detector: bool = True  # False only for phase 2 tests before perception
+    flag_timeout: float = 1.5  # s: enable, recovery and phone liveness must keep arriving
 
 
 @dataclass
@@ -36,51 +37,72 @@ class _Cmd:
 
 
 @dataclass
+class _Flag:
+    """A boolean input that only counts while it keeps being re-sent."""
+
+    value: bool = False
+    stamp: float = -math.inf
+
+    def get(self, now: float, timeout: float, default: bool = False) -> bool:
+        return self.value if now - self.stamp <= timeout else default
+
+
+@dataclass
 class GateState:
     nav: _Cmd = field(default_factory=_Cmd)
     manual: _Cmd = field(default_factory=_Cmd)
-    enabled: bool = False
-    recovery: bool = False
+    enabled: _Flag = field(default_factory=_Flag)
+    recovery: _Flag = field(default_factory=_Flag)
     outdoor: bool = False
-    phone_alive: bool = True
+    phone_alive: _Flag = field(default_factory=_Flag)
     person_distance: float = math.inf
     person_stamp: float = -math.inf
     last_linear: float = 0.0
     last_time: float | None = None
 
 
+def _finite(*vals) -> bool:
+    return all(isinstance(v, (int, float)) and math.isfinite(v) for v in vals)
+
+
 class VelocityGate:
+    """Every input is timestamped. The mission re-sends enable and recovery at
+    1 Hz and the phone bridge sends liveness at 5 Hz; when any of them stops
+    arriving (a node crashed) the gate falls back to the safe value: disabled,
+    no recovery rotation, phone treated as lost."""
+
     def __init__(self, params: GateParams | None = None):
         self.p = params or GateParams()
         self.s = GateState()
 
     # Inputs -------------------------------------------------------------------
     def nav_cmd(self, linear, angular, now):
-        self.s.nav = _Cmd(linear, angular, now)
+        self.s.nav = _Cmd(linear, angular, now) if _finite(linear, angular) else _Cmd(0.0, 0.0, -math.inf)
 
     def manual_cmd(self, linear, angular, now):
-        self.s.manual = _Cmd(linear, angular, now)
+        self.s.manual = _Cmd(linear, angular, now) if _finite(linear, angular) else _Cmd(0.0, 0.0, -math.inf)
 
-    def set_enabled(self, on: bool):
-        self.s.enabled = bool(on)
+    def set_enabled(self, on: bool, now: float):
+        self.s.enabled = _Flag(bool(on), now)
 
-    def set_recovery(self, on: bool):
-        self.s.recovery = bool(on)
+    def set_recovery(self, on: bool, now: float):
+        self.s.recovery = _Flag(bool(on), now)
 
     def set_outdoor(self, on: bool):
         self.s.outdoor = bool(on)
 
-    def set_phone_alive(self, on: bool):
-        self.s.phone_alive = bool(on)
+    def set_phone_alive(self, on: bool, now: float):
+        self.s.phone_alive = _Flag(bool(on), now)
 
     def person(self, distance: float, now: float):
-        self.s.person_distance = distance if distance == distance else math.inf
+        self.s.person_distance = distance if distance == distance else 0.0  # NaN: assume the worst
         self.s.person_stamp = now
 
     # Output -------------------------------------------------------------------
     def speed_cap(self, now: float) -> float:
         p = self.p
-        cap = p.outdoor_max if (self.s.outdoor and self.s.phone_alive) else p.indoor_max
+        phone = self.s.phone_alive.get(now, p.flag_timeout)
+        cap = p.outdoor_max if (self.s.outdoor and phone) else p.indoor_max
         d = self.s.person_distance
         if now - self.s.person_stamp > p.person_timeout:
             # No word from the person detector: it may be blind, so creep.
@@ -100,11 +122,11 @@ class VelocityGate:
         dt = 0.0 if s.last_time is None else max(0.0, now - s.last_time)
         s.last_time = now
 
-        if not s.enabled:
+        if not s.enabled.get(now, p.flag_timeout):
             return self._out(0.0, 0.0, "disabled")
         if now - s.manual.stamp <= p.stale_after:
             lin, ang, why = s.manual.linear, s.manual.angular, "manual"
-        elif s.recovery:
+        elif s.recovery.get(now, p.flag_timeout):
             lin, ang, why = 0.0, p.recovery_rate, "recovery"
         elif now - s.nav.stamp <= p.stale_after:
             lin, ang, why = s.nav.linear, s.nav.angular, "nav"
@@ -116,10 +138,14 @@ class VelocityGate:
             return self._out(0.0, 0.0, "person")
         lin = max(-p.reverse_max, min(cap, lin))
         ang = max(-p.turn_max, min(p.turn_max, ang))
-        # Rate limit speeding up only, in either direction of travel.
-        if abs(lin) > abs(s.last_linear) and math.copysign(1, lin) == math.copysign(1, s.last_linear or lin):
+        last = s.last_linear
+        if lin * last < 0:
+            # Reversing: stop for one tick, then ramp up from zero.
+            return self._out(0.0, ang, why)
+        if abs(lin) > abs(last):
+            # Rate limit speeding up only; braking is never delayed.
             max_step = p.accel_max * dt if dt > 0 else 0.05
-            lin = math.copysign(min(abs(lin), abs(s.last_linear) + max_step), lin)
+            lin = math.copysign(min(abs(lin), abs(last) + max_step), lin)
         return self._out(lin, ang, why)
 
     def _out(self, lin, ang, why):

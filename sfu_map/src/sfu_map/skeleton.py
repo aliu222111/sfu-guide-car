@@ -30,7 +30,7 @@ class Centrelines:
 
 def centrelines(
     free: BaseGeometry,
-    resolution: float = 0.1,
+    resolution: float = 0.05,  # the Nav2 grid's: a coarser raster can erase thin GIS walls
     spacing: float = 5.0,
     min_width: float = 0.6,
     spur_length: float = 2.5,

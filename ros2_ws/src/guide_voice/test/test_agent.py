@@ -94,3 +94,21 @@ def test_trim_silence():
     a[8000:9000] = 0.5
     out = trim_silence(a)
     assert 1000 <= out.size < 8000
+
+
+def test_truncated_tool_call_does_not_poison_history():
+    agent, client, _ = make([
+        SimpleNamespace(stop_reason="max_tokens", content=[text("Okay"), tool("set_destination", {"room": "AQ"})]),
+        SimpleNamespace(stop_reason="end_turn", content=[text("Which room?")]),
+    ])
+    agent.handle("go to", now=0.0)
+    for m in agent.messages:
+        if m["role"] == "assistant":
+            assert all(b.type == "text" for b in m["content"])
+    assert agent.handle("AQ 3150", now=1.0) == "Which room?"
+
+
+def test_empty_reply_gets_a_spoken_fallback():
+    agent, _, _ = make([SimpleNamespace(stop_reason="refusal", content=[])])
+    assert agent.handle("tell me a joke", now=0.0)
+    assert agent.messages == []

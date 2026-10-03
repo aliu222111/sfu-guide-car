@@ -2869,6 +2869,20 @@
   "room_x": 25.1,
   "room_y": 56.55
  },
+ "AQ 3138C": {
+  "node": "AQ-03:door:3138C",
+  "building": "AQ",
+  "floor": "AQ-03",
+  "floor_name": "3000 Level",
+  "room": "3138C",
+  "type": "Research Laboratory",
+  "category": "LAB",
+  "name": "",
+  "searchable": true,
+  "direct_door": true,
+  "room_x": 26.91,
+  "room_y": 56.13
+ },
  "AQ 3138D": {
   "node": "AQ-03:door:3138D",
   "building": "AQ",
@@ -10681,20 +10695,6 @@
   "room_x": -181.15,
   "room_y": -11.89
  },
- "MBC 0243": {
-  "node": "MBC-02:door:0243",
-  "building": "MBC",
-  "floor": "MBC-02",
-  "floor_name": "2000 Level",
-  "room": "0243",
-  "type": "Washroom, men's, accessible",
-  "category": "BLDNG_SUPPOR",
-  "name": "",
-  "searchable": true,
-  "direct_door": true,
-  "room_x": -185.03,
-  "room_y": -11.22
- },
  "MBC 0245": {
   "node": "MBC-02:door:0245",
   "building": "MBC",
@@ -11213,20 +11213,6 @@
   "room_x": -210.21,
   "room_y": -63.79
  },
- "MBC 0332": {
-  "node": "MBC-00B:door:0332",
-  "building": "MBC",
-  "floor": "MBC-00B",
-  "floor_name": "100 Level",
-  "room": "0332",
-  "type": "Interview Room",
-  "category": "ADMIN_SUPPOR",
-  "name": "",
-  "searchable": true,
-  "direct_door": true,
-  "room_x": -207.53,
-  "room_y": -64.41
- },
  "MBC 034": {
   "node": "MBC-00B:door:034",
   "building": "MBC",
@@ -11254,20 +11240,6 @@
   "direct_door": true,
   "room_x": -181.56,
   "room_y": -13.26
- },
- "MBC 0343": {
-  "node": "MBC-03:door:0343",
-  "building": "MBC",
-  "floor": "MBC-03",
-  "floor_name": "3000 Level",
-  "room": "0343",
-  "type": "Washroom, men's, accessible",
-  "category": "BLDNG_SUPPOR",
-  "name": "",
-  "searchable": true,
-  "direct_door": true,
-  "room_x": -185.07,
-  "room_y": -11.99
  },
  "MBC 0345": {
   "node": "MBC-03:door:0345",
@@ -11366,20 +11338,6 @@
   "direct_door": true,
   "room_x": -190.79,
   "room_y": -67.55
- },
- "MBC 0402": {
-  "node": "MBC-00B:door:0402",
-  "building": "MBC",
-  "floor": "MBC-00B",
-  "floor_name": "100 Level",
-  "room": "0402",
-  "type": "Office",
-  "category": "OFFICE",
-  "name": "",
-  "searchable": true,
-  "direct_door": true,
-  "room_x": -205.65,
-  "room_y": -72.73
  },
  "MBC 0403": {
   "node": "MBC-00B:door:0403",
@@ -12248,20 +12206,6 @@
   "direct_door": true,
   "room_x": -209.82,
   "room_y": -46.2
- },
- "MBC 1216": {
-  "node": "MBC-01:door:1216",
-  "building": "MBC",
-  "floor": "MBC-01",
-  "floor_name": "1000 Level",
-  "room": "1216",
-  "type": "General Storage",
-  "category": "ADMIN_SUPPOR",
-  "name": "",
-  "searchable": false,
-  "direct_door": true,
-  "room_x": -203.77,
-  "room_y": -45.62
  },
  "MBC 1217": {
   "node": "MBC-01:door:1217",
@@ -13886,20 +13830,6 @@
   "direct_door": true,
   "room_x": -204.27,
   "room_y": -51.68
- },
- "MBC 1480.4": {
-  "node": "MBC-01:door:1480.4",
-  "building": "MBC",
-  "floor": "MBC-01",
-  "floor_name": "1000 Level",
-  "room": "1480.4",
-  "type": "Office",
-  "category": "OFFICE",
-  "name": "",
-  "searchable": true,
-  "direct_door": true,
-  "room_x": -203.52,
-  "room_y": -49.55
  },
  "MBC 1480.5": {
   "node": "MBC-01:door:1480.5",
@@ -16924,20 +16854,6 @@
   "direct_door": true,
   "room_x": -180.26,
   "room_y": -30.9
- },
- "MBC 3212": {
-  "node": "MBC-03:door:3212",
-  "building": "MBC",
-  "floor": "MBC-03",
-  "floor_name": "3000 Level",
-  "room": "3212",
-  "type": "Office",
-  "category": "OFFICE",
-  "name": "",
-  "searchable": true,
-  "direct_door": true,
-  "room_x": -175.18,
-  "room_y": -26.55
  },
  "MBC 3219": {
   "node": "MBC-03:door:3219",

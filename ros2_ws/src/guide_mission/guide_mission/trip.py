@@ -33,7 +33,7 @@ class Navigate:
 
 @dataclass
 class CancelNav:
-    pass
+    """Stop Nav2 and any creep in progress."""
 
 
 @dataclass
@@ -53,10 +53,12 @@ class SetPose:
 
 @dataclass
 class Creep:
-    """Drive straight for a short distance without Nav2 (into or out of an elevator)."""
+    """Turn in place by ``turn`` radians, then drive straight ``distance`` metres,
+    without Nav2 (into or out of an elevator, where the grid has no free space)."""
 
     distance: float
     speed: float
+    turn: float = 0.0
 
 
 @dataclass
@@ -113,6 +115,7 @@ class Trip:
     announced: set = field(default_factory=set)
     elevator: _Elevator | None = None
     waiting_for: str = ""  # what a confirm means in waiting_for_help / waiting_for_student
+    door_open: bool = False  # the student confirmed the current door leg
 
     # --- Helpers ---------------------------------------------------------------
     def _set(self, state: str, detail: str = "") -> list:
@@ -134,6 +137,10 @@ class Trip:
         if self.active:
             out += self.abort("new destination")
         self.destination = destination
+        self.waiting_for = ""
+        self.progress = 0
+        self.door_open = False
+        self.paused = False  # choosing a destination means "go"
         out += self._set("routing", destination)
         try:
             self.goal = self.rg.resolve(destination)
@@ -157,19 +164,12 @@ class Trip:
         if leg is None:
             return self._arrive()
         self.progress = 0
-        out = []
+        self.door_open = False
         if leg.kind == "drive":
-            if leg.floor != self.floor:
-                out.append(SetLocalization(leg.floor))
-                self.floor = leg.floor
-            out += self._set("driving", leg.floor or "outdoors")
-            if self.paused or not self.following:
-                return out + self._hold()
-            out.append(Navigate(leg.floor, list(leg.nodes)))
-            return out
+            return self._resume()
         if leg.kind == "door":
             self.waiting_for = "door"
-            out += self._set("waiting_for_help", "door")
+            out = self._set("waiting_for_help", "door")
             out.append(Speak("Please hold the door for me, and tell me when it's open."))
             return out
         if leg.kind == "elevator":
@@ -178,7 +178,7 @@ class Trip:
             target = self.rg.nodes[leg.nodes[-1]]["floor"]
             here = self.rg.nodes[leg.nodes[0]]["floor"]
             direction = "up" if self._level(target) > self._level(here) else "down"
-            out += self._set("waiting_for_help", "elevator_call")
+            out = self._set("waiting_for_help", "elevator_call")
             out.append(Speak(f"We'll take the elevator {direction} to {floor_label(self.rg, target)}. Please press the call button and tell me when the doors open."))
             return out
         # Stairs never appear in a car route; treat anything else as unroutable.
@@ -188,13 +188,52 @@ class Trip:
         meta = self.rg.floors.get(floor, {})
         return meta.get("level", 0) or 0
 
+    def _leg_floor(self, leg: Leg) -> str | None:
+        """The grid a leg is driven on. A door between inside and outside is driven
+        on the outdoor grid, which includes the threshold (sfu_map outdoor_geometry)."""
+        floors = {self.rg.nodes[n]["floor"] for n in leg.nodes}
+        return floors.pop() if len(floors) == 1 else None
+
+    def _resume(self) -> list:
+        """The only way into ``driving``: checks pause, follow and localization first."""
+        leg = self.leg
+        if leg is None:
+            return self._arrive()
+        if leg.kind == "elevator" or (leg.kind == "door" and not self.door_open):
+            return self._begin_leg()
+        if self.paused or not self.following:
+            return self._hold()
+        floor = self._leg_floor(leg)
+        out = []
+        if floor != self.floor:
+            out.append(SetLocalization(floor))
+            self.floor = floor
+            # The localization manager reports on the new setup; until it does,
+            # assume nothing.
+            self.localized = False
+        if not self.localized:
+            return out + self._lost("waiting for a position fix")
+        if leg.kind == "door":
+            nodes = list(leg.nodes)
+        else:
+            remaining = leg.nodes[self.progress:]
+            nodes = remaining if len(remaining) > 1 else leg.nodes[-2:]
+        out += self._set("driving", "door" if leg.kind == "door" else (floor or "outdoors"))
+        out.append(Navigate(floor, nodes))
+        return out
+
     def _hold(self) -> list:
-        out = [CancelNav()]
+        out = [CancelNav(), Recovery(False)]
         if self.paused:
             out += self._set("waiting_for_student", "paused")
         else:
             out += self._set("waiting_for_student", "follow")
             out.append(Speak("I'll wait for you."))
+        return out
+
+    def _lost(self, detail: str) -> list:
+        out = [CancelNav(), Recovery(not self.paused and self.following)]
+        out += self._set("lost", detail)
         return out
 
     def on_nav_result(self, success: bool) -> list:
@@ -221,12 +260,10 @@ class Trip:
             self.waiting_for = ""
             return self._resume()
         if self.waiting_for == "door":
-            # Drive through the door edge as a short drive leg.
+            # Drive through the door edge as a short leg.
             self.waiting_for = ""
-            leg = self.leg
-            out = self._set("driving", "door")
-            out.append(Navigate(self.rg.nodes[leg.nodes[-1]]["floor"], list(leg.nodes)))
-            return out
+            self.door_open = True
+            return self._resume()
         if self.waiting_for == "elevator" and self.elevator:
             el = self.elevator
             target = self.rg.nodes[el.leg.nodes[-1]]["floor"]
@@ -239,10 +276,13 @@ class Trip:
             if el.stage == "ride":
                 el.stage = "exit"
                 self.floor = target
+                self.localized = False
                 out = self._set("waiting_for_help", "elevator_exit")
                 out.append(Speak("Thanks. Please hold the doors while I get out."))
                 out.append(SetLocalization(target))
-                out.append(Creep(self.params.elevator_creep, self.params.creep_speed))
+                # Facing the back wall: turn round inside the car, then drive out
+                # forwards, so the cameras and person stop face the way we go.
+                out.append(Creep(self.params.elevator_creep, self.params.creep_speed, turn=math.pi))
                 return out
         return []
 
@@ -258,11 +298,9 @@ class Trip:
             return out
         if el.stage == "exit":
             el.stage = "relocalize"
-            out = [SetPose(el.leg.nodes[-1], self.params.elevator_sigma)]
-            out += self._set("lost", "after elevator")
             self.localized = False
-            out.append(Recovery(True))
-            return out
+            out = [SetPose(el.leg.nodes[-1], self.params.elevator_sigma)]
+            return out + self._lost("after elevator")
         return []
 
     def on_localization(self, ok: bool) -> list:
@@ -273,10 +311,10 @@ class Trip:
             return []
         if not ok:
             if self.state == "driving":
-                out = [CancelNav(), Recovery(True)] + self._set("lost", "localization lost")
+                out = self._lost("localization lost")
                 out.append(Speak("I've lost track of where I am. One moment."))
                 return out
-            return []
+            return []  # remembered: _resume checks it before driving again
         if self.state == "lost":
             out = [Recovery(False)]
             if self.elevator and self.elevator.stage == "relocalize":
@@ -292,6 +330,8 @@ class Trip:
         self.following = following
         if not self.active:
             return []
+        if self.state == "lost":
+            return [Recovery(following and not self.paused)]
         if not following and self.state == "driving":
             return self._hold()
         if following and self.state == "waiting_for_student" and not self.paused and self.waiting_for != "still_with_me":
@@ -305,22 +345,13 @@ class Trip:
         self.paused = paused
         if not self.active:
             return []
+        if self.state == "lost":
+            return [Recovery(self.following and not paused)]
         if paused and self.state == "driving":
             return self._hold()
-        if not paused and self.state == "waiting_for_student" and self.following:
+        if not paused and self.state == "waiting_for_student" and self.following and self.waiting_for != "still_with_me":
             return self._resume()
         return []
-
-    def _resume(self) -> list:
-        leg = self.leg
-        if leg is None:
-            return self._arrive()
-        if leg.kind != "drive":
-            return self._begin_leg()
-        remaining = leg.nodes[self.progress:]
-        out = self._set("driving", leg.floor or "outdoors")
-        out.append(Navigate(leg.floor, remaining if len(remaining) > 1 else leg.nodes[-2:]))
-        return out
 
     def on_position(self, x: float, y: float) -> list:
         """Track progress along the current drive leg and announce turns."""
@@ -350,7 +381,7 @@ class Trip:
         return out
 
     def _arrive(self) -> list:
-        out = [CancelNav(), DriveEnable(False)] + self._set("arrived", self.destination)
+        out = [CancelNav(), Recovery(False), DriveEnable(False)] + self._set("arrived", self.destination)
         out.append(Speak(arrival_text(self.rg, self.path, self.destination)))
         return out
 

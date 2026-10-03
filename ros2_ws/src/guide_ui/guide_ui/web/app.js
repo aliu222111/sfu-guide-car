@@ -1,6 +1,7 @@
 "use strict";
 const $ = (id) => document.getElementById(id);
-const state = { dest: [], trip: null, route: [], floor: null, floorData: {}, paused: false, spoken: "" };
+const state = { dest: [], trip: null, route: [], floor: null, floorData: {}, paused: false, browsing: true };
+const ACTIVE = new Set(["routing", "driving", "waiting_for_student", "waiting_for_help", "lost"]);
 
 const CONFIRM_LABELS = {
   elevator_call: "The doors are open",
@@ -30,11 +31,17 @@ async function main() {
 
   $("q").addEventListener("input", () => renderResults($("q").value));
   $("confirm").onclick = () => ros.publish("/guide/confirm", "std_msgs/msg/Empty", {});
-  $("pause").onclick = () => { state.paused = !state.paused; ros.publish("/guide/pause", "std_msgs/msg/Bool", { data: state.paused }); $("pause").textContent = state.paused ? "Resume" : "Pause"; };
-  $("cancel").onclick = () => { ros.publish("/guide/cancel", "std_msgs/msg/Empty", {}); showSearch(); };
+  // The mission's own paused flag decides what the button does, so the phone,
+  // the voice agent and a reloaded page always agree.
+  $("pause").onclick = () => ros.publish("/guide/pause", "std_msgs/msg/Bool", { data: !state.paused });
+  $("cancel").onclick = () => {
+    if (state.trip && ACTIVE.has(state.trip.state)) ros.publish("/guide/cancel", "std_msgs/msg/Empty", {});
+    showSearch();
+  };
   state.go = (key) => {
     unlockSpeech();
     ros.publish("/guide/destination", "std_msgs/msg/String", { data: key });
+    state.browsing = false; state.route = [];
     $("search-view").hidden = true; $("trip-view").hidden = false;
   };
   renderResults("");
@@ -60,11 +67,17 @@ function renderResults(q) {
   }
 }
 
-function showSearch() { $("trip-view").hidden = true; $("search-view").hidden = false; $("q").value = ""; renderResults(""); }
+function showSearch() { state.browsing = true; $("trip-view").hidden = true; $("search-view").hidden = false; $("q").value = ""; renderResults(""); }
 
 function onState(s) {
   state.trip = s;
-  if (s.state !== "idle" && $("trip-view").hidden) { $("search-view").hidden = true; $("trip-view").hidden = false; }
+  // Show the trip while one is under way; a finished trip stays on screen
+  // until the student taps "New trip", and never pulls them out of search.
+  if (ACTIVE.has(s.state) && $("trip-view").hidden) { state.browsing = false; $("search-view").hidden = true; $("trip-view").hidden = false; }
+  state.paused = !!s.paused;
+  $("pause").textContent = state.paused ? "Resume" : "Pause";
+  $("pause").hidden = !ACTIVE.has(s.state);
+  $("cancel").textContent = ACTIVE.has(s.state) ? "End trip" : "New trip";
   $("status-title").textContent = TITLES[s.state] || s.state;
   $("status-detail").textContent = s.destination ? `To ${s.destination}${s.detail && s.detail !== s.destination ? " · " + s.detail.replaceAll("_", " ") : ""}` : "";
   $("status").className = "status " + ({ waiting_for_student: "waiting", waiting_for_help: "waiting", lost: "waiting", arrived: "done", aborted: "bad" }[s.state] || "");

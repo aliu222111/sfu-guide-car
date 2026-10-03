@@ -44,6 +44,15 @@ ros2 topic pub --once /guide/destination std_msgs/String "{data: 'AQ 3046'}"
 `fake_robot` integrates `/cmd_vel`, fakes the phone heartbeat and an empty sensor world, and the real Nav2,
 velocity gate, mission, localization manager, UI server and rosbridge run on the AQ-03 grid.
 
+End-to-end check, playing the student (it answers door and elevator prompts and exits 0 on arrival):
+
+```bash
+ros2 run guide_bringup sim_trip "AQ 6106" --timeout 600   # AQ-03 -> elevator -> AQ-06 -> two doors
+```
+
+Kill leftover nodes between runs (`pkill -f ros2_ws/install/`): a second mission node from an old run
+fights the new one.
+
 ## Phase runbook
 
 **1, handheld stereo rig.** Mount and level the cameras, then

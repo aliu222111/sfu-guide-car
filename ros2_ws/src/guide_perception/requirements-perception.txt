@@ -1,6 +1,6 @@
 # Runtime models for guide_perception (pip, inside the ROS environment).
 onnxruntime            # floor segmentation on CPU; onnxruntime-gpu or onnxruntime-openvino where available
 ultralytics            # YOLO11n + ByteTrack (AGPL-3.0, see spec section 7)
-paddleocr              # sign reading on the laptop
-paddlepaddle
+paddleocr<3            # sign reading on the laptop; sign_reader.py uses the 2.x API
+paddlepaddle<3         # (3.x renamed the constructor args and the result format)
 anthropic              # optional cloud sign reading and the voice agent

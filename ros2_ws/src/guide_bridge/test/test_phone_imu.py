@@ -1,6 +1,8 @@
 import pytest
 import math
 
+T = 1_790_000_000_000_000_000  # 2026, in ns
+
 from guide_bridge.phone_imu import ClockOffset, Liveness, base_orientation, parse_payload, quat_yaw
 
 S = math.sin(math.pi / 4)
@@ -8,9 +10,9 @@ S = math.sin(math.pi / 4)
 
 def test_axes_mapping():
     doc = {"payload": [
-        {"name": "gyroscope", "time": 1_000_000_000, "values": {"x": 0.1, "y": 0.2, "z": 0.3}},
-        {"name": "totalacceleration", "time": 1_000_000_000, "values": {"x": 0.0, "y": 1.0, "z": 9.8}},
-        {"name": "magnetometer", "time": 1_000_000_000, "values": {"x": 20.0, "y": 0.0, "z": -40.0}},
+        {"name": "gyroscope", "time": T, "values": {"x": 0.1, "y": 0.2, "z": 0.3}},
+        {"name": "totalacceleration", "time": T, "values": {"x": 0.0, "y": 1.0, "z": 9.8}},
+        {"name": "magnetometer", "time": T, "values": {"x": 20.0, "y": 0.0, "z": -40.0}},
     ]}
     imus, mags, fixes = parse_payload(doc)
     assert len(imus) == 1 and not fixes
@@ -21,8 +23,8 @@ def test_axes_mapping():
 
 def test_accelerometer_plus_gravity_when_no_total():
     doc = {"payload": [
-        {"name": "accelerometer", "time": 5, "values": {"x": 0.5, "y": 0.0, "z": 0.0}},
-        {"name": "gravity", "time": 5, "values": {"x": 0.0, "y": 0.0, "z": 9.81}},
+        {"name": "accelerometer", "time": T, "values": {"x": 0.5, "y": 0.0, "z": 0.0}},
+        {"name": "gravity", "time": T, "values": {"x": 0.0, "y": 0.0, "z": 9.81}},
     ]}
     imus, _, _ = parse_payload(doc)
     assert imus[0].accel == (0.0, -0.5, 9.81)
@@ -39,9 +41,9 @@ def test_orientation_phone_pointing_north_is_yaw_90():
 
 def test_location_and_bad_items_skipped():
     doc = {"payload": [
-        {"name": "location", "time": 7, "values": {"latitude": 49.28, "longitude": -122.91, "altitude": 300, "horizontalAccuracy": 4}},
+        {"name": "location", "time": T, "values": {"latitude": 49.28, "longitude": -122.91, "altitude": 300, "horizontalAccuracy": 4}},
         {"name": "gyroscope", "time": "x", "values": {}},
-        {"name": "gyroscope", "time": 8, "values": {"x": 1}},
+        {"name": "gyroscope", "time": T, "values": {"x": 1}},
     ]}
     imus, _, fixes = parse_payload(doc)
     assert imus == [] and fixes[0].horizontal_accuracy == 4.0
@@ -62,3 +64,12 @@ def test_liveness():
     assert not l.alive(0.0)
     l.seen(5.0)
     assert l.alive(5.9) and not l.alive(6.1)
+
+
+def test_malformed_pushes_are_ignored():
+    for doc in ([1, 2], {"payload": None}, {"payload": [1]}, {"payload": [{"name": 5, "time": T}]},
+                {"payload": [{"name": "gyroscope", "time": T, "values": {"x": float("nan"), "y": 0, "z": 0}}]},
+                {"payload": [{"name": "gyroscope", "time": 10**30, "values": {"x": 0, "y": 0, "z": 0}}]},
+                {"payload": [{"name": "location", "time": T, "values": {"latitude": 999, "longitude": 0}}]},
+                {"payload": [{"name": "orientation", "time": T, "values": {"qx": 0, "qy": 0, "qz": 0, "qw": 0}}]}):
+        assert parse_payload(doc) == ([], [], [])

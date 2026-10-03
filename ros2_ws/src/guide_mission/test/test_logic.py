@@ -35,7 +35,7 @@ def test_follow_monitor():
     f = FollowMonitor(FollowParams())
     assert not f.following(0.0)
     f.heartbeat(10.0)
-    assert f.following(11.9) and not f.following(12.1)
+    assert f.following(12.4) and not f.following(12.6)  # one missed beat is tolerated
     f.heartbeat(12.0)
     f.rssi(-90, 12.0)
     assert f.following(13.0) and not f.following(15.1)
@@ -93,3 +93,17 @@ def test_follow_rear_camera():
     f.student(float("inf"), 9.2)
     f.student(2.0, 9.5)
     assert f.following(9.6)
+
+
+def test_waypoints_sparse_but_keep_turns_and_goal(campus):
+    from guide_mission.instructions import waypoints
+
+    path, _ = campus.shortest_path("entrance:aq_convocation_mall", campus.resolve("AQ 3150"))
+    wp = waypoints(campus, path)
+    assert wp[0] == path[0] and wp[-1] == path[-1]
+    assert len(wp) < len(path) / 2
+    turns = {t.node for t in find_turns(campus, path)}
+    assert turns <= set(wp) | {path[0]}  # every turn far enough from the last waypoint is kept
+    pts = [campus.nodes[n] for n in wp]
+    for a, b in zip(pts, pts[1:]):
+        assert math.hypot(b["x"] - a["x"], b["y"] - a["y"]) <= 25.0

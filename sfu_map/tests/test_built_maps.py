@@ -50,3 +50,35 @@ def test_floor_nodes_lie_in_free_space(rg):
                 bad.append(n["id"])
         # Merged junctions in narrow spots can sit a pixel into a wall.
         assert len(bad) <= 0.01 * len(on_floor), bad[:10]
+
+
+def test_graph_agrees_with_nav2_grids(rg):
+    """Every set of nodes the graph connects is drivable on the grid for the car's width."""
+    from sfu_map.checks import grid_splits
+
+    class G:  # grid_splits wants graph.nodes / graph.edges like the builder's Graph
+        nodes = rg.nodes
+        edges = {(e["a"], e["b"]): e for lst in rg.adj.values() for _, e in lst}
+
+    for fid in ("AQ-03", "AQ-05", "MBC-01", "WMC-01", "WMC-02"):
+        free, spec = load_nav2_map(MAPS / "floors" / f"{fid}.yaml")
+        assert grid_splits(G, fid, free, spec) == []
+
+
+def test_doorways_are_open_in_the_grids(rg):
+    """The grid has a gap wherever the graph has a same-floor door edge."""
+    from scipy import ndimage
+
+    by_floor = {}
+    for lst in rg.adj.values():
+        for _, e in lst:
+            a, b = rg.nodes[e["a"]], rg.nodes[e["b"]]
+            if e["type"] == "door" and a["floor"] and a["floor"] == b["floor"]:
+                by_floor.setdefault(a["floor"], set()).add((e["a"], e["b"]))
+    assert by_floor
+    for fid, edges in by_floor.items():
+        free, spec = load_nav2_map(MAPS / "floors" / f"{fid}.yaml")
+        regions, _ = ndimage.label(ndimage.distance_transform_edt(free) * spec.resolution > 0.19)
+        for a, b in edges:
+            la, lb = (regions[int(r), int(c)] for c, r in (spec.to_pixel(rg.nodes[n]["x"], rg.nodes[n]["y"]) for n in (a, b)))
+            assert la and la == lb, (a, b)

@@ -57,15 +57,17 @@ class VoiceNode(Node):
 
     def on_ptt(self, msg: Bool):
         if msg.data:
-            self.speaker.clear()
+            self.speaker.hold(True)  # stop talking and keep quiet while the student speaks
             self.recorder.start()
         else:
             audio = self.recorder.stop()
+            self.speaker.hold(False)
             threading.Thread(target=self.respond, args=(audio,), daemon=True).start()
 
     def respond(self, audio):
         if not self.busy.acquire(blocking=False):
-            return  # still answering the last one
+            self.speaker.say("One moment, I'm still thinking about the last thing you said.")
+            return
         try:
             text = self.stt(trim_silence(audio))
             if not text:
@@ -97,7 +99,7 @@ class VoiceNode(Node):
         return f"Guiding to {key}."
 
     def pause_or_resume(self) -> str:
-        paused = self.trip.get("state") == "waiting_for_student" and self.trip.get("detail") == "paused"
+        paused = bool(self.trip.get("paused"))
         self.pause_pub.publish(Bool(data=not paused))
         return "Resumed." if paused else "Paused."
 

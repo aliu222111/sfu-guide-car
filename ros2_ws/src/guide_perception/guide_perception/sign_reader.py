@@ -38,6 +38,8 @@ def upper_third(bgr):
 
 
 class PaddleBackend:
+    """PaddleOCR 2.x (pinned in requirements-perception.txt)."""
+
     def __init__(self, min_conf: float = 0.8):
         from paddleocr import PaddleOCR
 

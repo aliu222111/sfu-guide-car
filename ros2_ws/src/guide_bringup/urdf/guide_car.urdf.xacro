@@ -1,5 +1,8 @@
 <?xml version="1.0"?>
-<!-- SFU guide car. Measure the mounts on the built chassis and update the numbers. -->
+<!-- SFU guide car. Measure the mounts on the built chassis and update the numbers.
+     base_link lies on the floor (z = 0 at ground level, between the drive wheels):
+     the perception nodes intersect camera rays with z = 0 in base_link, and the
+     costmap height filters are heights above the floor. -->
 <robot name="guide_car" xmlns:xacro="http://www.ros.org/wiki/xacro">
   <xacro:property name="base_length" value="0.45"/>
   <xacro:property name="base_width" value="0.35"/>
@@ -7,24 +10,24 @@
   <xacro:property name="wheel_radius" value="0.08"/>
   <!-- Stereo pair: 10 to 15 cm baseline, level, facing forward (spec section 3). -->
   <xacro:property name="cam_x" value="0.20"/>
-  <xacro:property name="cam_z" value="0.45"/>
+  <xacro:property name="cam_z" value="0.45"/>       <!-- lens height above the floor -->
   <xacro:property name="cam_pitch" value="0.20"/>   <!-- radians, nose down -->
   <xacro:property name="stereo_baseline" value="0.12"/>
 
   <link name="base_footprint"/>
   <link name="base_link">
     <visual>
-      <origin xyz="0 0 ${base_height/2}"/>
+      <origin xyz="0 0 ${wheel_radius + base_height/2}"/>
       <geometry><box size="${base_length} ${base_width} ${base_height}"/></geometry>
     </visual>
     <collision>
-      <origin xyz="0 0 ${base_height/2}"/>
+      <origin xyz="0 0 ${wheel_radius + base_height/2}"/>
       <geometry><box size="${base_length} ${base_width} ${base_height}"/></geometry>
     </collision>
   </link>
   <joint name="base_joint" type="fixed">
     <parent link="base_footprint"/><child link="base_link"/>
-    <origin xyz="0 0 ${wheel_radius}"/>
+    <origin xyz="0 0 0"/>
   </joint>
 
   <xacro:macro name="camera" params="name x y z pitch yaw">
@@ -50,7 +53,7 @@
   <link name="phone_link"/>
   <joint name="phone_joint" type="fixed">
     <parent link="base_link"/><child link="phone_link"/>
-    <origin xyz="0 0 ${base_height + 0.01}"/>
+    <origin xyz="0 0 ${wheel_radius + base_height + 0.01}"/>
   </joint>
 
   <!-- External GPS antenna on top (spec section 3). -->

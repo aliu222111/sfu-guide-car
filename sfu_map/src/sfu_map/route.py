@@ -163,16 +163,28 @@ class RouteGraph:
         return legs
 
 
-_ROOM_RE = re.compile(r"^\s*([A-Za-z]+)[\s-]*([0-9A-Za-z.]+)\s*$")
+BUILDINGS = ("WMC", "MBC", "AQ")  # longest first
+_ROOM_RE = re.compile(r"^\s*([A-Za-z]+?)[\s-]*([0-9A-Za-z][0-9A-Za-z.\-]*)\s*$")
 
 
 def normalise_room(text: str) -> str:
-    """``aq3150``, ``AQ-3150`` and ``AQ 3150`` all become ``AQ 3150``."""
-    m = _ROOM_RE.match(text)
+    """``aq3150``, ``AQ-3150`` and ``AQ 3150`` all become ``AQ 3150``.
+
+    The building is matched against the known codes first, so room ids that
+    start with letters or contain a hyphen survive: ``wmcs1300`` -> ``WMC S1300``,
+    ``AQ-5003-9`` -> ``AQ 5003-9``.
+    """
+    t = text.strip().upper()
+    for b in BUILDINGS:
+        if t.startswith(b):
+            rest = t[len(b):].lstrip(" -")
+            if rest:
+                return f"{b} {rest}"
+    m = _ROOM_RE.match(t)
     if not m:
-        return text.strip().upper()
+        return t
     building, room = m.groups()
-    return f"{building.upper()} {room.upper()}"
+    return f"{building} {room}"
 
 
 def describe(rg: RouteGraph, path: list[str], length: float) -> str:

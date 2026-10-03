@@ -16,6 +16,8 @@ def test_normalise_room():
     assert normalise_room("aq3150") == "AQ 3150"
     assert normalise_room("AQ-3150") == "AQ 3150"
     assert normalise_room(" aq 3004b ") == "AQ 3004B"
+    assert normalise_room("wmcs1300") == "WMC S1300"
+    assert normalise_room("AQ-5003-9") == "AQ 5003-9"
 
 
 def test_resolve_and_search():

@@ -121,10 +121,19 @@ class VoiceAgent:
                 tools=TOOLS,
                 messages=self.messages,
             )
+            if response.stop_reason != "tool_use":
+                # A reply cut off by max_tokens (or a refusal) can end in a
+                # tool_use with no result; keeping it would make every later
+                # request fail, so only text is kept.
+                content = [b for b in response.content if b.type == "text"]
+                if content:
+                    self.messages.append({"role": "assistant", "content": content})
+                else:
+                    self.messages.pop()  # drop the unanswered user turn too
+                reply = " ".join(b.text for b in content).strip()
+                break
             self.messages.append({"role": "assistant", "content": response.content})
             reply = " ".join(b.text for b in response.content if b.type == "text").strip()
-            if response.stop_reason != "tool_use":
-                break
             results = []
             for block in response.content:
                 if block.type == "tool_use":
@@ -134,4 +143,4 @@ class VoiceAgent:
         else:
             reply = reply or "Sorry, could you say that again?"
         self._trim()
-        return reply
+        return reply or "Sorry, I can only help you get to a room in AQ, WMC or MBC."

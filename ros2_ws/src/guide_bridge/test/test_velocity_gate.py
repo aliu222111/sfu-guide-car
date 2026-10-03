@@ -4,18 +4,23 @@ from guide_bridge.velocity_gate import GateParams, VelocityGate
 
 
 def gate(**kw):
-    g = VelocityGate(GateParams(require_person_detector=False, **kw))
-    g.set_enabled(True)
-    return g
+    return VelocityGate(GateParams(require_person_detector=False, **kw))
 
 
-def ramp(g, t0, lin, ang=0.0, secs=5.0, outdoor=False):
+def tick(g, t, lin, ang=0.0, outdoor=False, phone=True):
+    """One 50 ms control tick with the mission and phone bridge alive."""
+    g.set_enabled(True, t)
     g.set_outdoor(outdoor)
-    t = t0
-    out = None
+    if phone:
+        g.set_phone_alive(True, t)
+    g.nav_cmd(lin, ang, t)
+    return g.step(t)
+
+
+def ramp(g, t0, lin, ang=0.0, secs=5.0, **kw):
+    t, out = t0, None
     while t < t0 + secs:
-        g.nav_cmd(lin, ang, t)
-        out = g.step(t)
+        out = tick(g, t, lin, ang, **kw)
         t += 0.05
     return out
 
@@ -24,67 +29,88 @@ def test_disabled_and_stale_stop():
     g = VelocityGate()
     g.nav_cmd(0.5, 0, 0.0)
     assert g.step(0.0)[:2] == (0.0, 0.0)
-    g.set_enabled(True)
+    g.set_enabled(True, 1.0)
     assert g.step(1.0)[2] == "stale"
 
 
-def test_speed_caps_indoor_outdoor_and_phone_loss():
+def test_enable_must_keep_arriving():
     g = gate()
-    assert abs(ramp(g, 0, 2.0)[0] - 0.6) < 1e-9
+    ramp(g, 0, 0.5)
+    g.nav_cmd(0.5, 0, 6.0)
+    assert g.step(6.0)[2] == "nav"
+    g.nav_cmd(0.5, 0, 7.0)  # mission silent since t=4.95
+    assert g.step(7.0) == (0.0, 0.0, "disabled")
+
+
+def test_speed_caps_indoor_outdoor_and_phone_loss():
+    assert abs(ramp(gate(), 0, 2.0)[0] - 0.6) < 1e-9
     g = gate()
     assert abs(ramp(g, 0, 2.0, outdoor=True)[0] - 1.0) < 1e-9
-    g.set_phone_alive(False)
-    lin = ramp(g, 10, 2.0, outdoor=True)[0]
-    assert abs(lin - 0.6) < 1e-9
+    assert abs(ramp(g, 10, 2.0, outdoor=True, phone=False)[0] - 0.6) < 1e-9  # phone bridge silent
+    g2 = gate()
+    g2.set_phone_alive(False, 0.0)
+    assert abs(ramp(g2, 0, 2.0, outdoor=True, phone=False)[0] - 0.6) < 1e-9
+
+
+def test_non_finite_commands_are_dropped():
+    g = gate()
+    for t in (0.0, 0.05, 0.1):
+        out = tick(g, t, float("nan"), float("nan"))
+    assert out == (0.0, 0.0, "stale")
+    g.manual_cmd(float("inf"), 0.0, 0.2)
+    assert g.step(0.2)[2] == "stale"
+    g.person(float("nan"), 0.3)
+    assert g.speed_cap(0.3) == 0.0
 
 
 def test_turn_rate_cap():
-    g = gate()
-    _, ang, _ = ramp(g, 0, 0.3, 3.0)
+    _, ang, _ = ramp(gate(), 0, 0.3, 3.0)
     assert abs(ang - math.radians(30)) < 1e-9
 
 
 def test_acceleration_limited_braking_not():
     g = gate()
-    g.nav_cmd(0.6, 0, 0.0)
-    g.step(0.0)
-    g.nav_cmd(0.6, 0, 0.1)
-    lin, _, _ = g.step(0.1)
+    tick(g, 0.0, 0.6)
+    lin, _, _ = tick(g, 0.1, 0.6)
     assert lin <= 0.1 + 1e-9  # 0.05 on the first step, +0.5 m/s^2 * 0.1 s
     ramp(g, 0.1, 0.6)
-    g.nav_cmd(0.0, 0, 6.0)
-    assert g.step(6.0)[0] == 0.0
+    assert tick(g, 6.0, 0.0)[0] == 0.0
+
+
+def test_reversal_stops_first():
+    g = gate()
+    ramp(g, 0, 0.6)
+    assert tick(g, 5.0, -0.2)[0] == 0.0
+    lin = tick(g, 5.05, -0.2)[0]
+    assert -0.2 <= lin < 0.0
 
 
 def test_person_stop_and_slow():
     g = gate()
     ramp(g, 0, 0.6)
     g.person(0.8, 5.0)
-    g.nav_cmd(0.6, 0.2, 5.0)
-    assert g.step(5.0) == (0.0, 0.0, "person")
+    assert tick(g, 5.0, 0.6, 0.2) == (0.0, 0.0, "person")
     g.person(2.0, 5.1)
-    g.nav_cmd(0.6, 0, 5.1)
-    cap = g.speed_cap(5.1)
-    assert 0.25 < cap < 0.6
+    assert 0.25 < g.speed_cap(5.1) < 0.6
 
 
 def test_silent_person_detector_means_creep():
     g = VelocityGate(GateParams())
-    g.set_enabled(True)
     assert g.speed_cap(10.0) == GateParams().person_slow_speed
 
 
-def test_manual_beats_recovery_beats_nav():
+def test_manual_beats_recovery_beats_nav_and_recovery_expires():
     g = gate()
+    g.set_enabled(True, 0.0)
     g.nav_cmd(0.5, 0.0, 0.0)
-    g.set_recovery(True)
+    g.set_recovery(True, 0.0)
     assert g.step(0.0)[2] == "recovery"
     g.manual_cmd(0.2, 0.0, 0.0)
     assert g.step(0.0)[2] == "manual"
     assert g.step(1.0)[2] == "recovery"
+    g.set_enabled(True, 100.0)
+    assert g.step(100.0)[2] == "stale"  # the mission stopped re-sending recovery
 
 
 def test_reverse_limited():
-    g = gate()
-    lin = ramp(g, 0, -1.0)[0]
-    assert abs(lin + 0.2) < 1e-9
+    assert abs(ramp(gate(), 0, -1.0)[0] + 0.2) < 1e-9

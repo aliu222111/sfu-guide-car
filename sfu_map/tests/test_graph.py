@@ -78,6 +78,7 @@ def test_wall_line_gap_becomes_door(t_floor):
     g, dest = build_graph({t_floor.id: t_floor}, Connectors())
     doors = [e for e in g.edges.values() if e["type"] == "door"]
     assert len(doors) == 1 and doors[0]["verified"] is False
+    assert doors[0]["length"] > 0.5  # one end in each piece, not both in the big one
     rg = _route_graph(g, dest)
     path, _ = rg.shortest_path(dest["T 103"]["node"], dest["T 110"]["node"])
     assert "door" in [l.kind for l in rg.legs(path)]

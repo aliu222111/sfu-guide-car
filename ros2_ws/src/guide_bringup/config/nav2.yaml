@@ -110,7 +110,7 @@ local_costmap:
         stereo:
           topic: /stereo/points2
           data_type: "PointCloud2"
-          min_obstacle_height: 0.06   # ignore the floor itself
+          min_obstacle_height: 0.06   # ignore the floor itself (base_link is on the floor)
           max_obstacle_height: 1.8
           marking: True
           clearing: True

@@ -26,6 +26,7 @@ import rclpy
 from geometry_msgs.msg import PoseWithCovarianceStamped
 from nav_msgs.msg import Odometry
 from rclpy.node import Node
+from rclpy.qos import DurabilityPolicy, QoSProfile
 from sensor_msgs.msg import Imu
 from std_msgs.msg import Bool, String
 
@@ -89,7 +90,7 @@ class LocalizationManager(Node):
         self.outdoor_pub = pub(Bool, "guide/outdoor", 10)
 
         sub = self.create_subscription
-        sub(String, "guide/localization_mode", self.on_mode, 10)
+        sub(String, "guide/localization_mode", self.on_mode, QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL))
         sub(Odometry, "vo", self.on_vo, 20)
         sub(Odometry, "odometry/gps", self.on_gps, 10)
         sub(Imu, "phone/imu", self.on_phone_imu, 50)
@@ -106,7 +107,10 @@ class LocalizationManager(Node):
             self.load_db = self.create_client(LoadDatabase, "rtabmap/load_database")
         except ImportError:
             self.load_db = None
+        self.pending_map = None
+        self.map_call = None
         self.create_timer(0.2, self.publish_localized)
+        self.create_timer(1.0, self.send_map)
 
     def now(self) -> float:
         return self.get_clock().now().nanoseconds * 1e-9
@@ -131,17 +135,13 @@ class LocalizationManager(Node):
         self.switch_map(floor)
 
     def switch_map(self, floor):
-        from nav2_msgs.srv import LoadMap
-
         grid = self.maps_dir / ("outdoor.yaml" if floor is None else f"floors/{floor}.yaml")
         if not grid.exists():
             self.get_logger().error(f"no grid {grid}; Nav2 keeps the previous map")
-        elif self.load_map.service_is_ready():
-            req = LoadMap.Request()
-            req.map_url = str(grid.resolve())
-            self.load_map.call_async(req)
+            self.pending_map = None
         else:
-            self.get_logger().warn("map_server/load_map not ready")
+            self.pending_map = str(grid.resolve())
+            self.send_map()
         if floor is not None and floor not in self.alignments:
             self.get_logger().warn(f"no RTAB-Map alignment for {floor}; run align_floor (spec section 6)")
         if self.load_db is not None and floor is not None:
@@ -155,6 +155,32 @@ class LocalizationManager(Node):
                 self.load_db.call_async(req)
             elif not db.exists():
                 self.get_logger().warn(f"no RTAB-Map database {db}")
+
+    def send_map(self):
+        """Ask map_server for the pending grid; retried by a timer until it answers."""
+        from nav2_msgs.srv import LoadMap
+
+        if self.pending_map is None or self.map_call is not None:
+            return
+        if not self.load_map.service_is_ready():
+            self.get_logger().info("waiting for map_server/load_map", throttle_duration_sec=10.0)
+            return
+        req = LoadMap.Request()
+        req.map_url = self.pending_map
+        url = self.pending_map
+        self.map_call = self.load_map.call_async(req)
+
+        def done(fut):
+            self.map_call = None
+            res = fut.result()
+            if res is not None and res.result == LoadMap.Response.RESULT_SUCCESS:
+                if self.pending_map == url:
+                    self.pending_map = None
+                self.get_logger().info(f"loaded {url}")
+            else:
+                self.get_logger().error(f"map_server could not load {url}; retrying")
+
+        self.map_call.add_done_callback(done)
 
     def on_vo(self, msg: Odometry):
         if msg.pose.covariance[0] < LOST_COVARIANCE:
@@ -202,6 +228,9 @@ class LocalizationManager(Node):
 
     def publish_localized(self):
         self.localized_pub.publish(Bool(data=self.localized()))
+        if self.mode_set:
+            # Re-sent so late starters (the sign reader, the gate) always know.
+            self.outdoor_pub.publish(Bool(data=self.outdoor))
 
 
 def main(args=None):

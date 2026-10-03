@@ -52,7 +52,8 @@ class VpHeadingNode(CameraNode):
         vp = find_vanishing_point(oblique(detect_lines(gray)))
         if vp is None:
             return
-        rel = relative_yaw(vp.x, self.K[0, 0], self.K[0, 2]) + self.camera_yaw
+        # camera_yaw_offset: camera yawed left of the car's axis is positive (REP-103).
+        rel = relative_yaw(vp.x, self.K[0, 0], self.K[0, 2]) - self.camera_yaw
         if abs(rel) > self.max_rel:
             return
         cur = self.current_yaw()

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import threading
+import time
 
 import rclpy
 from rclpy.node import Node
@@ -25,12 +26,21 @@ class RssiNode(Node):
         self.alpha = self.declare_parameter("smoothing", 0.3).value
         self.pub = self.create_publisher(Float32, "guide/phone_rssi", 10)
         self.value = None
+        self.last_seen = time.monotonic()
+        self.silence = self.declare_parameter("silence_timeout", 2.0).value
+        # Out of range means no advertisements at all, so silence must count as weak.
+        self.create_timer(1.0, self.check_silence)
         threading.Thread(target=lambda: asyncio.run(self.scan()), daemon=True).start()
 
     def matches(self, device, adv) -> bool:
         if self.address and device.address.upper() == self.address:
             return True
         return bool(self.name) and (adv.local_name == self.name or device.name == self.name)
+
+    def check_silence(self):
+        if time.monotonic() - self.last_seen > self.silence:
+            self.value = None
+            self.pub.publish(Float32(data=-127.0))
 
     async def scan(self):
         from bleak import BleakScanner
@@ -39,6 +49,7 @@ class RssiNode(Node):
             if not self.matches(device, adv):
                 return
             # Exponential smoothing: single BLE readings jump by 10 dB.
+            self.last_seen = time.monotonic()
             self.value = adv.rssi if self.value is None else (1 - self.alpha) * self.value + self.alpha * adv.rssi
             self.pub.publish(Float32(data=float(self.value)))
 

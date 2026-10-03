@@ -88,29 +88,35 @@ class PhoneImuNode(Node):
                 recv, doc = self.inbox.get_nowait()
             except queue.Empty:
                 return
-            imus, mags, fixes = parse_payload(doc, self.accel_scale, self.yaw_offset)
-            if not (imus or mags or fixes):
-                continue
-            self.live.seen(recv)
-            first_t = min(s.t for s in (*imus, *mags, *fixes))
-            self.clock_offset.update(first_t, recv)
-            for s in imus:
-                self.imu_pub.publish(self.imu_msg(s))
-            for s in mags:
-                m = MagneticField()
-                m.header.stamp, m.header.frame_id = self.stamp(s.t), self.frame
-                m.magnetic_field.x, m.magnetic_field.y, m.magnetic_field.z = s.field
-                self.mag_pub.publish(m)
-            for s in fixes:
-                f = NavSatFix()
-                f.header.stamp, f.header.frame_id = self.stamp(s.t), self.frame
-                f.status.status = NavSatStatus.STATUS_FIX
-                f.status.service = NavSatStatus.SERVICE_GPS
-                f.latitude, f.longitude, f.altitude = s.lat, s.lon, s.alt
-                h, v = s.horizontal_accuracy**2, s.vertical_accuracy**2
-                f.position_covariance = [h, 0.0, 0.0, 0.0, h, 0.0, 0.0, 0.0, v]
-                f.position_covariance_type = NavSatFix.COVARIANCE_TYPE_DIAGONAL_KNOWN
-                self.fix_pub.publish(f)
+            try:
+                self.handle(recv, doc)
+            except Exception as e:  # never let one bad push take the IMU down
+                self.get_logger().warn(f"dropped a phone push: {type(e).__name__}: {e}", throttle_duration_sec=5.0)
+
+    def handle(self, recv, doc):
+        imus, mags, fixes = parse_payload(doc, self.accel_scale, self.yaw_offset)
+        if not (imus or mags or fixes):
+            return
+        self.live.seen(recv)
+        newest = max(s.t for s in (*imus, *mags, *fixes))
+        self.clock_offset.update(newest, recv)
+        for s in imus:
+            self.imu_pub.publish(self.imu_msg(s))
+        for s in mags:
+            m = MagneticField()
+            m.header.stamp, m.header.frame_id = self.stamp(s.t), self.frame
+            m.magnetic_field.x, m.magnetic_field.y, m.magnetic_field.z = s.field
+            self.mag_pub.publish(m)
+        for s in fixes:
+            f = NavSatFix()
+            f.header.stamp, f.header.frame_id = self.stamp(s.t), self.frame
+            f.status.status = NavSatStatus.STATUS_FIX
+            f.status.service = NavSatStatus.SERVICE_GPS
+            f.latitude, f.longitude, f.altitude = s.lat, s.lon, s.alt
+            h, v = s.horizontal_accuracy**2, s.vertical_accuracy**2
+            f.position_covariance = [h, 0.0, 0.0, 0.0, h, 0.0, 0.0, 0.0, v]
+            f.position_covariance_type = NavSatFix.COVARIANCE_TYPE_DIAGONAL_KNOWN
+            self.fix_pub.publish(f)
 
     def imu_msg(self, s) -> Imu:
         m = Imu()

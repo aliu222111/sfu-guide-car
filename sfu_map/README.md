@@ -5,7 +5,7 @@ into what Nav2 and the mission node load. Pure Python, no ROS.
 
 ```
 pip install -e sfu_map[test]
-sfu-map build --previews        # writes ../maps/, about 20 s
+sfu-map build --previews        # writes ../maps/, about a minute
 sfu-map route aq_convocation_mall "AQ 3150"
 sfu-map route "AQ 3150" aq6106 --walk     # allow stairs
 sfu-map candidates              # draft elevator entries for connectors.yaml
@@ -56,7 +56,7 @@ door (spec section 8).
 ## How it is built
 
 1. Corridor polygons per floor are unioned with a 5 cm seam close, rasterised.
-2. Centrelines: medial axis of the free space at 10 cm after removing slivers
+2. Centrelines: medial axis of the free space at 5 cm after removing slivers
    narrower than 0.6 m, traced into branches, spurs under 2.5 m (or 1.5x the
    corridor half-width) pruned, junctions within 1.5 m merged, then nodes every
    5 m or less.
@@ -67,7 +67,12 @@ door (spec section 8).
    point with `direct: false`.
 4. Corridor pieces the GIS separates with a wall line under 0.45 m are joined by
    an unverified `door` edge at the middle of the shared wall.
-5. Stairs on consecutive levels overlapping by IoU 0.3 are joined, never
+5. Every corridor edge is checked against the Nav2 grid as the planner sees
+   it: 5 cm cells, walls grown by the car's 0.19 m half-width. An edge whose
+   ends are not connected there (a GIS wall line too thin for a coarser raster,
+   or a gap narrower than the car) is removed and listed in the build report,
+   whose "graph pieces the Nav2 grid splits" line must read 0.
+6. Stairs on consecutive levels overlapping by IoU 0.3 are joined, never
    car-traversable. Elevators, entrances, links and outdoor routes come from
    `connectors.yaml`.
 

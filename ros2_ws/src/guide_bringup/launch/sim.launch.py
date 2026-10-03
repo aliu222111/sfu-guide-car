@@ -18,7 +18,7 @@ from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
 sys.path.insert(0, os.path.dirname(__file__))
-from common import cfg, repo_path  # noqa: E402
+from common import ROSBRIDGE_PARAMS, cfg, repo_path  # noqa: E402
 
 HERE = os.path.dirname(__file__)
 
@@ -45,7 +45,7 @@ def setup(context):
              parameters=[guide, {"maps_dir": repo_path("maps"), "rtabmap_db_dir": repo_path("rtabmap_db"),
                                  "alignments": repo_path("rtabmap_db", "alignments.yaml")}]),
         Node(package="guide_ui", executable="ui_server", name="ui_server", parameters=[guide, {"maps_dir": repo_path("maps")}]),
-        Node(package="rosbridge_server", executable="rosbridge_websocket", name="rosbridge", parameters=[{"port": 9090}]),
+        Node(package="rosbridge_server", executable="rosbridge_websocket", name="rosbridge", parameters=[ROSBRIDGE_PARAMS]),
     ]
 
 

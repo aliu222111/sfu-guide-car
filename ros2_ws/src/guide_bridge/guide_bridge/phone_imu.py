@@ -44,8 +44,9 @@ def quat_yaw(q):
 def base_orientation(q_world_phone, world_yaw_offset: float = 0.0):
     """Orientation of base_link in ENU from the phone's orientation quaternion.
 
-    Android's rotation vector is already East-North-Up. ``world_yaw_offset``
-    rotates other reference frames (iOS "x magnetic north") onto ENU.
+    Android's rotation vector is East-North-Up with *magnetic* north, so
+    ``world_yaw_offset`` (minus the magnetic declination, see guide.yaml) turns
+    it into true ENU; it also rotates other reference frames onto ENU.
     """
     q = quat_mul(q_world_phone, _Q_PHONE_FROM_BASE)
     if world_yaw_offset:
@@ -78,40 +79,68 @@ class FixSample:
     vertical_accuracy: float
 
 
-def parse_payload(doc: dict, accel_scale: float = 1.0, world_yaw_offset: float = 0.0):
-    """Group one push into samples. Returns (imu_samples, mag_samples, fix_samples)."""
+def _num(v) -> float:
+    x = float(v)
+    if not math.isfinite(x):
+        raise ValueError("non-finite")
+    return x
+
+
+def _vec(v: dict, keys=("x", "y", "z")) -> tuple:
+    return tuple(_num(v[k]) for k in keys)
+
+
+# Phone clock sanity: nanoseconds since 2000 and before 2100.
+_T_MIN, _T_MAX = 946_684_800 * 10**9, 4_102_444_800 * 10**9
+
+
+def parse_payload(doc, accel_scale: float = 1.0, world_yaw_offset: float = 0.0):
+    """Group one push into samples. Returns (imu_samples, mag_samples, fix_samples).
+
+    Anything malformed (wrong types, non-finite numbers, absurd timestamps) is
+    skipped: the HTTP port is open to the whole WiFi network.
+    """
     by_time: dict[int, dict] = {}
     mags, fixes = [], []
-    for item in doc.get("payload", []):
-        name = (item.get("name") or "").lower()
-        v = item.get("values") or {}
+    payload = doc.get("payload") if isinstance(doc, dict) else None
+    if not isinstance(payload, list):
+        return [], [], []
+    for item in payload:
+        if not isinstance(item, dict) or not isinstance(item.get("name"), str) or not isinstance(item.get("values"), dict):
+            continue
+        name = item["name"].lower()
+        v = item["values"]
         try:
             t_ns = int(item["time"])
-        except (KeyError, TypeError, ValueError):
-            continue
-        t = t_ns * 1e-9
-        try:
+            if not _T_MIN <= t_ns <= _T_MAX:
+                continue
+            t = t_ns * 1e-9
             if name == "gyroscope":
-                by_time.setdefault(t_ns, {})["gyro"] = phone_to_base((float(v["x"]), float(v["y"]), float(v["z"])))
+                by_time.setdefault(t_ns, {})["gyro"] = phone_to_base(_vec(v))
             elif name in ("totalacceleration", "accelerometer", "gravity"):
-                by_time.setdefault(t_ns, {})[name] = (float(v["x"]), float(v["y"]), float(v["z"]))
+                by_time.setdefault(t_ns, {})[name] = _vec(v)
             elif name == "orientation":
-                q = (float(v["qx"]), float(v["qy"]), float(v["qz"]), float(v["qw"]))
+                q = _vec(v, ("qx", "qy", "qz", "qw"))
+                if sum(c * c for c in q) < 1e-6:
+                    continue
                 by_time.setdefault(t_ns, {})["orientation"] = base_orientation(q, world_yaw_offset)
             elif name == "magnetometer":
-                mags.append(MagSample(t, tuple(c * 1e-6 for c in phone_to_base((float(v["x"]), float(v["y"]), float(v["z"]))))))
+                mags.append(MagSample(t, tuple(c * 1e-6 for c in phone_to_base(_vec(v)))))
             elif name == "location":
+                lat, lon = _num(v["latitude"]), _num(v["longitude"])
+                if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+                    continue
                 fixes.append(
                     FixSample(
                         t,
-                        float(v["latitude"]),
-                        float(v["longitude"]),
-                        float(v.get("altitude", 0.0) or 0.0),
-                        float(v.get("horizontalAccuracy", 10.0) or 10.0),
-                        float(v.get("verticalAccuracy", 20.0) or 20.0),
+                        lat,
+                        lon,
+                        _num(v.get("altitude", 0.0) or 0.0),
+                        _num(v.get("horizontalAccuracy", 10.0) or 10.0),
+                        _num(v.get("verticalAccuracy", 20.0) or 20.0),
                     )
                 )
-        except (KeyError, TypeError, ValueError):
+        except (KeyError, TypeError, ValueError, OverflowError):
             continue
     imus = []
     for t_ns, d in sorted(by_time.items()):
@@ -131,8 +160,10 @@ def parse_payload(doc: dict, accel_scale: float = 1.0, world_yaw_offset: float =
 class ClockOffset:
     """Phone clock to laptop clock (spec section 6: estimated once at start).
 
-    Uses the minimum of (receive time - phone time) over the first ``n``
-    messages, which is the offset plus the smallest network delay seen.
+    Uses the minimum of (receive time - phone time of the newest sample in the
+    push) over the first ``n`` pushes: the offset plus the smallest network
+    delay seen. Using the newest sample keeps a batched push (Sensor Logger
+    sends up to a second at once) from adding the batch length to the offset.
     """
 
     def __init__(self, n: int = 50):

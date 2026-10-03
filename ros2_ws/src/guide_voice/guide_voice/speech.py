@@ -6,6 +6,7 @@ import queue
 import subprocess
 import tempfile
 import threading
+import time
 from pathlib import Path
 
 import numpy as np
@@ -82,38 +83,50 @@ class Transcriber:
 
 
 class Speaker:
-    """Speaks queued text with Piper on the car's speaker, one sentence at a time."""
+    """Speaks queued text with Piper on the car's speaker, one message at a time.
+
+    ``hold(True)`` stops the current sentence and keeps queued ones until
+    ``hold(False)``, so the car does not talk over (or into the recording of)
+    a student holding the push-to-talk button.
+    """
 
     def __init__(self, voice_model: str, piper_bin: str = "piper", player: str = "aplay"):
         self.voice_model = voice_model
         self.piper_bin = piper_bin
         self.player = player
         self.q: queue.Queue[str] = queue.Queue()
-        self.speaking = threading.Event()
+        self._held = threading.Event()
+        self._playing: subprocess.Popen | None = None
         threading.Thread(target=self._loop, daemon=True).start()
 
     def say(self, text: str):
         if text.strip():
             self.q.put(text.strip())
 
-    def clear(self):
-        try:
-            while True:
-                self.q.get_nowait()
-        except queue.Empty:
-            pass
+    def hold(self, on: bool):
+        if on:
+            self._held.set()
+            p = self._playing
+            if p is not None and p.poll() is None:
+                p.terminate()
+        else:
+            self._held.clear()
 
     def _loop(self):
         while True:
             text = self.q.get()
-            self.speaking.set()
+            while self._held.is_set():
+                time.sleep(0.05)
             try:
                 with tempfile.TemporaryDirectory() as d:
                     wav = Path(d) / "say.wav"
                     subprocess.run([self.piper_bin, "--model", self.voice_model, "--output_file", str(wav)], input=text.encode(), check=True, capture_output=True, timeout=30)
-                    subprocess.run([self.player, "-q", str(wav)], check=False, timeout=60)
+                    if self._held.is_set():
+                        self.q.put(text)  # interrupted before playing: say it after
+                        continue
+                    self._playing = subprocess.Popen([self.player, "-q", str(wav)])
+                    self._playing.wait(timeout=60)
             except (OSError, subprocess.SubprocessError):
                 pass  # no speaker is not a reason to crash; the phone also speaks
             finally:
-                if self.q.empty():
-                    self.speaking.clear()
+                self._playing = None
