@@ -160,7 +160,7 @@ Webcam pitfalls that the build must handle: no hardware sync between the two cam
 
 ## 8. Planning and mission
 
-Nav2 does all driving within one floor or outdoors: global planner on the static grid plus live obstacle layers, local controller producing velocity commands. Default plugins: NavFn global planner and DWB controller for differential drive, with inflation radius set to half the car width plus 25 cm.
+Nav2 does all driving within one floor or outdoors: global planner on the static grid plus live obstacle layers, local controller producing velocity commands. Default plugins: NavFn global planner and DWB controller for differential drive, with wall inflation reaching 1 m on the global costmap (0.8 m locally) and fading slowly, so paths keep to the corridor centre and take corners wide instead of cutting the inside corner.
 
 The mission node owns the trip:
 

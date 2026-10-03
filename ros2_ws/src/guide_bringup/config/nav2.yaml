@@ -151,8 +151,10 @@ local_costmap:
           raytrace_max_range: 5.0
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 3.0
-        inflation_radius: 0.43        # half the car width plus 25 cm (spec section 8)
+        # Cost fades gently out to 0.8 m, so the controller keeps off walls and
+        # boxes instead of brushing past them at the 0.43 m minimum.
+        cost_scaling_factor: 2.5
+        inflation_radius: 0.8
       always_send_full_costmap: True
 
 global_costmap:
@@ -192,8 +194,11 @@ global_costmap:
           obstacle_max_range: 5.0
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 3.0
-        inflation_radius: 0.43
+        # Wide corners: wall cost reaches 1 m and fades slowly, so in a 2 m
+        # corridor the centre is the cheapest line and the planned path swings
+        # wide round corners instead of cutting the inside one (spec section 8).
+        cost_scaling_factor: 2.0
+        inflation_radius: 1.0
       always_send_full_costmap: True
 
 map_server:
