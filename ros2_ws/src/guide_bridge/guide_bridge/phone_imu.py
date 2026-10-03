@@ -10,6 +10,7 @@ base = (phone_y, -phone_x, phone_z).
 from __future__ import annotations
 
 import math
+from collections import deque
 from dataclasses import dataclass
 
 # Rotation of +90 deg about z, taking base_link vectors to phone vectors.
@@ -158,24 +159,28 @@ def parse_payload(doc, accel_scale: float = 1.0, world_yaw_offset: float = 0.0):
 
 
 class ClockOffset:
-    """Phone clock to laptop clock (spec section 6: estimated once at start).
+    """Phone clock to laptop clock (spec section 6).
 
-    Uses the minimum of (receive time - phone time of the newest sample in the
-    push) over the first ``n`` pushes: the offset plus the smallest network
-    delay seen. Using the newest sample keeps a batched push (Sensor Logger
-    sends up to a second at once) from adding the batch length to the offset.
+    The offset is the minimum of (receive time - phone time of the newest
+    sample in the push) over the pushes of the last ``window`` seconds: the
+    clock difference plus the smallest network delay seen recently. Using the
+    newest sample keeps a batched push (Sensor Logger sends up to a second at
+    once) from adding the batch length to the offset. A sliding window, not a
+    minimum frozen at start: one odd push at start-up (found in the HIL
+    simulation, where it left the gyro stamped 0.5 s late and the EKF then
+    dropped it) or the two clocks drifting apart over a trip are forgotten.
     """
 
-    def __init__(self, n: int = 50):
-        self.n = n
-        self.count = 0
+    def __init__(self, window: float = 10.0):
+        self.window = window
+        self.samples: deque[tuple[float, float]] = deque()  # (recv_t, recv_t - phone_t)
         self.offset: float | None = None
 
     def update(self, phone_t: float, recv_t: float) -> float:
-        if self.count < self.n:
-            d = recv_t - phone_t
-            self.offset = d if self.offset is None else min(self.offset, d)
-            self.count += 1
+        self.samples.append((recv_t, recv_t - phone_t))
+        while self.samples and self.samples[0][0] < recv_t - self.window:
+            self.samples.popleft()
+        self.offset = min(d for _, d in self.samples)
         return self.offset
 
     def to_local(self, phone_t: float) -> float:

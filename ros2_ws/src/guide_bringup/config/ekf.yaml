@@ -13,9 +13,9 @@ ekf_local:
     two_d_mode: true
     # Visual odometry arrives about 0.5 s after its images and the phone sends
     # batches: without smoothing the filter drops every measurement older than
-    # its last update (found in the HIL simulation). Rewind up to 2 s instead.
+    # its last update (found in the HIL simulation). Rewind up to 1 s instead.
     smooth_lagged_data: true
-    history_length: 2.0
+    history_length: 1.0
     # Post-date the transform a little so Nav2's lookups at "now" do not
     # extrapolate into the future when the laptop is busy.
     transform_time_offset: 0.1
@@ -25,8 +25,11 @@ ekf_local:
     base_link_frame: base_link
     world_frame: odom
     odom0: /vo
+    # vx, vy and yaw rate. vy matters: the car cannot move sideways and visual
+    # odometry says so; leave it out and vy random-walks, so the position
+    # wanders even when the car stands still (found in the HIL simulation).
     odom0_config: [false, false, false, false, false, false,
-                   true,  false, false, false, false, true,
+                   true,  true,  false, false, false, true,
                    false, false, false]
     odom0_differential: false
     odom0_queue_size: 5
@@ -44,9 +47,9 @@ ekf_global:
     two_d_mode: true
     # Visual odometry arrives about 0.5 s after its images and the phone sends
     # batches: without smoothing the filter drops every measurement older than
-    # its last update (found in the HIL simulation). Rewind up to 2 s instead.
+    # its last update (found in the HIL simulation). Rewind up to 1 s instead.
     smooth_lagged_data: true
-    history_length: 2.0
+    history_length: 1.0
     # Post-date the transform a little so Nav2's lookups at "now" do not
     # extrapolate into the future when the laptop is busy.
     transform_time_offset: 0.1
@@ -56,8 +59,11 @@ ekf_global:
     base_link_frame: base_link
     world_frame: map
     odom0: /vo
+    # vx, vy and yaw rate. vy matters: the car cannot move sideways and visual
+    # odometry says so; leave it out and vy random-walks, so the position
+    # wanders even when the car stands still (found in the HIL simulation).
     odom0_config: [false, false, false, false, false, false,
-                   true,  false, false, false, false, true,
+                   true,  true,  false, false, false, true,
                    false, false, false]
     odom0_queue_size: 5
     imu0: /phone/imu

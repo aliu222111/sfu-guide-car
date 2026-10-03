@@ -55,6 +55,26 @@ def _hash(i: np.ndarray, j: np.ndarray, k: int) -> np.ndarray:
     return (h & np.uint64(0xFFFF)).astype(np.float32) / 65536.0
 
 
+def smooth_texture(a: np.ndarray, b: np.ndarray, kind: int) -> np.ndarray:
+    """Value noise interpolated between lattice points: speckle and blotches, no straight edges.
+
+    For floor and ceiling. Blocky texture there lays a grid of straight lines
+    along the world axes, which the vanishing-point detector takes for the
+    corridor (real floors are untiled, or tiled along the corridor).
+    """
+    out = np.zeros(a.shape, np.float32)
+    for scale, weight in ((0.5, 0.4), (0.12, 0.35), (0.03, 0.25)):
+        u, v = a / scale, b / scale
+        i, j = np.floor(u), np.floor(v)
+        fu, fv = (u - i).astype(np.float32), (v - j).astype(np.float32)
+        fu, fv = fu * fu * (3 - 2 * fu), fv * fv * (3 - 2 * fv)
+        k = kind * 7 + int(scale * 100)
+        h00, h10 = _hash(i, j, k), _hash(i + 1, j, k)
+        h01, h11 = _hash(i, j + 1, k), _hash(i + 1, j + 1, k)
+        out += weight * ((h00 * (1 - fu) + h10 * fu) * (1 - fv) + (h01 * (1 - fu) + h11 * fu) * fv)
+    return out
+
+
 def texture(a: np.ndarray, b: np.ndarray, kind: int) -> np.ndarray:
     """Blocky multi-scale value noise at world coordinates (a, b): plenty of corners."""
     out = np.zeros(a.shape, np.float32)
@@ -118,12 +138,11 @@ class Renderer:
             t_ceil = (c.z - CEILING) / slope
         fx = px + t_floor * dirx[None, :]
         fy = py + t_floor * diry[None, :]
-        img[floor] = 0.25 + 0.4 * texture(fx[floor], fy[floor], 1)
+        img[floor] = 0.15 + 0.6 * smooth_texture(fx[floor], fy[floor], 1)
         cxw = px + t_ceil * dirx[None, :]
         cyw = py + t_ceil * diry[None, :]
         cm = ceiling
-        panel = ((np.floor(cxw[cm] / 3.0) + np.floor(cyw[cm] / 3.0)) % 2 == 0) & (np.mod(cxw[cm], 3.0) < 1.2) & (np.mod(cyw[cm], 3.0) < 0.6)
-        img[cm] = np.where(panel, 0.95, 0.7 + 0.1 * texture(cxw[cm], cyw[cm], 2))
+        img[cm] = 0.65 + 0.25 * smooth_texture(cxw[cm], cyw[cm], 2)
         u = np.broadcast_to(hit.u[None, :], z_wall.shape)
         face = np.broadcast_to(hit.face[None, :], z_wall.shape)
         tex = texture(u[wall], z_wall[wall], 3)

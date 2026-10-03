@@ -8,8 +8,8 @@ decides what it may fuse:
 - indoors: RTAB-Map localization poses converted to the GIS frame with the
   floor's alignment (``rtabmap/localization_pose`` -> ``guide/indoor_pose``) and
   sign fixes; the compass only as a weak heading hint (``indoor_compass_sigma``,
-  2 Hz) because steel and concrete distort it: without it a cold start or a
-  recovery indoors has no heading at all until the vanishing point takes over.
+  2 Hz) and only while not localized, because steel and concrete distort it:
+  without it a cold start or a recovery indoors would have no heading at all.
 
 It loads the floor's occupancy grid into Nav2's map_server, asks RTAB-Map to
 switch database when ``rtabmap_msgs`` is available, forwards pose resets, and
@@ -205,6 +205,8 @@ class LocalizationManager(Node):
         if self.outdoor:
             self.imu_abs_pub.publish(msg)
             return
+        if self.localized():
+            return  # indoors, once placed, the gyro and the vanishing point hold heading
         now = self.now()
         if now - self.last_indoor_compass < 0.5:
             return

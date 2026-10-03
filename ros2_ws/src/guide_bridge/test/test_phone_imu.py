@@ -49,14 +49,22 @@ def test_location_and_bad_items_skipped():
     assert imus == [] and fixes[0].horizontal_accuracy == 4.0
 
 
-def test_clock_offset_takes_minimum_then_freezes():
-    c = ClockOffset(n=3)
+def test_clock_offset_is_a_sliding_minimum():
+    c = ClockOffset(window=10.0)
     c.update(100.0, 1000.05)
     c.update(101.0, 1001.02)
     c.update(102.0, 1002.08)
     assert abs(c.offset - 900.02) < 1e-9
-    c.update(103.0, 1003.0)  # past n: ignored
     assert abs(c.to_local(103.0) - 1003.02) < 1e-9
+
+
+def test_clock_offset_forgets_a_startup_glitch_and_follows_drift():
+    c = ClockOffset(window=10.0)
+    c.update(100.0, 999.5)  # one push seen with a laptop clock not yet right
+    assert abs(c.offset - 899.5) < 1e-9
+    for k in range(1, 30):  # then 1 s pushes with 50 ms delay, the phone clock drifting 1 ms/s
+        c.update(100.0 + k, 1000.05 + k + 0.001 * k)
+    assert abs(c.offset - (900.05 + 0.001 * 20)) < 1e-6  # the oldest push still in the window
 
 
 def test_liveness():

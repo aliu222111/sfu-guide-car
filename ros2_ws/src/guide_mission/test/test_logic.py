@@ -122,3 +122,22 @@ def test_sign_viewpoint_is_behind_the_sign():
     assert (x, y) == (7.5, 0.0)
     x, y = viewpoint(10.0, 0.0, yaw=0.0, bearing=math.pi / 2, distance=2.0)  # sign to the left
     assert abs(x - 10.0) < 1e-9 and abs(y + 2.0) < 1e-9
+
+
+class _G:
+    def __init__(self, pts):
+        self.nodes = {f"n{i}": {"x": x, "y": y} for i, (x, y) in enumerate(pts)}
+
+
+def test_corridor_axis_takes_the_straight_run_and_needs_alignment():
+    from guide_mission.instructions import corridor_axis
+
+    # East for 10 m with a 0.3 m wobble, then a corner north.
+    g = _G([(0, 0), (5, 0.3), (10, 0), (10, 5), (10, 10)])
+    ids = list(g.nodes)
+    assert abs(corridor_axis(g, ids, 0, yaw=0.05)) < 0.01  # the 10 m run, not the wobbly first edge
+    assert corridor_axis(g, ids, 0, yaw=math.pi / 2) is None  # car facing elsewhere: no axis
+    assert abs(corridor_axis(g, ids, 0, yaw=math.pi) - 0.0) < 0.01  # lined up, facing back: same axis
+    assert abs(corridor_axis(g, ids, 2, yaw=math.pi / 2) - math.pi / 2) < 1e-9  # after the corner
+    assert corridor_axis(g, ids, 2, yaw=0.0) is None  # at the corner, still facing east: wait
+    assert corridor_axis(g, ids, 4, yaw=0.0) is None  # last node: nothing ahead

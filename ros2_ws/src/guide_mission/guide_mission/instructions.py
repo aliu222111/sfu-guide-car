@@ -145,3 +145,38 @@ def waypoints(rg: RouteGraph, nodes: list[str], min_gap: float = 6.0, max_gap: f
             since = 0.0
     kept.append(nodes[-1])
     return kept
+
+
+def corridor_axis(rg: RouteGraph, nodes: list[str], progress: int, yaw: float | None,
+                  max_dev: float = 0.5, min_len: float = 4.0, align_tol: float = math.radians(15.0)) -> float | None:
+    """Direction of the corridor the car is driving along, for the vanishing-point heading.
+
+    The straight run of route nodes from the last one reached: extend while
+    every node in between stays within ``max_dev`` of the line (graph nodes on
+    a skeleton wobble, and one short edge can be 20 degrees off the corridor).
+    None when the run is shorter than ``min_len`` or the car is not lined up
+    with it (``align_tol``, either way along): in a turn, or before one, the
+    vanishing point belongs to a different corridor than the route's next edge
+    (found in the HIL simulation, where it dragged the heading 20 degrees at a time).
+    """
+    if progress >= len(nodes) - 1:
+        return None
+    pts = [(rg.nodes[n]["x"], rg.nodes[n]["y"]) for n in nodes[progress:]]
+    best = None
+    for j in range(1, len(pts)):
+        (ax, ay), (bx, by) = pts[0], pts[j]
+        length = math.hypot(bx - ax, by - ay)
+        if length < 1e-6:
+            continue
+        ok = all(abs((bx - ax) * (py - ay) - (by - ay) * (px - ax)) / length <= max_dev for px, py in pts[1:j])
+        if not ok:
+            break
+        best = (length, math.atan2(by - ay, bx - ax))
+    if best is None or best[0] < min_len:
+        return None
+    axis = best[1]
+    if yaw is not None:
+        d = (yaw - axis + math.pi) % (2 * math.pi) - math.pi
+        if min(abs(d), math.pi - abs(d)) > align_tol:
+            return None
+    return axis

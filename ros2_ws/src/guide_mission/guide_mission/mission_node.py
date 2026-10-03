@@ -31,7 +31,7 @@ from tf2_ros import Buffer, TransformException, TransformListener
 from sfu_map.route import RouteGraph
 
 from .follow import FollowMonitor, FollowParams
-from .instructions import waypoints
+from .instructions import corridor_axis, waypoints
 from .signs import match_sign, viewpoint
 from .trip import (
     CancelNav,
@@ -127,6 +127,7 @@ class MissionNode(Node):
         self.last_state = {"state": "idle", "detail": ""}
         self.replan_on_fix = False
         self.sign_read_distance = float(self.declare_parameter("sign_read_distance", 2.5).value)
+        self.reset_yaw_sigma = float(self.declare_parameter("reset_yaw_sigma", 0.6).value)  # rad, the compass hint's
         self.last_fix_xy = None
         self.resume_after_reset = None  # (time, (x, y)) while waiting for the EKF reset to show in TF
         self.run([SetLocalization(start_floor), DriveEnable(False)])
@@ -199,12 +200,15 @@ class MissionNode(Node):
         bearing = float(bearing) if isinstance(bearing, (int, float)) and math.isfinite(bearing) else 0.0
         fx, fy = viewpoint(fix.x, fix.y, yaw, bearing, self.sign_read_distance)
         self.get_logger().info(f"sign fix {fix.room} at {fix.distance:.1f} m from estimate")
-        msg = self.pose_msg(fx, fy, yaw, fix.sigma, yaw_sigma=math.pi)
+        msg = self.pose_msg(fx, fy, yaw, fix.sigma, yaw_sigma=math.pi)  # a sign says nothing about heading
         self.last_fix_xy = (fx, fy)
         if untrusted:
             # The EKF rejects a measurement far from its estimate (as it should for a
             # misread sign while tracking), so an untrusted estimate is reset instead.
-            self.set_pose_pub.publish(msg)
+            # Keep the heading the EKF has (gyro, compass hint) with a realistic sigma:
+            # resetting it to "unknown" made later heading updates drag the position
+            # around by metres through the heading-position correlation.
+            self.set_pose_pub.publish(self.pose_msg(fx, fy, yaw, fix.sigma, yaw_sigma=self.reset_yaw_sigma))
         self.sign_fix_pub.publish(msg)
 
     def tick(self):
@@ -230,10 +234,9 @@ class MissionNode(Node):
         leg = self.trip.leg
         if self.trip.state != "driving" or leg is None or leg.floor is None or len(leg.nodes) < 2:
             return
-        i = min(self.trip.progress, len(leg.nodes) - 2)
-        a, b = self.rg.nodes[leg.nodes[i]], self.rg.nodes[leg.nodes[i + 1]]
-        if math.hypot(b["x"] - a["x"], b["y"] - a["y"]) > 1.0:
-            self.axis_pub.publish(Float64(data=math.atan2(b["y"] - a["y"], b["x"] - a["x"])))
+        axis = corridor_axis(self.rg, leg.nodes, self.trip.progress, self.pose[2] if self.pose else None)
+        if axis is not None:
+            self.axis_pub.publish(Float64(data=axis))
 
     # --- Actions -----------------------------------------------------------------
     def run(self, actions):

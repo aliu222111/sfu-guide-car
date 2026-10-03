@@ -65,6 +65,10 @@ sign_reader:
 vp_heading:
   ros__parameters:
     rate_hz: 10.0
+    # Measurements further than this from the current heading are dropped: lines
+    # on a patterned floor make false vanishing points, and a wide gate lets them
+    # ratchet the heading away (HIL simulation: 20 deg let a 30 deg error in).
+    max_disagreement_deg: 12.0
 
 mono_odometry:              # cameras:=mono only (spec section 18)
   ros__parameters:

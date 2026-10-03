@@ -131,7 +131,10 @@ def main(argv=None):
             tr = tf.lookup_transform("map", "base_link", Time()).transform
         except Exception:
             tr = None
-        if tr is not None:
+        doc_now = state.get("doc") or {}
+        if doc_now.get("state") in ("driving", "waiting_for_help", "waiting_for_student", "arrived"):
+            state["placed"] = True  # scored from the first fix on: before it the car does not know
+        if tr is not None and state.get("placed"):
             e = tr.translation
             errors.append(math.hypot(e.x - truth["x"], e.y - truth["y"]))
         doc = state.get("doc") or {}
@@ -140,7 +143,9 @@ def main(argv=None):
             "" if tr is None else round(tr.translation.x, 3), "" if tr is None else round(tr.translation.y, 3),
             "" if tr is None else round(yaw_of(tr.rotation), 3), status.get("v", ""), status.get("w", ""),
             doc.get("state", ""), doc.get("detail", ""),
-            *(round(v, 3) for name in ("vo", "local", "global") for v in odo.get(name, (math.nan,) * 3)))))
+            *(round(v, 3) for name in ("vo", "local", "global") for v in odo.get(name, (math.nan,) * 3)),
+            round(vp.get("yaw", math.nan), 3) if state["sim_t"] - vp.get("t", -9) < 0.5 else "",
+            round(vp.get("axis", math.nan), 3))))
 
     from nav_msgs.msg import Odometry
 
@@ -151,6 +156,12 @@ def main(argv=None):
             odo[name] = (m.twist.twist.linear.x, m.twist.twist.angular.z, m.pose.covariance[0])
         return f
 
+    from sensor_msgs.msg import Imu
+    from std_msgs.msg import Float64
+
+    vp: dict = {}
+    node.create_subscription(Imu, "/guide/vp_heading", lambda m: vp.update(yaw=yaw_of(m.orientation), t=state["sim_t"]), 10)
+    node.create_subscription(Float64, "/guide/corridor_axis", lambda m: vp.update(axis=m.data), 10)
     node.create_subscription(Odometry, "/vo", keep("vo"), 10)
     node.create_subscription(Odometry, "/odometry/local", keep("local"), 10)
     node.create_subscription(Odometry, "/odometry/global", keep("global"), 10)
@@ -207,7 +218,7 @@ def main(argv=None):
         "destination": args.destination, "result": result, "sim_time_s": round(state["sim_t"], 1),
         "collisions": status.get("collisions"), "collision_at": status.get("collision_at"),
         "stopped_from_door_m": None if stop_dist is None else round(stop_dist, 2),
-        "localization_error_m": None if not errors else {
+        "localization_error_m": None if not errors else {  # from the first fix on
             "median": round(statistics.median(errors), 2), "p95": round(sorted(errors)[int(0.95 * (len(errors) - 1))], 2),
             "max": round(max(errors), 2)},
         "phone_posts": status.get("phone_posts"), "final_floor": status.get("floor"),
@@ -216,7 +227,7 @@ def main(argv=None):
     if args.trace:
         with open(args.trace, "w") as f:
             f.write("t,x,y,yaw,est_x,est_y,est_yaw,v,w,state,detail,vo_v,vo_w,vo_cov,local_v,local_w,local_cov,"
-                    "global_v,global_w,global_cov\n" + "\n".join(trace) + "\n")
+                    "global_v,global_w,global_cov,vp_yaw,corridor_axis\n" + "\n".join(trace) + "\n")
     if args.report:
         with open(args.report, "w") as f:
             json.dump({**report, "log": log_lines}, f, indent=2)

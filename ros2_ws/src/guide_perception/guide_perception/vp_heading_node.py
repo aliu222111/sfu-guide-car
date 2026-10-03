@@ -24,7 +24,7 @@ class VpHeadingNode(CameraNode):
         super().__init__("vp_heading", default_rate=10.0)
         self.map_frame = self.declare_parameter("map_frame", "map").value
         self.max_rel = math.radians(self.declare_parameter("max_relative_deg", 30.0).value)
-        self.max_jump = math.radians(self.declare_parameter("max_disagreement_deg", 20.0).value)
+        self.max_jump = math.radians(self.declare_parameter("max_disagreement_deg", 12.0).value)
         self.sigma = math.radians(self.declare_parameter("yaw_sigma_deg", 3.0).value)
         self.camera_yaw = self.declare_parameter("camera_yaw_offset", 0.0).value
         self.axis = None
