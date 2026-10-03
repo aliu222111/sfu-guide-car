@@ -6,15 +6,19 @@
 The simulator carries the stereo rig along the route there and back while
 RTAB-Map runs in mapping mode, exactly as rtabmap.launch.py does on the
 handheld rig. Each time the rig passes a route node this records where
-RTAB-Map thinks it is (map -> base_link); at the end it runs the real
-``align_floor`` with those pairs, which writes ``rtabmap_db/alignments.yaml``
-and reports the fit's RMS: how far the map is from the building's shape.
+RTAB-Map thinks it is (map -> base_link), relative to RTAB-Map's nearest graph
+node. At the end it re-reads those graph nodes after every loop closure has
+been applied, as a person reading door positions off the finished map would,
+and runs the real ``align_floor`` with those pairs, which writes
+``rtabmap_db/alignments.yaml`` and reports the fit's RMS: how far the map is
+from the building's shape.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 from pathlib import Path
 
@@ -23,6 +27,7 @@ def main(argv=None):
     import rclpy
     from rclpy.parameter import Parameter
     from rclpy.time import Time
+    from rtabmap_msgs.msg import MapGraph
     from std_msgs.msg import String
     from tf2_ros import Buffer, TransformListener
 
@@ -37,9 +42,17 @@ def main(argv=None):
     node = rclpy.create_node("hil_map", parameter_overrides=[Parameter("use_sim_time", value=True)])
     tf = Buffer()
     TransformListener(tf, node)
-    pairs: dict[str, tuple[float, float]] = {}
+    # route node -> (graph node id, the rig's offset from that graph node in its own frame)
+    pairs: dict[str, tuple[int, float, float]] = {}
     seen = []
     status: dict = {}
+    graph: dict[int, tuple[float, float, float]] = {}
+
+    def on_graph(m: MapGraph):
+        graph.clear()
+        for i, p in zip(m.poses_id, m.poses):
+            q = p.orientation
+            graph[i] = (p.position.x, p.position.y, math.atan2(2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z)))
 
     def on_rig(m: String):
         seen.append(m.data)
@@ -49,16 +62,28 @@ def main(argv=None):
             t = tf.lookup_transform("map", "base_link", Time()).transform.translation
         except Exception:
             return
-        pairs.setdefault(m.data, (t.x, t.y))  # first pass only: the way out
+        if m.data in pairs or not graph:  # first pass only: the way out
+            return
+        gid, (gx, gy, gyaw) = min(graph.items(), key=lambda kv: math.hypot(kv[1][0] - t.x, kv[1][1] - t.y))
+        c, s = math.cos(gyaw), math.sin(gyaw)
+        dx, dy = t.x - gx, t.y - gy
+        pairs[m.data] = (gid, c * dx + s * dy, -s * dx + c * dy)
 
     node.create_subscription(String, "/sim/rig_node", on_rig, 10)
+    node.create_subscription(MapGraph, "/rtabmap/mapGraph", on_graph, 5)
     node.create_subscription(String, "/sim/status", lambda m: status.update(json.loads(m.data)), 10)
     while rclpy.ok() and not status.get("rig_done") and status.get("t", 0.0) < args.timeout:
         rclpy.spin_once(node, timeout_sec=0.2)
+    final = dict(graph)  # the last graph: every loop closure applied
     node.destroy_node()
     rclpy.try_shutdown()
-    print(f"rig passed {len(seen)} route nodes; {len(pairs)} alignment pairs")
-    if len(pairs) < 3:
+    points = {}
+    for name, (gid, ox, oy) in pairs.items():
+        if gid in final:
+            gx, gy, gyaw = final[gid]
+            points[name] = (gx + math.cos(gyaw) * ox - math.sin(gyaw) * oy, gy + math.sin(gyaw) * ox + math.cos(gyaw) * oy)
+    print(f"rig passed {len(seen)} route nodes; {len(points)} alignment pairs")
+    if len(points) < 3:
         print("too few pairs to align")
         return 1
     from guide_mission.alignment import main as align_floor
@@ -66,7 +91,7 @@ def main(argv=None):
     root = Path(args.root)
     out = root / "rtabmap_db" / "alignments.yaml"
     cli = ["--floor", args.floor, "--graph", str(root / "maps" / "route_graph.json"), "--out", str(out), "--no-scale"]
-    cli += [f"{n}={x:.3f},{y:.3f}" for n, (x, y) in pairs.items()]
+    cli += [f"{n}={x:.3f},{y:.3f}" for n, (x, y) in points.items()]
     return align_floor(cli)
 
 
