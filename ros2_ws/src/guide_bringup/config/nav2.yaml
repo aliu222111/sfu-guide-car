@@ -107,7 +107,7 @@ local_costmap:
       width: 5
       height: 5
       resolution: 0.05
-      footprint: "[[0.25, 0.19], [0.25, -0.19], [-0.25, -0.19], [-0.25, 0.19]]"
+      footprint: "[[0.375, 0.205], [0.375, -0.205], [-0.375, -0.205], [-0.375, 0.205]]"  # RC car body, 75 x 41 cm
       plugins: ["voxel_layer", "floor_layer", "inflation_layer"]
       voxel_layer:
         plugin: "nav2_costmap_2d::VoxelLayer"
@@ -164,7 +164,7 @@ global_costmap:
       publish_frequency: 1.0
       global_frame: map
       robot_base_frame: base_link
-      footprint: "[[0.25, 0.19], [0.25, -0.19], [-0.25, -0.19], [-0.25, 0.19]]"
+      footprint: "[[0.375, 0.205], [0.375, -0.205], [-0.375, -0.205], [-0.375, 0.205]]"  # RC car body, 75 x 41 cm
       resolution: 0.05
       track_unknown_space: true
       plugins: ["static_layer", "obstacle_layer", "inflation_layer"]

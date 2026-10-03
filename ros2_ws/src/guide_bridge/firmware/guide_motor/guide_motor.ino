@@ -26,7 +26,7 @@
 // (spec section 10); the serial protocol stays the same.
 
 // ---- Configure for the chassis --------------------------------------------
-const float TRACK_WIDTH_M = 0.30;      // between the centres of the left and right tracks (or wheels)
+const float TRACK_WIDTH_M = 0.34;      // between the centres of the left and right wheels (41 cm body: measure yours)
 const float MAX_WHEEL_SPEED = 1.2;     // m/s at full PWM, measure on the bench
 const int MIN_PWM_DRIVE = 50;          // 0..255: the car just rolls straight; measure on the floor
 const int MIN_PWM_PIVOT = 55;          // 0..255: the car just pivots in place; measure on the floor

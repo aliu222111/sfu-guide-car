@@ -79,7 +79,7 @@ iphone:                     # cameras:=iphone only (spec section 19): Record3D o
     max_depth: 5.0            # m, the LiDAR's useful range indoors
     point_stride: 2           # every 2nd LiDAR pixel for the costmap cloud
     points_rate: 10.0         # Hz
-    mount_x: 0.20             # phone camera on base_link: the URDF's iphone_camera
+    mount_x: 0.30             # phone camera on base_link: the URDF's iphone_camera
     mount_y: 0.0
     quarter_turns: 0          # rotate images if they arrive sideways (counter-clockwise)
     velocity_variance: 0.0025 # (m/s)^2 and (rad/s)^2 for the EKFs

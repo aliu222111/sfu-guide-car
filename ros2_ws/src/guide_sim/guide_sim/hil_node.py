@@ -251,7 +251,7 @@ class HilSim(Node):
 
     def ultrasonic(self) -> float:
         s = self.chassis.s
-        bx, by = s.x + 0.25 * math.cos(s.yaw), s.y + 0.25 * math.sin(s.yaw)
+        bx, by = s.x + 0.375 * math.cos(s.yaw), s.y + 0.375 * math.sin(s.yaw)  # on the front bumper
         angs = s.yaw + np.radians([-7.5, 0.0, 7.5])
         h = self.world.here.raycast(bx, by, angs, max_range=4.0, t=self.t)
         return float(np.min(h.distance))

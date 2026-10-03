@@ -43,7 +43,7 @@ class IphoneNode(Node):
         self.max_depth = float(P("max_depth", 5.0))
         self.stride = int(P("point_stride", 2))
         self.points_period = 1.0 / float(P("points_rate", 10.0))
-        self.mount = (float(P("mount_x", 0.20)), float(P("mount_y", 0.0)))
+        self.mount = (float(P("mount_x", 0.30)), float(P("mount_y", 0.0)))
         self.turns = int(P("quarter_turns", 0))
         self.frame = P("frame_id", "iphone_camera_optical_frame")
         self.publish_tf = bool(P("publish_tf", False))
