@@ -27,7 +27,7 @@ from pathlib import Path
 import numpy as np
 
 from .cloud import VOICE_ID, ElevenLabsSpeaker, ElevenLabsTranscriber, Unheard
-from .rooms import rooms_in
+from .rooms import answer_in, spoken, suggestion, understand
 from .speech import SAMPLE_RATE, Recorder, Speaker, audio_device, read_wav, resample, trim_silence
 
 GREETING = "Hello, I'm the SFU guide car. Where would you like to go?"
@@ -147,11 +147,20 @@ def main(argv=None):
             except Unheard:
                 text = ""
             print(f"heard ({time.monotonic() - t:.1f} s): {text!r}")
-        rooms = rooms_in(text, keys) if keys else []
-        if keys:
-            print(f"  rooms: {rooms or 'none'}")
+        heard = understand(text, keys) if keys and text else None
+        said = ""
+        if heard is not None:
+            print(f"  rooms on the map: {heard.rooms or 'none'}"
+                  + (f"; not on the map: {heard.missing}" if heard.missing else "")
+                  + (f"; suggested: {heard.suggestions}" if heard.suggestions else ""))
+            if heard.rooms:
+                said = f"{spoken(heard.rooms[0], keys.get(heard.rooms[0]))}. Is that right?"
+            elif answer_in(text) is None:
+                said = suggestion(heard, keys)[0]
         if args.echo:
-            say(speaker, f"I heard: {text}." + (f" That's room {rooms[0]}." if rooms else "") if text else "I didn't catch that.")
+            say(speaker, f"I heard: {text}. {said}".strip() if text else "I didn't catch that.")
+        elif said and not heard.rooms:
+            say(speaker, said)  # what the car says itself, without asking Gemini
         elif agent is not None and text:
             t = time.monotonic()
             reply = agent.handle(text, "idle")

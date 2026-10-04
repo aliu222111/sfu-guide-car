@@ -82,3 +82,34 @@ def test_no_network(node):
 
     node.stt = deaf
     assert "can't hear you" in node.reply(None)
+
+
+def test_room_not_on_the_map_suggests_the_likely_one(node):
+    reply = say(node, "take me to A Q thirty sixty four")
+    assert reply == "I can't find AQ 3064 on my map. Did you mean AQ 3046 or AQ 3062?"
+    assert node.pending is None
+    assert say(node, "forty six, AQ 3046").endswith("Is that right?") and node.pending == "AQ 3046"
+
+
+def test_a_place_by_name_is_proposed_and_yes_goes(node):
+    reply = say(node, "can you take me to the multi faith centre")
+    assert reply == "Do you mean AQ 3046, the Multifaith Centre, on the 3000 level of the Academic Quadrangle?"
+    assert node.pending == "AQ 3046"
+    assert say(node, "yes") == "Starting the trip to AQ 3046." and node.dest_pub.sent == ["AQ 3046"]
+
+
+def test_nearest_washroom_from_where_the_car_is(node):
+    node.trip = {"state": "idle", "detail": "", "floor": "AQ-03", "pose": [-60.0, 0.0, 0.0]}
+    reply = say(node, "I need a washroom")
+    assert reply.startswith("The nearest washroom I know is AQ 3059") and node.pending == "AQ 3059"
+
+
+def test_a_kind_of_place_with_no_position_asks_the_building(node):
+    assert say(node, "where's the nearest washroom").startswith("Which building should I look for a washroom in")
+    assert node.pending is None
+
+
+def test_lost_and_a_door_number_not_on_the_map(node):
+    node.trip = {"state": "lost", "detail": ""}
+    assert say(node, "it says AQ 3064") == "I can't find AQ 3064 on my map. Could you read me the number on another door?"
+    assert node.sign_pub.sent == []

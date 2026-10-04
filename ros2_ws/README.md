@@ -42,7 +42,10 @@ down what the student said, told the building names and codes as key terms. `roo
 rooms in it however they were said ("A Q thirty forty six", "West Mall twenty-eight thirty") and
 gives them to Gemini (`llm: gemini`), which picks one of three tools (set destination, pause or
 resume, confirm) and words the reply. The car reads the room back ("AQ 3046, the Multifaith Centre,
-on the 3000 level of the Academic Quadrangle. Is that right?") and starts only on a yes. On the way
+on the 3000 level of the Academic Quadrangle. Is that right?") and starts only on a yes. A room that
+is not on the map gets the closest real ones ("I can't find AQ 3064 on my map. Did you mean AQ 3046
+or AQ 3062?"); a place said by name ("the Multifaith Centre") or kind ("a washroom", "coffee", "a
+lecture hall": the nearest to the car) is proposed the same way, and a yes goes there. On the way
 it asks out loud for doors to be held and elevator buttons pressed, and waits for a yes. If it gets
 lost it asks for the number on the nearest door, and that becomes a position fix. ElevenLabs speaks;
 without the network Piper does, and the car says it cannot hear just now. The student's voice goes

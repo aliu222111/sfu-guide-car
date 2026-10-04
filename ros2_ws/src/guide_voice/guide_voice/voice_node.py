@@ -25,7 +25,7 @@ from sfu_map.route import RouteGraph
 
 from .agent import SYSTEM, Actions, VoiceAgent
 from .cloud import Unheard
-from .rooms import answer_in, rooms_in, spoken
+from .rooms import answer_in, rooms_in, spoken, suggestion, understand
 from .speech import Recorder, Speaker, audio_device, trim_silence
 
 
@@ -136,11 +136,22 @@ class VoiceNode(Node):
         if not text:
             return "Sorry, I didn't catch that."
         self.get_logger().info(f"heard: {text}")
-        rooms = rooms_in(text, self.rg.destinations)
-        if self.trip.get("state") == "lost" and rooms:
-            # The car asked for the nearest door number: a room read out is where we are.
-            self.sign_pub.publish(String(data=json.dumps({"text": rooms[0], "conf": 0.8, "source": "voice"})))
-            return f"Thanks. I'll look around {rooms[0]}."
+        heard = understand(text, self.rg.destinations, self.trip)  # the trip says the car's floor and pose
+        rooms = heard.rooms
+        if self.trip.get("state") == "lost":
+            if rooms:
+                # The car asked for the nearest door number: a room read out is where we are.
+                self.sign_pub.publish(String(data=json.dumps({"text": rooms[0], "conf": 0.8, "source": "voice"})))
+                return f"Thanks. I'll look around {rooms[0]}."
+            if heard.missing:
+                return f"I can't find {heard.missing} on my map. Could you read me the number on another door?"
+        elif not rooms and answer_in(text) is None:
+            # A room that is not on the map, or a place asked for by name or kind: say what it
+            # could be, and a yes goes there (the same read-back-then-yes as a room).
+            said, proposed = suggestion(heard, self.rg.destinations)
+            if said:
+                self.pending = proposed
+                return said
         context = f"{self.trip.get('state')}, {self.trip.get('detail', '')}".strip(", ")
         if self.pending:
             context += f"; waiting for the student to confirm the destination {self.pending}"
@@ -175,13 +186,15 @@ class VoiceNode(Node):
             node = self.rg.resolve(room)
             key = next((k for k, d in self.rg.destinations.items() if d["node"] == node), room)
         except Exception:
-            hits = rooms_in(room, self.rg.destinations) or self.rg.search(room, limit=3)
-            if len(hits) == 1:
+            heard = understand(room, self.rg.destinations, self.trip)
+            hits = heard.rooms or heard.suggestions or self.rg.search(room, limit=3)
+            if len(hits) == 1 and not heard.missing:
                 key = hits[0]
             elif hits:
-                return f"No room called {room}. Close matches: {', '.join(hits)}. Ask the student which one."
+                return (f"No room called {room} on the map. The closest real ones: {', '.join(hits[:3])}. "
+                        "Ask the student if they meant one of those.")
             else:
-                return f"No room called {room} in AQ, WMC or MBC. Ask the student to repeat it."
+                return f"No room called {room} in AQ, WMC or MBC. Ask the student to check the room number."
         self.pending = key
         where = spoken(key, self.rg.destinations.get(key))
         if speak:
