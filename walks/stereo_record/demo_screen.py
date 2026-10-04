@@ -657,7 +657,7 @@ class StereoVO:
                 new = new.reshape(-1, 2).astype(np.float32)
                 self.pts = np.vstack([self.pts, new])
                 self.inlier = np.concatenate([self.inlier, np.zeros(len(new), bool)])
-                self.tracks += [deque([(float(p[0]), float(p[1]))], maxlen=6) for p in new]
+                self.tracks += [deque([(float(p[0]), float(p[1]))], maxlen=5) for p in new]
 
     def _map(self):
         d = self.disp[self.samp_v, self.samp_u]
@@ -783,13 +783,18 @@ class Screen:
         z = self.vo.fxB / np.maximum(d, 1e-3)              # colour by distance: 0.8 m red .. 10 m blue
         u8 = np.clip(255.0 * np.log(z / 0.8) / math.log(10.0 / 0.8), 0, 255).astype(np.uint8)
         u8[d <= 0] = 255
-        iw, ih = 336, 189
+        iw, ih = 352, 198
         cm = cv2.resize(self.lut[u8], (iw, ih), interpolation=cv2.INTER_NEAREST)
         cm[cv2.resize((d <= 0).astype(np.uint8), (iw, ih), interpolation=cv2.INTER_NEAREST) > 0] = (24, 24, 24)
-        x0, y0 = PANEL_W - iw - 16, PANEL_H - ih - 16
+        x0, y0 = PANEL_W - iw - 14, 14 + 32
         cv2.rectangle(p, (x0 - 3, y0 - 32), (x0 + iw + 2, y0 + ih + 2), (10, 10, 10), -1)
         p[y0:y0 + ih, x0:x0 + iw] = cm
-        self.T.put(p, "STEREO DEPTH   red 1 m  \u2192  blue 10 m", x0 + 6, y0 - 28, 16, TEXT, True)
+        self.T.put(p, "STEREO DEPTH", x0 + 6, y0 - 27, 16, TEXT, True)
+        bw, bx = 110, x0 + iw - 150                                   # colour key: 1 m .. 10 m
+        bar = cv2.resize(self.lut[np.arange(256, dtype=np.uint8)].reshape(1, 256, 3), (bw, 10))
+        p[y0 - 20:y0 - 10, bx:bx + bw] = bar
+        self.T.put(p, "1 m", bx - 6, y0 - 27, 15, MUTED, False, "right")
+        self.T.put(p, "10 m", bx + bw + 6, y0 - 27, 15, MUTED)
         self.panel_title(p, f"FRONT RIGHT  \u00b7  {self.det.label}", "+ stereo disparity (SGBM)")
         self.panel_stats(p, self.det_line("right", n))
         return p, n
@@ -934,16 +939,15 @@ class Screen:
         cv2.line(p, (bx, by - 5), (bx, by + 5), TEXT, 2); cv2.line(p, (bx + int(2 * s), by - 5), (bx + int(2 * s), by + 5), TEXT, 2)
         self.T.put(p, "2 m", bx + int(s), by - 26, 16, TEXT, False, "center")
         # legend + stats
-        items = [(SCAN_C, "depth now"), (rgb(255, 214, 140), "map (stacked depth)"), (TRAJ_C, "path driven"),
-                 (rgb(255, 72, 96), "person (from stereo)")]
+        items = [(SCAN_C, "depth now"), (rgb(255, 214, 140), "map"), (TRAJ_C, "path"),
+                 (rgb(255, 72, 96), "person")]
         x = 14; y = PANEL_H - 34
         shade(p, 0, y - 10, PANEL_W, PANEL_H, (0, 0, 0), 0.55)
         for col, name in items:
             cv2.circle(p, (x + 7, y + 11), 7, col, -1, cv2.LINE_AA)
             x += 20 + self.T.put(p, name, x + 20, y, 17, MUTED) + 22
-        keys = "q quit  \u00b7  f fullscreen  \u00b7  space pause  \u00b7  r reset map  \u00b7  +/- zoom"
-        kw, _ = self.T.size(keys, 16)
-        chip(p, self.T, keys, PANEL_W - kw - 30, 14, 16, fg=rgb(130, 140, 155), bold=False, alpha=0.5)
+        keys = "q quit \u00b7 f fullscreen \u00b7 space pause \u00b7 r reset \u00b7 +/- zoom"
+        self.T.put(p, keys, PANEL_W - 14, y + 1, 16, rgb(120, 130, 145), False, "right")
         st_col = OK_C if vo.status == "tracking" else BAD_C if vo.status == "lost" else MUTED
         self.panel_title(p, "POINT MAP  \u00b7  stereo VO", "top-down, start heading up")
         chip(p, self.T, f"VO {vo.status}  \u00b7  {vo.n_inliers} inliers  \u00b7  {g.cells():,} map cells (10 cm)",
