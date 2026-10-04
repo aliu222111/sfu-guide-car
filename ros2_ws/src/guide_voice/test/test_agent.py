@@ -102,7 +102,7 @@ def test_trim_silence_keeps_a_quiet_microphone():
     a = (rng.standard_normal(SAMPLE_RATE * 2) * 0.0005).astype(np.float32)
     a[16000:24000] += (np.sin(np.arange(8000) / 5) * 0.0085).astype(np.float32)
     out = trim_silence(a)
-    assert 8000 <= out.size < 16000
+    assert 8000 <= out.size <= 8000 + 2 * int(0.3 * SAMPLE_RATE) + 640  # all of the speech (a fixed 0.01 kept none)
 
 
 def test_truncated_tool_call_does_not_poison_history():
