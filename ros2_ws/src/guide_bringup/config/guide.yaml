@@ -56,6 +56,15 @@ ui_server:
     port: 8080
     rosbridge_port: 9090
 
+scout_api:   # the Scout rider app's HTTP API (guide_api)
+  ros__parameters:
+    maps_dir: maps
+    port: 8090
+    speed: 0.5          # m/s, the car's pace: only for the time left shown in the app
+    elevator_s: 60.0    # counted per floor change in the time left
+    car_name: Scout
+    token: ""           # set to require "Authorization: Bearer <token>" on every command
+
 floor_segmentation:
   ros__parameters:
     model: models/segformer-b0-ade.onnx

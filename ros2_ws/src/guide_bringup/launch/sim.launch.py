@@ -44,6 +44,7 @@ def setup(context):
              parameters=[guide, {"maps_dir": repo_path("maps"), "rtabmap_db_dir": repo_path("rtabmap_db"),
                                  "alignments": repo_path("rtabmap_db", "alignments.yaml")}]),
         Node(package="guide_ui", executable="ui_server", name="ui_server", parameters=[guide, {"maps_dir": repo_path("maps")}]),
+        Node(package="guide_api", executable="scout_api", name="scout_api", parameters=[guide, {"maps_dir": repo_path("maps")}]),
         Node(package="rosbridge_server", executable="rosbridge_websocket", name="rosbridge", parameters=[ROSBRIDGE_PARAMS]),
     ]
 

@@ -9,6 +9,7 @@ Maps come from phase 0 (`sfu_map/`, output in `maps/`).
 | `guide_perception` | floor segmentation, person detection, sign reader, vanishing-point heading, rear-camera student tracker | 6, 7, 9 |
 | `guide_mission` | trip state machine and mission node, localization manager, RTAB-Map to GIS alignment | 6, 8 |
 | `guide_ui` | phone web app and its server, Bluetooth signal monitor | 9 |
+| `guide_api` | HTTP API for the Scout rider app (summon the car, then be guided): trips on top of the mission topics, a fake car for work without ROS | 9 |
 | `guide_voice` | voice agent: ElevenLabs Scribe, Gemini (or Claude) with three tools, ElevenLabs voice (Piper offline) | 9 |
 | `guide_claude` | Claude for the voice agent and the cloud sign reader through your Claude subscription (Claude Agent SDK) | 9, 16 |
 | `guide_bringup` | robot description, launch files, Nav2 / EKF / navsat / camera parameters, simulator | 4 |
@@ -283,6 +284,6 @@ Also: `/bumper/range` (sensor_msgs/Range, serial bridge -> velocity gate, from t
 ## Tests
 
 ```bash
-for p in guide_bridge guide_claude guide_mission guide_perception guide_ui guide_voice; do
+for p in guide_api guide_bridge guide_claude guide_mission guide_perception guide_ui guide_voice; do
   PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONPATH=src/$p:src/guide_claude python3 -m pytest -q src/$p/test; done
 ```

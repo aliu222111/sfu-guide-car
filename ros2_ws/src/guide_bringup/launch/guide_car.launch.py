@@ -78,6 +78,7 @@ def setup(context):
         Node(package="guide_mission", executable="mission", name="mission", parameters=[guide,
              {"graph": graph, "start_floor": floor, "voice_mode": flag(context, "voice_mode")}]),
         Node(package="guide_ui", executable="ui_server", name="ui_server", parameters=[guide, {"maps_dir": repo_path("maps")}]),
+        Node(package="guide_api", executable="scout_api", name="scout_api", parameters=[guide, {"maps_dir": repo_path("maps")}]),
         Node(package="rosbridge_server", executable="rosbridge_websocket", name="rosbridge", parameters=[ROSBRIDGE_PARAMS]),
         Node(package="guide_perception", executable="vp_heading", name="vp_heading", parameters=[guide],
              remappings=left),

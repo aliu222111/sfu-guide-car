@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rider API test page</title>
+<style>
+  body { font: 16px/1.4 system-ui, sans-serif; margin: 0; padding: 16px; max-width: 640px; color: #111; }
+  h1 { font-size: 20px; margin: 0 0 12px; }
+  label { display: block; font-size: 13px; color: #555; margin-top: 10px; }
+  input { font: inherit; width: 100%; box-sizing: border-box; padding: 10px; border: 1px solid #bbb; border-radius: 8px; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  button { font: inherit; font-weight: 600; min-height: 44px; padding: 0 16px; border: 0; border-radius: 8px; background: #A6192E; color: #fff; cursor: pointer; }
+  button.plain { background: #eee; color: #111; }
+  button:disabled { opacity: .45; cursor: default; }
+  #car, #trip { margin-top: 12px; padding: 12px; border-radius: 8px; background: #f3f3f3; white-space: pre-wrap; font-size: 14px; }
+  #log { margin-top: 12px; font: 12px/1.5 ui-monospace, monospace; max-height: 260px; overflow: auto; border-top: 1px solid #ddd; padding-top: 8px; }
+</style>
+</head>
+<body>
+<h1>Rider API test page</h1>
+<p>Drives the car through the same calls the Scout app makes. Not the app itself.</p>
+<div id="car">Asking the car…</div>
+
+<label for="at">The car is standing at (only for a car that cannot find its own position)</label>
+<div class="row" style="margin-top: 0"><input id="at" placeholder="ASB 970.7" autocomplete="off" style="flex: 1 1 200px; width: auto"><button id="setat" class="plain">Set position</button></div>
+
+<label for="pickup">Rider is at (leave empty if the rider is beside the car)</label>
+<input id="pickup" placeholder="ASB 9700" autocomplete="off">
+<label for="dest">Going to</label>
+<input id="dest" placeholder="ASB 9896" autocomplete="off">
+
+<div class="row">
+  <button id="go">Request trip</button>
+  <button id="start" disabled>Start walking</button>
+  <button id="confirm" disabled>Confirm</button>
+  <button id="pause" class="plain" disabled>Pause</button>
+  <button id="cancel" class="plain" disabled>Cancel</button>
+</div>
+<div id="trip">No trip.</div>
+<div id="log"></div>
+
+<script src="scout-api.js"></script>
+<script>
+"use strict";
+const api = ScoutApi("");
+const $ = (id) => document.getElementById(id);
+let tripId = null, stop = null, paused = false;
+
+function log(text) {
+  const line = document.createElement("div");
+  line.textContent = new Date().toLocaleTimeString() + "  " + text;
+  $("log").prepend(line);
+}
+
+async function refreshCar() {
+  try {
+    const c = await api.getCar();
+    $("car").textContent = c.name + ": " + c.status + (c.floor ? " on " + c.floor : "") +
+      (c.pose ? "  (" + c.pose.x + ", " + c.pose.y + ")" : "") + (c.mission.state ? "  mission: " + c.mission.state : "");
+  } catch (e) { $("car").textContent = "No answer from the API: " + e.message; }
+}
+setInterval(refreshCar, 2000); refreshCar();
+
+function show(u) {
+  const ended = ["done", "aborted", "cancelled", "failed"].includes(u.phase);
+  $("trip").textContent = u.tripId + "  " + u.stage + " / " + u.phase + (u.paused ? " (paused)" : "") +
+    "\nprogress " + Math.round(u.progress * 100) + "%" + (u.etaSec != null ? "   about " + Math.round(u.etaSec) + " s left" : "") +
+    (u.leftM != null ? "   " + u.leftM + " m" : "") +
+    (u.prompt ? "\n" + u.prompt.title + ": " + u.prompt.line : "") + (u.reason ? "\nreason: " + u.reason : "") +
+    (u.app ? "\napp plan: level " + u.app.lv + " (" + u.app.x + ", " + u.app.y + ")" : "");
+  $("start").disabled = !(u.stage === "summon" && u.phase === "arrived");
+  $("confirm").disabled = !(u.prompt && u.prompt.button);
+  $("confirm").textContent = u.prompt && u.prompt.button ? u.prompt.button : "Confirm";
+  $("pause").disabled = $("cancel").disabled = ended;
+  paused = u.paused; $("pause").textContent = paused ? "Resume" : "Pause";
+  $("go").disabled = !ended;
+  if (u.say) log('car says: "' + u.say + '"');
+}
+
+const run = (fn) => async () => { try { await fn(); } catch (e) { log("error: " + e.message); } };
+function follow(u) {
+  tripId = u.tripId; show(u);
+  if (stop) stop();
+  let last = "";
+  stop = api.onTripUpdate(tripId, (ev) => { if (ev.phase !== last) { last = ev.phase; log("phase: " + ev.phase); } show(ev); });
+}
+$("go").onclick = run(async () => {
+  const u = await api.requestTrip($("pickup").value.trim() || null, $("dest").value.trim());
+  log("trip " + u.tripId + " requested"); follow(u);
+});
+// A trip already under way (started from another phone, or before a reload): pick it up.
+fetch("api/trips/current").then((r) => r.json()).then((u) => {
+  if (u && !["done", "aborted", "cancelled", "failed"].includes(u.phase)) { log("joined " + u.tripId); follow(u); }
+}).catch(() => {});
+$("setat").onclick = run(async () => { const r = await api.setCarPosition($("at").value.trim()); log("car position set to " + r.room); refreshCar(); });
+$("start").onclick = run(() => api.startGuiding(tripId));
+$("confirm").onclick = run(() => api.confirm(tripId));
+$("pause").onclick = run(() => api.pause(tripId, !paused));
+$("cancel").onclick = run(() => api.cancelTrip(tripId));
+</script>
+</body>
+</html>
