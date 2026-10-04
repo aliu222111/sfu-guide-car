@@ -1,0 +1,71 @@
+<?xml version="1.0"?>
+<!-- SFU guide car: a stock RC car, Ackermann steering. Measure the mounts on the built
+     chassis and update the numbers. base_link lies on the floor (z = 0 at ground level)
+     at the centre of the REAR axle, which the bicycle model turns about; the 75 cm body
+     reaches rear_overhang behind it and the rest ahead (match nav2.yaml's footprint):
+     the perception nodes intersect camera rays with z = 0 in base_link, and the
+     costmap height filters are heights above the floor. -->
+<robot name="guide_car" xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:property name="base_length" value="0.75"/>   <!-- RC car body, 75 x 41 cm -->
+  <xacro:property name="rear_overhang" value="0.12"/> <!-- rear axle to the back of the body: measure -->
+  <xacro:property name="base_width" value="0.41"/>
+  <xacro:property name="base_height" value="0.15"/>
+  <xacro:property name="wheel_radius" value="0.09"/>  <!-- 18 cm wheels -->
+  <!-- Stereo pair: 10 cm apart (lens centres), level, facing forward. With the 50 deg
+       webcams and a 128-disparity search, stereo sees from 0.54 m out (spec section 3). -->
+  <xacro:property name="cam_x" value="0.50"/>       <!-- ahead of the rear axle; the body ends at 0.63 -->
+  <xacro:property name="cam_z" value="0.28"/>       <!-- lens height above the floor (the RC car's mount) -->
+  <!-- 5 deg nose UP (negative pitch): from 28 cm, level would see nothing above 1.1 m at 2 m; tilted up
+       the pair sees to 1.3 m at 2 m and 1.8 m at 3 m (door signs from about 2 m, with capture:=720p)
+       and the floor from 0.95 m ahead (the bumper covers nearer). -->
+  <xacro:property name="cam_pitch" value="-0.09"/>
+  <xacro:property name="stereo_baseline" value="0.10"/>
+
+  <link name="base_link">
+    <visual>
+      <origin xyz="${base_length/2 - rear_overhang} 0 ${wheel_radius + base_height/2}"/>
+      <geometry><box size="${base_length} ${base_width} ${base_height}"/></geometry>
+    </visual>
+    <collision>
+      <origin xyz="${base_length/2 - rear_overhang} 0 ${wheel_radius + base_height/2}"/>
+      <geometry><box size="${base_length} ${base_width} ${base_height}"/></geometry>
+    </collision>
+  </link>
+  <!-- No base_footprint: base_link is on the floor already, and the EKF is its only parent. -->
+
+  <xacro:macro name="camera" params="name x y z pitch yaw">
+    <link name="${name}_link"/>
+    <joint name="${name}_joint" type="fixed">
+      <parent link="base_link"/><child link="${name}_link"/>
+      <origin xyz="${x} ${y} ${z}" rpy="0 ${pitch} ${yaw}"/>
+    </joint>
+    <!-- Optical frame: z forward, x right, y down (REP-103). -->
+    <link name="${name}_optical_frame"/>
+    <joint name="${name}_optical_joint" type="fixed">
+      <parent link="${name}_link"/><child link="${name}_optical_frame"/>
+      <origin xyz="0 0 0" rpy="${-pi/2} 0 ${-pi/2}"/>
+    </joint>
+  </xacro:macro>
+
+  <xacro:camera name="left_camera" x="${cam_x}" y="${stereo_baseline/2}" z="${cam_z}" pitch="${cam_pitch}" yaw="0"/>
+  <xacro:camera name="right_camera" x="${cam_x}" y="${-stereo_baseline/2}" z="${cam_z}" pitch="${cam_pitch}" yaw="0"/>
+  <!-- cameras:=iphone (spec section 19): the iPhone upright on the same mount, rear camera
+       forward. Match guide.yaml iphone mount_x / mount_y. -->
+  <xacro:camera name="iphone_camera" x="${cam_x}" y="0" z="${cam_z}" pitch="${cam_pitch}" yaw="0"/>
+  <!-- Phase 6 rear camera, facing backwards (with cameras:=iphone, the webcam). -->
+  <xacro:camera name="rear_camera" x="${-rear_overhang}" y="0" z="${cam_z}" pitch="0.1" yaw="${pi}"/>
+
+  <!-- Phone lying flat, screen up, top edge forward (spec section 3). -->
+  <link name="phone_link"/>
+  <joint name="phone_joint" type="fixed">
+    <parent link="base_link"/><child link="phone_link"/>
+    <origin xyz="0 0 ${wheel_radius + base_height + 0.01}"/>
+  </joint>
+
+  <!-- External GPS antenna on top (spec section 3). -->
+  <link name="gps_link"/>
+  <joint name="gps_joint" type="fixed">
+    <parent link="base_link"/><child link="gps_link"/>
+    <origin xyz="-0.1 0 ${cam_z + 0.05}"/>
+  </joint>
+</robot>

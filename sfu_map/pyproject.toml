@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sfu_map"
+version = "0.1.0"
+description = "Offline map pipeline for the SFU campus guide car: floor occupancy grids, route graph, destination index"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.24",
+    "shapely>=2.0",
+    "scikit-image>=0.21",
+    "pillow>=9",
+    "pyyaml>=6",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
+pdf = ["pymupdf>=1.24"]  # sfu-map walkways only
+
+[project.scripts]
+sfu-map = "sfu_map.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

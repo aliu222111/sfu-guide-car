@@ -1,0 +1,35 @@
+:root {
+  --bg: #f6f6f4; --fg: #1d1d1b; --muted: #6b6b66; --card: #ffffff; --line: #d9d9d4;
+  --accent: #a6192e; /* SFU red */ --ok: #2e7d32; --warn: #b26a00; --bad: #b3261e;
+  --corridor: #c9c9c2; --route: #a6192e; --car: #1565c0;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #151514; --fg: #ecece8; --muted: #a3a39c; --card: #20201e; --line: #3a3a36;
+    --accent: #e0566a; --corridor: #4a4a45; --route: #ff6b7f; --car: #64b5f6;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 17px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; }
+header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+h1 { font-size: 1.1rem; margin: 0; }
+main { padding: 16px; max-width: 640px; margin: 0 auto; }
+label { display: block; font-weight: 600; margin-bottom: 8px; }
+input { width: 100%; font-size: 1.2rem; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); color: var(--fg); }
+ul { list-style: none; padding: 0; margin: 12px 0; }
+li button { width: 100%; text-align: left; padding: 12px; margin-bottom: 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); color: var(--fg); font-size: 1rem; }
+li small { color: var(--muted); display: block; }
+.pill { font-size: .8rem; padding: 3px 10px; border-radius: 999px; background: var(--line); }
+.pill.on { background: var(--ok); color: #fff; }
+.status { background: var(--card); border: 1px solid var(--line); border-left: 6px solid var(--accent); border-radius: 10px; padding: 12px; }
+.status.waiting { border-left-color: var(--warn); }
+.status.done { border-left-color: var(--ok); }
+.status.bad { border-left-color: var(--bad); }
+#status-title { font-weight: 700; font-size: 1.2rem; }
+#status-detail { color: var(--muted); }
+.said { margin: 12px 0; min-height: 1.4em; font-style: italic; }
+canvas { width: 100%; height: auto; background: var(--card); border: 1px solid var(--line); border-radius: 10px; }
+.buttons { display: grid; gap: 10px; margin-top: 12px; }
+.buttons button { font-size: 1.1rem; padding: 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); color: var(--fg); }
+.buttons .primary { background: var(--accent); color: #fff; border: none; font-weight: 700; }
+.buttons .danger { color: var(--bad); }

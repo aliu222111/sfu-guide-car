@@ -1,0 +1,128 @@
+# Parameters for the guide_* nodes. Paths are relative to the directory the
+# launch is started from (the repository root) unless absolute.
+
+serial_bridge:
+  ros__parameters:
+    port: /dev/ttyUSB0        # the ESP32 dev board; stable name: /dev/serial/by-id/usb-Silicon_Labs_CP2102...
+    baud: 115200
+    rate_hz: 20.0
+    # The RC car (Ackermann steering), driven through its hand controller. Measure on
+    # the floor (README, "The RC car"); guide_bridge/ackermann.py uses these.
+    wheelbase: 0.48           # m, front to rear axle
+    max_steer: 0.52           # rad at full lock: atan(wheelbase / R) for a slow full-lock circle of radius R
+    steer_trim: 0.0           # steering value (-1..1) at which the car rolls straight
+    steer_reversed: false     # true if a positive (left) value turns it right
+    throttle_start: 0.15      # trigger (0..1) at which the car just starts to roll
+    throttle_limit: 0.40      # never more trigger than this (RC cars are fast)
+    speed_at_limit: 1.6       # m/s at throttle_limit
+    throttle_reversed: false
+    # The throttle is open loop: the speed sent is trimmed slowly towards the
+    # speed the odometry measures (guide_bridge/speed.py). 0 gain: off.
+    speed_trim_gain: 0.8      # (m/s) per (m/s of error) per second
+    speed_trim_limit: 0.3     # m/s
+
+phone_imu:
+  ros__parameters:
+    port: 8765
+    frame_id: phone_link
+    accel_scale: 1.0            # 9.81 if the phone reports in g
+    # Android orientation is magnetic-north based. SFU Burnaby declination is
+    # about 15.5 deg east (2026); true ENU yaw = magnetic yaw - declination.
+    world_yaw_offset: -0.27
+
+velocity_gate:
+  ros__parameters:
+    outdoor_max: 1.0
+    indoor_max: 0.6
+    person_stop: 1.0
+    person_slow: 3.0
+    require_person_detector: true
+
+mission:
+  ros__parameters:
+    graph: maps/route_graph.json
+    start_floor: ""             # "" = outdoors; e.g. AQ-03 when starting indoors
+    voice_mode: false
+
+localization_manager:
+  ros__parameters:
+    maps_dir: maps
+    rtabmap_db_dir: rtabmap_db
+    alignments: rtabmap_db/alignments.yaml
+
+ui_server:
+  ros__parameters:
+    maps_dir: maps
+    port: 8080
+    rosbridge_port: 9090
+
+floor_segmentation:
+  ros__parameters:
+    model: models/segformer-b0-ade.onnx
+    labels: models/segformer-b0-ade.labels.json
+    rate_hz: 2.0                 # spec section 15: 2 Hz on CPU
+
+person_detection:
+  ros__parameters:
+    model: models/yolo11n.onnx    # yolo11n.pt with an NVIDIA GPU
+    rate_hz: 10.0
+
+sign_reader:
+  ros__parameters:
+    backend: paddle              # paddle (local) | claude (your Claude subscription) | claude_api (API key) | gemini (GEMINI_API_KEY)
+    gemini_model: gemini-flash-latest
+    rate_hz: 1.0                 # 2.0 with a GPU; with backend claude use 0.2 to stay inside subscription limits
+
+vp_heading:
+  ros__parameters:
+    rate_hz: 10.0
+    # Measurements further than this from the current heading are dropped: lines
+    # on a patterned floor make false vanishing points, and a wide gate lets them
+    # ratchet the heading away (HIL simulation: 20 deg let a 30 deg error in).
+    max_disagreement_deg: 12.0
+
+iphone:                     # cameras:=iphone only (spec section 19): Record3D over USB
+  ros__parameters:
+    device_index: 0
+    out_width: 640            # colour image width for perception and RTAB-Map
+    min_confidence: 2         # LiDAR confidence 0..2: keep only high
+    max_depth: 5.0            # m, the LiDAR's useful range indoors
+    point_stride: 2           # every 2nd LiDAR pixel for the costmap cloud
+    points_rate: 10.0         # Hz
+    mount_x: 0.50             # phone camera ahead of the rear axle (base_link): the URDF's iphone_camera
+    mount_y: 0.0
+    quarter_turns: 0          # rotate images if they arrive sideways (counter-clockwise)
+    velocity_variance: 0.0025 # (m/s)^2 and (rad/s)^2 for the EKFs
+
+mono_odometry:              # cameras:=mono only (spec section 18)
+  ros__parameters:
+    rate_hz: 10.0
+    min_range: 0.4          # m: the floor band it tracks
+    max_range: 4.0
+
+student_tracker:
+  ros__parameters:
+    model: models/yolo11n.onnx
+    rate_hz: 5.0
+
+voice_agent:
+  ros__parameters:
+    graph: maps/route_graph.json
+    piper_voice: voices/en_US-lessac-medium.onnx   # the offline voice; setup_voice.sh downloads it
+    mic_device: ""               # "" = the system default; a name or index from voice_check --devices
+    speaker_device: ""
+    llm: gemini                  # gemini (GEMINI_API_KEY) | claude
+    claude_model: claude-haiku-4-5
+    claude_auth: subscription    # your Claude subscription (claude setup-token); or api_key (ANTHROPIC_API_KEY)
+    gemini_model: gemini-flash-latest
+    # ElevenLabs hears (Scribe) and speaks (ELEVENLABS_API_KEY). Without the network
+    # Piper speaks and the car says it cannot hear just now. The student's voice
+    # goes to ElevenLabs: say so on a sign on the car.
+    tts: elevenlabs              # elevenlabs | piper
+    elevenlabs_voice_id: 21m00Tcm4TlvDq8ikWAM
+    elevenlabs_tts_model: eleven_flash_v2_5
+    elevenlabs_stt_model: scribe_v1
+
+phone_rssi:
+  ros__parameters:
+    device_name: SFU-GUIDE

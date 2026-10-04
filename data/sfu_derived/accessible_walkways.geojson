@@ -1,0 +1,1524 @@
+{
+ "type": "FeatureCollection",
+ "properties": {
+  "source": "data/sfu_pdf/sfu_Accessibility_campus_map_2024.pdf",
+  "method": "sfu_map.walkways: navy walkway pixels, georeferenced to campus-geometry.json footprints",
+  "georeference": {
+   "scale_m_per_pt": 1.9134064445966048,
+   "yaw_rad": -0.22724552166334358,
+   "tx": -1162.904932828156,
+   "ty": 704.0206115396044,
+   "building_iou": 0.574
+  }
+ },
+ "features": [
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -122.9282796,
+      49.2802678
+     ],
+     [
+      -122.9251814,
+      49.2797962
+     ],
+     [
+      -122.9249817,
+      49.2797872
+     ],
+     [
+      -122.9243552,
+      49.2796884
+     ],
+     [
+      -122.9243139,
+      49.2796884
+     ],
+     [
+      -122.9242932,
+      49.2797063
+     ],
+     [
+      -122.9242382,
+      49.2798635
+     ],
+     [
+      -122.9242588,
+      49.2799399
+     ]
+    ]
+   },
+   "properties": {
+    "kind": "walkway",
+    "id": "w0",
+    "step_free": true,
+    "verified": false,
+    "through_building": false
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -122.9280318,
+      49.2804519
+     ],
+     [
+      -122.925147,
+      49.2800162
+     ],
+     [
+      -122.925085,
+      49.2800162
+     ],
+     [
+      -122.9250437,
+      49.2800746
+     ],
+     [
+      -122.9249955,
+      49.2800791
+     ],
+     [
+      -122.9243001,
+      49.2799758
+     ]
+    ]
+   },
+   "properties": {
+    "kind": "walkway",
+    "id": "w1",
+    "step_free": true,
+    "verified": false,
+    "through_building": true
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -122.9242932,
+      49.2799758
+     ],
+     [
+      -122.9242657,
+      49.2800028
+     ],
+     [
+      -122.9242726,
+      49.2800612
+     ],
+     [
+      -122.9242037,
+      49.2802318
+     ],
+     [
+      -122.9242037,
+      49.2802812
+     ],
+     [
+      -122.9243277,
+      49.2803127
+     ],
+     [
+      -122.9246237,
+      49.2803576
+     ],
+     [
+      -122.925023,
+      49.280416
+     ],
+     [
+      -122.9250988,
+      49.2804115
+     ]
+    ]
+   },
+   "properties": {
+    "kind": "walkway",
+    "id": "w2",
+    "step_free": true,
+    "verified": false,
+    "through_building": false
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -122.9242932,
+      49.2799713
+     ],
+     [
+      -122.9242657,
+      49.2799444
+     ]
+    ]
+   },
+   "properties": {
+    "kind": "walkway",
+    "id": "w3",
+    "step_free": true,
+    "verified": false,
+    "through_building": true
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -122.9242519,
+      49.2799444
+     ],
+     [
+      -122.9240867,
+      49.2799444
+     ],
+     [
+      -122.9228199,
+      49.2797423
+     ]
+    ]
+   },
+   "properties": {
+    "kind": "walkway",
+    "id": "w4",
+    "step_free": true,
+    "verified": false,
+    "through_building": true
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -122.9228749,
+      49.2795446
+     ],
+     [
+      -122.922813,
+      49.2797378
+     ]
+    ]
+   },
+   "properties": {
+    "kind": "walkway",
+    "id": "w5",
+    "step_free": true,
+    "verified": false,
+    "through_building": true
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -122.9226293,
+      49.2797158
+     ],
+     [
+      -122.9226565,
+      49.27972
+     ]
+    ]
+   },
+   "properties": {
+    "kind": "walkway",
+    "id": "w6",
+    "step_free": true,
+    "verified": false,
+    "through_building": true
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -122.9227248,
+      49.2797307
+     ],
+     [
+      -122.9227992,
+      49.2797423
+     ]
+    ]
+   },
+   "properties": {
+    "kind": "walkway",
+    "id": "w7",
+    "step_free": true,
+    "verified": false,
+    "through_building": true
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -122.9225217,
+      49.2800013
+     ],
+     [
+      -122.9225307,
+      49.2800028
+     ],
+     [
+      -122.9227235,
+      49.2799848
+     ],
+     [
+      -122.9227441,
+      49.279868
+     ],
+     [
+      -122.9227992,
+      49.2797467
+     ]
+    ]
+   },
+   "properties": {
+    "kind": "walkway",
+    "id": "w8",
+    "step_free": true,
+    "verified": false,
+    "through_building": true
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -122.921615,
+      49.2793919
+     ],
+     [
+      -122.9216012,
+      49.2794728
+     ],
+     [
+      -122.9215986,
+      49.2794799
+     ]
+    ]
+   },
+   "properties": {
+    "kind": "walkway",
+    "id": "w9",
+    "step_free": true,
+    "verified": false,
+    "through_building": true
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -122.9175583,
+      49.2792545
+     ],
+     [
+      -122.9193154,
+      49.2795177
+     ],
+     [
+      -122.9197698,
+      49.2795895
+     ],
+     [
+      -122.9208005,
+      49.2797375
+     ]
+    ]
+   },
+   "properties": {
+    "kind": "walkway",
+    "id": "w10",
+    "step_free": true,
+    "verified": false,
+    "through_building": true
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -122.9206649,
+      49.2794099
+     ],
+     [
+      -122.9207491,
+      49.279423
+     ]
+    ]
+   },
+   "properties": {
+    "kind": "walkway",
+    "id": "w11",
+    "step_free": true,
+    "verified": false,
+    "through_building": true
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -122.9199488,
+      49.2792347
+     ],
+     [
+      -122.9199144,
+      49.2792302
+     ],
+     [
+      -122.9197492,
+      49.2792661
+     ],
+     [
+      -122.9194049,
+      49.2792167
+     ],
+     [
+      -122.9193638,
+      49.2792014
+     ]
+    ]
+   },
+   "properties": {
+    "kind": "walkway",
+    "id": "w12",
+    "step_free": true,
+    "verified": false,
+    "through_building": true
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -122.917669,
+      49.2789423
+     ],
+     [
+      -122.918887,
+      49.2791356
+     ]
+    ]
+   },
+   "properties": {
+    "kind": "walkway",
+    "id": "w13",
+    "step_free": true,
+    "verified": false,
+    "through_building": true
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -122.919109,
+      49.2791709
+     ],
+     [
+      -122.9191433,
+      49.2791763
+     ],
+     [
+      -122.919219,
+      49.2791628
+     ]
+    ]
+   },
+   "properties": {
+    "kind": "walkway",
+    "id": "w14",
+    "step_free": true,
+    "verified": false,
+    "through_building": true
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -122.9183102,
+      49.2784711
+     ],
+     [
+      -122.9182964,
+      49.2785475
+     ],
+     [
+      -122.9182001,
+      49.2787676
+     ],
+     [
+      -122.9181519,
+      49.2789203
+     ],
+     [
+      -122.9181171,
+      49.2790134
+     ]
+    ]
+   },
+   "properties": {
+    "kind": "walkway",
+    "id": "w15",
+    "step_free": true,
+    "verified": false,
+    "through_building": true
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -122.9178283,
+      49.2777031
+     ],
+     [
+      -122.9179453,
+      49.2773707
+     ]
+    ]
+   },
+   "properties": {
+    "kind": "walkway",
+    "id": "w16",
+    "step_free": true,
+    "verified": false,
+    "through_building": true
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -122.9178145,
+      49.2772315
+     ],
+     [
+      -122.9174771,
+      49.2771821
+     ]
+    ]
+   },
+   "properties": {
+    "kind": "walkway",
+    "id": "w17",
+    "step_free": true,
+    "verified": false,
+    "through_building": true
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -122.9175763,
+      49.2784163
+     ],
+     [
+      -122.9176837,
+      49.2781028
+     ]
+    ]
+   },
+   "properties": {
+    "kind": "walkway",
+    "id": "w18",
+    "step_free": true,
+    "verified": false,
+    "through_building": true
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -122.9175873,
+      49.279621
+     ],
+     [
+      -122.917546,
+      49.2796165
+     ],
+     [
+      -122.9173324,
+      49.2795025
+     ]
+    ]
+   },
+   "properties": {
+    "kind": "walkway",
+    "id": "w19",
+    "step_free": true,
+    "verified": false,
+    "through_building": false
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -122.9173918,
+      49.2793459
+     ],
+     [
+      -122.9174235,
+      49.2792936
+     ]
+    ]
+   },
+   "properties": {
+    "kind": "walkway",
+    "id": "w20",
+    "step_free": true,
+    "verified": false,
+    "through_building": false
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -122.9170158,
+      49.2775414
+     ],
+     [
+      -122.9170434,
+      49.2775099
+     ],
+     [
+      -122.9171054,
+      49.2773078
+     ]
+    ]
+   },
+   "properties": {
+    "kind": "walkway",
+    "id": "w21",
+    "step_free": true,
+    "verified": false,
+    "through_building": true
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -122.916762,
+      49.2782642
+     ],
+     [
+      -122.917009,
+      49.2775459
+     ]
+    ]
+   },
+   "properties": {
+    "kind": "walkway",
+    "id": "w22",
+    "step_free": true,
+    "verified": false,
+    "through_building": true
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -122.916231,
+      49.2774336
+     ],
+     [
+      -122.9168919,
+      49.2775369
+     ],
+     [
+      -122.9170021,
+      49.2775414
+     ]
+    ]
+   },
+   "properties": {
+    "kind": "walkway",
+    "id": "w23",
+    "step_free": true,
+    "verified": false,
+    "through_building": true
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -122.9169195,
+      49.279886
+     ],
+     [
+      -122.9169868,
+      49.2797044
+     ]
+    ]
+   },
+   "properties": {
+    "kind": "walkway",
+    "id": "w24",
+    "step_free": true,
+    "verified": false,
+    "through_building": true
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -122.9168781,
+      49.2770743
+     ],
+     [
+      -122.9168162,
+      49.2770653
+     ],
+     [
+      -122.9163807,
+      49.2770005
+     ]
+    ]
+   },
+   "properties": {
+    "kind": "walkway",
+    "id": "w25",
+    "step_free": true,
+    "verified": false,
+    "through_building": true
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -122.9164444,
+      49.2768182
+     ],
+     [
+      -122.9163807,
+      49.2770005
+     ]
+    ]
+   },
+   "properties": {
+    "kind": "walkway",
+    "id": "w26",
+    "step_free": true,
+    "verified": false,
+    "through_building": true
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -122.9163807,
+      49.2770005
+     ],
+     [
+      -122.916231,
+      49.2774291
+     ],
+     [
+      -122.9162172,
+      49.2774291
+     ],
+     [
+      -122.9154048,
+      49.2773123
+     ]
+    ]
+   },
+   "properties": {
+    "kind": "walkway",
+    "id": "w27",
+    "step_free": true,
+    "verified": false,
+    "through_building": true
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -122.9162241,
+      49.2774381
+     ],
+     [
+      -122.916052,
+      49.2779321
+     ],
+     [
+      -122.9159693,
+      49.2781567
+     ]
+    ]
+   },
+   "properties": {
+    "kind": "walkway",
+    "id": "w28",
+    "step_free": true,
+    "verified": false,
+    "through_building": true
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -122.9151569,
+      49.2779726
+     ],
+     [
+      -122.9152051,
+      49.2779905
+     ],
+     [
+      -122.9158179,
+      49.2780759
+     ],
+     [
+      -122.9159693,
+      49.2781567
+     ]
+    ]
+   },
+   "properties": {
+    "kind": "walkway",
+    "id": "w29",
+    "step_free": true,
+    "verified": false,
+    "through_building": true
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -122.9156802,
+      49.2796884
+     ],
+     [
+      -122.9157403,
+      49.2794892
+     ]
+    ]
+   },
+   "properties": {
+    "kind": "walkway",
+    "id": "w30",
+    "step_free": true,
+    "verified": false,
+    "through_building": true
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -122.9153493,
+      49.2794152
+     ],
+     [
+      -122.9153428,
+      49.2794144
+     ],
+     [
+      -122.9144271,
+      49.2792841
+     ]
+    ]
+   },
+   "properties": {
+    "kind": "walkway",
+    "id": "w31",
+    "step_free": true,
+    "verified": false,
+    "through_building": true
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -122.915609,
+      49.2787922
+     ],
+     [
+      -122.9129813,
+      49.2783993
+     ]
+    ]
+   },
+   "properties": {
+    "kind": "walkway",
+    "id": "w32",
+    "step_free": true,
+    "verified": false,
+    "through_building": false
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -122.9154943,
+      49.2769979
+     ],
+     [
+      -122.9154392,
+      49.2771461
+     ],
+     [
+      -122.9154048,
+      49.2773123
+     ]
+    ]
+   },
+   "properties": {
+    "kind": "walkway",
+    "id": "w33",
+    "step_free": true,
+    "verified": false,
+    "through_building": true
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -122.9154048,
+      49.2773123
+     ],
+     [
+      -122.9153703,
+      49.2773527
+     ],
+     [
+      -122.9151569,
+      49.2779681
+     ]
+    ]
+   },
+   "properties": {
+    "kind": "walkway",
+    "id": "w34",
+    "step_free": true,
+    "verified": false,
+    "through_building": true
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -122.91515,
+      49.2779726
+     ],
+     [
+      -122.9143376,
+      49.2778558
+     ],
+     [
+      -122.9140002,
+      49.2778019
+     ]
+    ]
+   },
+   "properties": {
+    "kind": "walkway",
+    "id": "w35",
+    "step_free": true,
+    "verified": false,
+    "through_building": true
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -122.9144409,
+      49.2767823
+     ],
+     [
+      -122.914193,
+      49.277492
+     ],
+     [
+      -122.9141379,
+      49.2776492
+     ],
+     [
+      -122.9141104,
+      49.2777076
+     ],
+     [
+      -122.9140002,
+      49.2778019
+     ]
+    ]
+   },
+   "properties": {
+    "kind": "walkway",
+    "id": "w36",
+    "step_free": true,
+    "verified": false,
+    "through_building": true
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -122.9144202,
+      49.2792841
+     ],
+     [
+      -122.9143101,
+      49.2792572
+     ],
+     [
+      -122.9129675,
+      49.2790595
+     ],
+     [
+      -122.9127747,
+      49.2792033
+     ],
+     [
+      -122.9126439,
+      49.2795806
+     ]
+    ]
+   },
+   "properties": {
+    "kind": "walkway",
+    "id": "w37",
+    "step_free": true,
+    "verified": false,
+    "through_building": true
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -122.9142343,
+      49.2798276
+     ],
+     [
+      -122.9144202,
+      49.2792886
+     ]
+    ]
+   },
+   "properties": {
+    "kind": "walkway",
+    "id": "w38",
+    "step_free": true,
+    "verified": false,
+    "through_building": true
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -122.9140002,
+      49.2778019
+     ],
+     [
+      -122.9137248,
+      49.277766
+     ]
+    ]
+   },
+   "properties": {
+    "kind": "walkway",
+    "id": "w39",
+    "step_free": true,
+    "verified": false,
+    "through_building": true
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -122.9124649,
+      49.2800297
+     ],
+     [
+      -122.9124993,
+      49.2800342
+     ]
+    ]
+   },
+   "properties": {
+    "kind": "walkway",
+    "id": "w40",
+    "step_free": true,
+    "verified": false,
+    "through_building": false
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -122.9113633,
+      49.2791988
+     ],
+     [
+      -122.911322,
+      49.2791943
+     ]
+    ]
+   },
+   "properties": {
+    "kind": "walkway",
+    "id": "w41",
+    "step_free": true,
+    "verified": false,
+    "through_building": false
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -122.9175583,
+     49.2792545
+    ]
+   },
+   "properties": {
+    "kind": "entrance",
+    "id": "aq_2000_0",
+    "building": "AQ",
+    "floor": "AQ-02",
+    "level_label": "AQ 2000",
+    "verified": false
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -122.917669,
+     49.2789423
+    ]
+   },
+   "properties": {
+    "kind": "entrance",
+    "id": "aq_2000_1",
+    "building": "AQ",
+    "floor": "AQ-02",
+    "level_label": "AQ 2000",
+    "verified": false
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -122.9175763,
+     49.2784163
+    ]
+   },
+   "properties": {
+    "kind": "entrance",
+    "id": "aq_2000_2",
+    "building": "AQ",
+    "floor": "AQ-02",
+    "level_label": "AQ 2000",
+    "verified": false
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -122.9175647,
+     49.2788643
+    ]
+   },
+   "properties": {
+    "kind": "entrance",
+    "id": "aq_2000_3",
+    "building": "AQ",
+    "floor": "AQ-02",
+    "level_label": "AQ 2000",
+    "verified": false
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -122.9174235,
+     49.2792936
+    ]
+   },
+   "properties": {
+    "kind": "entrance",
+    "id": "aq_3000_4",
+    "building": "AQ",
+    "floor": "AQ-03",
+    "level_label": "AQ 3000",
+    "verified": false
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -122.9173918,
+     49.2793459
+    ]
+   },
+   "properties": {
+    "kind": "entrance",
+    "id": "aq_2000_5",
+    "building": "AQ",
+    "floor": "AQ-02",
+    "level_label": "AQ 2000",
+    "verified": false
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -122.9173324,
+     49.2795025
+    ]
+   },
+   "properties": {
+    "kind": "entrance",
+    "id": "aq_2000_6",
+    "building": "AQ",
+    "floor": "AQ-02",
+    "level_label": "AQ 2000",
+    "verified": false
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -122.916762,
+     49.2782642
+    ]
+   },
+   "properties": {
+    "kind": "entrance",
+    "id": "aq_3000_7",
+    "building": "AQ",
+    "floor": "AQ-03",
+    "level_label": "AQ 3000",
+    "verified": false
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -122.9169868,
+     49.2797044
+    ]
+   },
+   "properties": {
+    "kind": "entrance",
+    "id": "aq_2000_8",
+    "building": "AQ",
+    "floor": "AQ-02",
+    "level_label": "AQ 2000",
+    "verified": false
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -122.9159655,
+     49.2781718
+    ]
+   },
+   "properties": {
+    "kind": "entrance",
+    "id": "aq_3000_9",
+    "building": "AQ",
+    "floor": "AQ-03",
+    "level_label": "AQ 3000",
+    "verified": false
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -122.9157403,
+     49.2794892
+    ]
+   },
+   "properties": {
+    "kind": "entrance",
+    "id": "aq_3000_10",
+    "building": "AQ",
+    "floor": "AQ-03",
+    "level_label": "AQ 3000",
+    "verified": false
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -122.9153493,
+     49.2794152
+    ]
+   },
+   "properties": {
+    "kind": "entrance",
+    "id": "aq_3000_11",
+    "building": "AQ",
+    "floor": "AQ-03",
+    "level_label": "AQ 3000",
+    "verified": false
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -122.9192236,
+     49.279164
+    ]
+   },
+   "properties": {
+    "kind": "entrance",
+    "id": "mbc_3000_12",
+    "building": "MBC",
+    "floor": "MBC-03",
+    "level_label": "MBC 3000",
+    "verified": false
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -122.9193638,
+     49.2792014
+    ]
+   },
+   "properties": {
+    "kind": "entrance",
+    "id": "mbc_3000_13",
+    "building": "MBC",
+    "floor": "MBC-03",
+    "level_label": "MBC 3000",
+    "verified": false
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -122.918887,
+     49.2791356
+    ]
+   },
+   "properties": {
+    "kind": "entrance",
+    "id": "mbc_3000_14",
+    "building": "MBC",
+    "floor": "MBC-03",
+    "level_label": "MBC 3000",
+    "verified": false
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -122.9227248,
+     49.2797307
+    ]
+   },
+   "properties": {
+    "kind": "entrance",
+    "id": "wmc_2000_15",
+    "building": "WMC",
+    "floor": "WMC-02",
+    "level_label": "WMC 2000",
+    "verified": false
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -122.9225217,
+     49.2800013
+    ]
+   },
+   "properties": {
+    "kind": "entrance",
+    "id": "wmc_2000_16",
+    "building": "WMC",
+    "floor": "WMC-02",
+    "level_label": "WMC 2000",
+    "verified": false
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -122.9215986,
+     49.2794799
+    ]
+   },
+   "properties": {
+    "kind": "entrance",
+    "id": "wmc_2000_17",
+    "building": "WMC",
+    "floor": "WMC-02",
+    "level_label": "WMC 2000",
+    "verified": false
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -122.9208005,
+     49.2797375
+    ]
+   },
+   "properties": {
+    "kind": "entrance",
+    "id": "wmc_2000_18",
+    "building": "WMC",
+    "floor": "WMC-02",
+    "level_label": "WMC 2000",
+    "verified": false
+   }
+  }
+ ]
+}

@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SFU Guide Car</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>SFU Guide Car</h1>
+  <span id="conn" class="pill off">connecting</span>
+</header>
+
+<main>
+  <section id="search-view">
+    <label for="q">Where are you going?</label>
+    <input id="q" type="search" placeholder="Room, e.g. AQ 3150" autocomplete="off" autocapitalize="characters">
+    <ul id="results" aria-live="polite"></ul>
+  </section>
+
+  <section id="trip-view" hidden>
+    <div id="status" class="status" role="status" aria-live="assertive">
+      <div id="status-title">Starting</div>
+      <div id="status-detail"></div>
+    </div>
+    <div id="said" class="said" aria-live="polite"></div>
+    <canvas id="map" width="600" height="600" aria-label="Floor outline with the route"></canvas>
+    <div class="buttons">
+      <button id="confirm" class="primary" hidden>I pressed it</button>
+      <button id="pause">Pause</button>
+      <button id="cancel" class="danger">End trip</button>
+    </div>
+  </section>
+</main>
+
+<script src="rosbridge.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
