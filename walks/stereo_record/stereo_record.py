@@ -11,14 +11,6 @@ def cam(i):
     c.set(cv2.CAP_PROP_FPS, 15)
     return c
 cl, cr = cam(L), cam(R)
-# The same fixed exposure, gain and white balance on both (stereo_calibrate.py match saves them).
-try:
-    sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parents[2] / "ros2_ws/src/guide_bringup/scripts"))
-    import stereo_calibrate
-    stereo_calibrate.lock((cl, cr), stereo_calibrate.saved_settings())
-    print("camera settings:", stereo_calibrate.saved_settings())
-except ImportError as e:
-    print("camera settings not locked:", e)
 four = cv2.VideoWriter_fourcc('M', 'J', 'P', 'G')
 wl = cv2.VideoWriter(name + "_left.avi", four, 15, (640, 360))
 wr = cv2.VideoWriter(name + "_right.avi", four, 15, (640, 360))

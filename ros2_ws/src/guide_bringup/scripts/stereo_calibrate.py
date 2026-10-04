@@ -1,6 +1,5 @@
 """Calibrate the stereo pair with a printed checkerboard; no ROS, so it runs on Windows too.
 
-    py stereo_calibrate.py match 1 0                      # same exposure, gain and white balance on both cameras
     py stereo_calibrate.py board                          # checkerboard.png: print at 100 %, check a square is 25 mm
     py stereo_calibrate.py capture 1 0 --out calib        # left and right camera index, as for stereo_record.py
     py stereo_calibrate.py solve calib                    # writes calib/left.yaml and calib/right.yaml
@@ -20,7 +19,6 @@ reads them from calibration_dir).
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from pathlib import Path
 
@@ -30,79 +28,6 @@ import numpy as np
 COLS, ROWS = 8, 6  # inner corners, as the README's cameracalibrator --size 8x6
 SQUARE = 0.025  # metres
 SIZE = (640, 360)  # what stereo_record.py and cameras.yaml capture
-
-
-# Fixed camera settings, the same on both cameras: written by `match`, applied by `capture` and
-# stereo_record.py. Values are DirectShow's (Windows): exposure is log2 seconds (-6 = 1/64 s).
-SETTINGS = Path(__file__).resolve().parent / "camera_settings.json"
-DEFAULTS = {"exposure": -6, "gain": 0, "wb_temperature": 4500, "brightness": 128, "contrast": 128, "focus": 0}
-PROPS = {"exposure": cv2.CAP_PROP_EXPOSURE, "gain": cv2.CAP_PROP_GAIN, "wb_temperature": cv2.CAP_PROP_WB_TEMPERATURE,
-         "brightness": cv2.CAP_PROP_BRIGHTNESS, "contrast": cv2.CAP_PROP_CONTRAST, "focus": cv2.CAP_PROP_FOCUS}
-
-
-def open_camera(i: int):
-    c = cv2.VideoCapture(i, cv2.CAP_DSHOW) if sys.platform == "win32" else cv2.VideoCapture(i)
-    c.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
-    c.set(cv2.CAP_PROP_FRAME_WIDTH, SIZE[0]); c.set(cv2.CAP_PROP_FRAME_HEIGHT, SIZE[1])
-    c.set(cv2.CAP_PROP_FPS, 15)
-    return c
-
-
-def lock(cams, values: dict):
-    """Automatic exposure, white balance and focus off, then the same fixed values on every camera.
-    (Auto modes make the two cameras drift apart, and the stereo matcher compares pixel by pixel.)"""
-    for c in cams:
-        c.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.25 if sys.platform != "win32" else 0)  # 0.25: manual on V4L2
-        c.set(cv2.CAP_PROP_AUTO_WB, 0)
-        c.set(cv2.CAP_PROP_AUTOFOCUS, 0)
-        for k, v in values.items():
-            c.set(PROPS[k], v)
-
-
-def saved_settings() -> dict:
-    try:
-        return {**DEFAULTS, **json.loads(SETTINGS.read_text())}
-    except (OSError, ValueError):
-        return dict(DEFAULTS)
-
-
-def match(li: int, ri: int):
-    """Sliders that set both cameras at once; s saves, q quits. d opens each camera's own driver
-    dialog for anything the sliders cannot reach (set both dialogs the same)."""
-    cl, cr = open_camera(li), open_camera(ri)
-    v = saved_settings()
-    win = "both cameras: match them (s save, d driver dialogs, q quit)"
-    cv2.namedWindow(win)
-    ranges = {"exposure": (-13, -1), "gain": (0, 255), "wb_temperature": (2800, 6500),
-              "brightness": (0, 255), "contrast": (0, 255), "focus": (0, 255)}
-    for k, (lo, hi) in ranges.items():
-        cv2.createTrackbar(k, win, int(v[k]) - lo, hi - lo, lambda _x: None)
-    lock((cl, cr), v)
-    while True:
-        new = {k: cv2.getTrackbarPos(k, win) + lo for k, (lo, hi) in ranges.items()}
-        if new != v:
-            v = new; lock((cl, cr), v)
-        cl.grab(); cr.grab()
-        ok1, a = cl.retrieve(); ok2, b = cr.retrieve()
-        if not (ok1 and ok2):
-            print("a camera stopped"); break
-        ma, mb = a.reshape(-1, 3).mean(0), b.reshape(-1, 3).mean(0)  # BGR means
-        for img, m in ((a, ma), (b, mb)):
-            cv2.putText(img, f"brightness {m.mean():5.1f}  B/R {m[0] / max(m[2], 1):.2f}", (8, 20),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
-        diff = abs(ma.mean() - mb.mean())
-        bar = np.zeros((24, SIZE[0] * 2, 3), np.uint8)
-        cv2.putText(bar, f"brightness differs by {diff:.1f} (aim under 5); B/R ratios should match",
-                    (8, 17), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0) if diff < 5 else (0, 0, 255), 1)
-        cv2.imshow(win, cv2.vconcat([cv2.hconcat([a, b]), bar]))
-        k = cv2.waitKey(1) & 0xFF
-        if k == ord("s"):
-            SETTINGS.write_text(json.dumps(v, indent=1)); print(f"saved {v} to {SETTINGS}")
-        elif k == ord("d"):
-            cl.set(cv2.CAP_PROP_SETTINGS, 1); cr.set(cv2.CAP_PROP_SETTINGS, 1)
-        elif k == ord("q"):
-            break
-    cl.release(); cr.release(); cv2.destroyAllWindows()
 
 
 def board(out: Path, dpi: int = 300):
@@ -145,9 +70,15 @@ def pose_key(c, shape):
 
 
 def capture(li: int, ri: int, out: Path, want: int = 40):
+    def cam(i):
+        c = cv2.VideoCapture(i, cv2.CAP_DSHOW) if sys.platform == "win32" else cv2.VideoCapture(i)
+        c.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
+        c.set(cv2.CAP_PROP_FRAME_WIDTH, SIZE[0]); c.set(cv2.CAP_PROP_FRAME_HEIGHT, SIZE[1])
+        c.set(cv2.CAP_PROP_FPS, 15)
+        return c
+
     out.mkdir(parents=True, exist_ok=True)
-    cl, cr = open_camera(li), open_camera(ri)
-    lock((cl, cr), saved_settings())
+    cl, cr = cam(li), cam(ri)
     keys, n = [], len(list(out.glob("left_*.png")))
     print(f"saving to {out}; {n} pairs already there. s = save now, q = finish")
     while True:
@@ -245,14 +176,11 @@ def solve(folder: Path) -> int:
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
-    m = sub.add_parser("match"); m.add_argument("left", type=int); m.add_argument("right", type=int)
     b = sub.add_parser("board"); b.add_argument("--out", type=Path, default=Path("checkerboard.png"))
     c = sub.add_parser("capture"); c.add_argument("left", type=int); c.add_argument("right", type=int)
     c.add_argument("--out", type=Path, default=Path("calib"))
     s = sub.add_parser("solve"); s.add_argument("folder", type=Path)
     a = ap.parse_args(argv)
-    if a.cmd == "match":
-        match(a.left, a.right); return 0
     if a.cmd == "board":
         board(a.out); return 0
     if a.cmd == "capture":
