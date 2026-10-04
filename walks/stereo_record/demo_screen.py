@@ -417,14 +417,17 @@ class Detector(threading.Thread):
         self.all_classes = all_classes
         self.model_path = Path(model_path)
         if not self.model_path.exists():
+            self.label = "no detector"
             self.status = f"no detector: {self.model_path} not found (--model)"; return
         try:
             from ultralytics import YOLO
         except Exception:
+            self.label = "no detector"
             self.status = "no detector: pip install ultralytics"; return
         try:
             self.model = YOLO(str(self.model_path), task="detect")
         except Exception as e:
+            self.label = "no detector"
             self.status = f"no detector: {e}"[:90]; return
         self.start()
 
@@ -526,11 +529,12 @@ class OccupancyGrid:
         ix = np.floor(x / self.res).astype(np.int64) + self.n // 2
         iz = np.floor(z / self.res).astype(np.int64) + self.n // 2
         ok = (ix >= 0) & (ix < self.n) & (iz >= 0) & (iz < self.n)
-        np.add.at(self.counts, (iz[ok], ix[ok]), 1.0)
+        flat = np.unique(iz[ok] * self.n + ix[ok])           # each cell counts once per frame
+        self.counts.ravel()[flat] += 1.0
         np.minimum(self.counts, 60.0, out=self.counts)
 
     def cells(self):
-        return int(np.count_nonzero(self.counts >= 3))
+        return int(np.count_nonzero(self.counts >= 2))
 
 
 class StereoVO:
@@ -550,8 +554,7 @@ class StereoVO:
                                           speckleWindowSize=60, speckleRange=2, preFilterCap=31,
                                           mode=cv2.STEREO_SGBM_MODE_SGBM_3WAY)
         hs, ws = H // 2, W // 2
-        step = 3
-        vv, uu = np.mgrid[0:hs:step, 0:ws:step]
+        vv, uu = np.mgrid[0:hs:2, 0:ws:2]
         self.samp_v, self.samp_u = vv.ravel(), uu.ravel()
         self.grid = OccupancyGrid()
         self.reset()
@@ -662,16 +665,23 @@ class StereoVO:
     def _map(self):
         d = self.disp[self.samp_v, self.samp_u]
         ok = d > 1.0
-        u = self.samp_u[ok] * 2.0 + 0.5; v = self.samp_v[ok] * 2.0 + 0.5; d = d[ok]
+        col = self.samp_u[ok]
+        u = col * 2.0 + 0.5; v = self.samp_v[ok] * 2.0 + 0.5; d = d[ok]
         pc = self.to_cam(u, v, d)
-        keep = (pc[:, 2] > 0.4) & (pc[:, 2] < self.max_range)
-        pc = pc[keep]
         pw = pc @ self.T[:3, :3].T + self.T[:3, 3]
         height = self.cam_h - pw[:, 1]                     # world y points down
-        pw = pw[(height > 0.12) & (height < 2.0)]
+        keep = (pc[:, 2] > 0.4) & (pc[:, 2] < self.max_range) & (height > 0.12) & (height < 2.0)
+        pw, col, z = pw[keep], col[keep], pc[keep, 2]
+        if len(pw):
+            # a "virtual laser scan": per picture column, the nearest thing at obstacle height (its 3rd nearest
+            # sample, so one stray match does not count) - the map then shows outlines, not filled cones
+            order = np.lexsort((z, col))
+            col_s = col[order]
+            first = np.flatnonzero(np.r_[True, col_s[1:] != col_s[:-1]])
+            cnt = np.diff(np.r_[first, len(col_s)])
+            pick = order[np.minimum(first + 2, first + cnt - 1)][cnt >= 3]
+            pw = pw[pick]
         self.grid.add(pw[:, 0], pw[:, 2])
-        if len(pw) > 2500:
-            pw = pw[np.random.default_rng(0).choice(len(pw), 2500, replace=False)]
         self.scan = pw[:, [0, 2]].astype(np.float32)
 
     def locate_box(self, box):
@@ -717,7 +727,7 @@ class Screen:
     def draw_boxes(self, p, res, s, off, ranges=None):
         if res is None:
             return 0
-        n = 0
+        items = []
         for k, (b, c, k_cls) in enumerate(zip(res["xyxy"], res["conf"], res["cls"])):
             name = self.det.names.get(int(k_cls), str(k_cls))
             col = class_color(name)
@@ -726,12 +736,21 @@ class Screen:
             txt = f"{name} {c * 100:.0f}%"
             if ranges is not None and ranges[k] is not None:
                 txt += f"  {ranges[k]:.1f} m"
+            items.append((c, txt, col, x1, y1))
+        placed = []
+        for c, txt, col, x1, y1 in sorted(items, key=lambda it: -it[0]):     # most confident gets its spot
             tw, th = self.T.size(txt, 19, True)
-            ty = y1 - th - 6 if y1 - th - 6 > 0 else y1 + 2
-            cv2.rectangle(p, (int(x1) - 1, int(ty)), (int(x1 + tw + 12), int(ty + th + 6)), col, -1)
-            self.T.put(p, txt, x1 + 5, ty + 3, 19, rgb(12, 14, 18), True)
-            n += 1
-        return n
+            lx = min(max(x1 - 1, 0), PANEL_W - tw - 14)
+            ty = min(max(y1 - th - 6, 52), PANEL_H - 2 * th - 40)   # clear of the title and the stats line
+            for _ in range(8):                                       # not on top of another label
+                if not any(lx < qx + qw and qx < lx + tw + 13 and ty < qy + th + 8 and qy < ty + th + 8
+                           for qx, qy, qw in placed):
+                    break
+                ty = ty - (th + 9) if ty - (th + 9) >= 52 else ty + (th + 9) * 2
+            placed.append((lx, ty, tw + 13))
+            cv2.rectangle(p, (int(lx), int(ty)), (int(lx + tw + 13), int(ty + th + 6)), col, -1)
+            self.T.put(p, txt, lx + 6, ty + 3, 19, rgb(12, 14, 18), True)
+        return len(items)
 
     def panel_title(self, p, title, sub=None):
         x = 14
@@ -744,8 +763,10 @@ class Screen:
         chip(p, self.T, text, 14, PANEL_H - h - 22, 18, fg=TEXT, bold=False, alpha=0.6)
 
     def det_line(self, cam, n):
+        if self.det.model is None:
+            return "detector off"
         if not self.det.ok:
-            return self.det.status or "no detector"
+            return self.det.status or "loading detector..."
         r, hz = self.det.get(cam)
         if r is None:
             return "waiting for detector"
@@ -789,13 +810,13 @@ class Screen:
         x0, y0 = PANEL_W - iw - 14, 14 + 32
         cv2.rectangle(p, (x0 - 3, y0 - 32), (x0 + iw + 2, y0 + ih + 2), (10, 10, 10), -1)
         p[y0:y0 + ih, x0:x0 + iw] = cm
-        self.T.put(p, "STEREO DEPTH", x0 + 6, y0 - 27, 16, TEXT, True)
-        bw, bx = 110, x0 + iw - 150                                   # colour key: 1 m .. 10 m
+        self.T.put(p, "DEPTH \u00b7 SGBM", x0 + 6, y0 - 27, 16, TEXT, True)
+        bw, bx = 80, x0 + iw - 132                                   # colour key: 1 m .. 10 m
         bar = cv2.resize(self.lut[np.arange(256, dtype=np.uint8)].reshape(1, 256, 3), (bw, 10))
         p[y0 - 20:y0 - 10, bx:bx + bw] = bar
         self.T.put(p, "1 m", bx - 6, y0 - 27, 15, MUTED, False, "right")
         self.T.put(p, "10 m", bx + bw + 6, y0 - 27, 15, MUTED)
-        self.panel_title(p, f"FRONT RIGHT  \u00b7  {self.det.label}", "+ stereo disparity (SGBM)")
+        self.panel_title(p, f"FRONT RIGHT  \u00b7  {self.det.label}")
         self.panel_stats(p, self.det_line("right", n))
         return p, n
 
@@ -853,8 +874,10 @@ class Screen:
         vo, s = self.vo, self.scale
         p = self.bg_map.copy()
         car = vo.T[:3, 3]
-        cxp, cyp = PANEL_W * 0.5, PANEL_H * 0.62
-        cx, cz = car[0], car[2]
+        hd = vo.heading()
+        cxp, cyp = PANEL_W * 0.5, PANEL_H * 0.5
+        look = 2.5                                         # keep what is ahead of the car in view
+        cx, cz = car[0] + look * math.sin(hd), car[2] + look * math.cos(hd)
 
         def px(x, z):
             return cxp + (x - cx) * s, cyp - (z - cz) * s
@@ -862,34 +885,40 @@ class Screen:
         # grid
         x_lo, x_hi = cx - cxp / s, cx + (PANEL_W - cxp) / s
         z_lo, z_hi = cz - (PANEL_H - cyp) / s, cz + cyp / s
+        grid_labels = []
         for m in range(int(math.floor(x_lo)), int(math.ceil(x_hi)) + 1):
             u = int(round(px(m, 0)[0]))
             major = m % 5 == 0
             cv2.line(p, (u, 0), (u, PANEL_H), rgb(40, 52, 66) if major else rgb(24, 32, 42), 1)
-            if major:
-                self.T.put(p, f"{m} m", u + 4, PANEL_H - 62, 15, rgb(110, 125, 145))
+            if major and 20 < u < PANEL_W - 60:
+                grid_labels.append((f"{m} m", u + 4, PANEL_H - 62, "left"))
         for m in range(int(math.floor(z_lo)), int(math.ceil(z_hi)) + 1):
             v = int(round(px(0, m)[1]))
             major = m % 5 == 0
             cv2.line(p, (0, v), (PANEL_W, v), rgb(40, 52, 66) if major else rgb(24, 32, 42), 1)
-            if major:
-                self.T.put(p, f"{m} m", PANEL_W - 10, v + 3, 15, rgb(110, 125, 145), False, "right")
+            if major and 90 < v < PANEL_H - 90:
+                grid_labels.append((f"{m} m", PANEL_W - 10, v + 3, "right"))
         # accumulated points (warp the grid straight into panel pixels)
         g = vo.grid
         k = s * g.res
         M = np.float32([[k, 0, cxp - (g.n // 2) * k - cx * s], [0, -k, cyp + (g.n // 2) * k + cz * s]])
         cnt = cv2.warpAffine(g.counts, M, (PANEL_W, PANEL_H), flags=cv2.INTER_NEAREST, borderValue=0)
-        occ = cnt >= 3
+        occ = cnt >= 2
         if occ.any():
-            t = np.clip(np.log1p(cnt[occ]) / np.log1p(40.0), 0.15, 1.0)[:, None]
-            lo, hi = np.float32(rgb(70, 60, 120)), np.float32(rgb(255, 214, 140))
+            t = np.clip((np.log1p(cnt[occ]) - np.log1p(2.0)) / (np.log1p(25.0) - np.log1p(2.0)), 0.0, 1.0)[:, None]
+            t = 0.12 + 0.88 * t ** 1.5                     # seen once or twice: faint; seen again and again: bright
+            lo, hi = np.float32(rgb(40, 50, 90)), np.float32(rgb(255, 214, 140))
             p[occ] = (lo * (1 - t) + hi * t).astype(np.uint8)
+        for txt, gx, gy, al in grid_labels:
+            tw, th = self.T.size(txt, 15)
+            lx = gx - tw if al == "right" else gx
+            shade(p, lx - 3, gy - 1, lx + tw + 3, gy + th + 1, rgb(12, 18, 26), 0.8)
+            self.T.put(p, txt, lx, gy, 15, rgb(120, 135, 155))
         # field of view
-        hd = vo.heading()
         hf = math.atan(W / 2 / vo.fx)
         rng = min(vo.max_range, 8.0)
-        c0 = px(cx, cz)
-        wedge = [c0] + [px(cx + rng * math.sin(hd + a), cz + rng * math.cos(hd + a))
+        c0 = px(car[0], car[2])
+        wedge = [c0] + [px(car[0] + rng * math.sin(hd + a), car[2] + rng * math.cos(hd + a))
                         for a in np.linspace(-hf, hf, 16)]
         ov = p.copy()
         cv2.fillPoly(ov, [np.int32(wedge)], rgb(0, 140, 200), cv2.LINE_AA)
@@ -910,9 +939,10 @@ class Screen:
             cv2.polylines(p, [np.int32(pts)], False, TRAJ_C, 3, cv2.LINE_AA)
         sx, sy = px(0, 0)
         cv2.circle(p, (int(sx), int(sy)), 7, TRAJ_C, 2, cv2.LINE_AA)
-        # detected things
-        for x, z, name, r, front in self.objects["left"] + self.objects["rear"]:
-            u, v = px(x, z)
+        # detected things (labels pushed apart so they never sit on top of each other)
+        placed = []
+        marks = [(px(x, z), name, r, front) for x, z, name, r, front in self.objects["left"] + self.objects["rear"]]
+        for (u, v), name, r, front in sorted(marks, key=lambda m: m[0][1]):
             if not (0 <= u < PANEL_W and 0 <= v < PANEL_H):
                 continue
             col = class_color(name)
@@ -923,18 +953,27 @@ class Screen:
                 cv2.circle(p, (int(u), int(v)), 11, col, 3, cv2.LINE_AA)
             label = f"{name} {r:.1f} m" + ("" if front else " (rear, est.)")
             tw, th = self.T.size(label, 17, True)
-            shade(p, u + 15, v - th / 2 - 3, u + 23 + tw, v + th / 2 + 3, (0, 0, 0), 0.55)
-            self.T.put(p, label, u + 19, v - th / 2, 17, col, True)
+            lx = u + 19 if u + 27 + tw < PANEL_W else u - 23 - tw
+            ly = v - th / 2
+            for _ in range(6):
+                if not any(abs(ly - py) < th + 6 and lx < qx + qw and qx < lx + tw for qx, py, qw in placed):
+                    break
+                ly += th + 6
+            placed.append((lx, ly, tw))
+            if abs(ly - (v - th / 2)) > 1:
+                cv2.line(p, (int(u), int(v)), (int(lx - 4), int(ly + th / 2)), col, 1, cv2.LINE_AA)
+            shade(p, lx - 4, ly - 3, lx + tw + 4, ly + th + 3, (0, 0, 0), 0.6)
+            self.T.put(p, label, lx, ly, 17, col, True)
         # the car
         def rot(lx, lz):
-            return px(cx + lx * math.cos(hd) + lz * math.sin(hd), cz - lx * math.sin(hd) + lz * math.cos(hd))
+            return px(car[0] + lx * math.cos(hd) + lz * math.sin(hd), car[2] - lx * math.sin(hd) + lz * math.cos(hd))
         body = np.int32([rot(-0.22, -0.35), rot(0.22, -0.35), rot(0.22, 0.2), rot(0, 0.42), rot(-0.22, 0.2)])
         cv2.fillPoly(p, [body], (255, 255, 255), cv2.LINE_AA)
         cv2.polylines(p, [body], True, ACCENT, 2, cv2.LINE_AA)
         tip = rot(0, 1.3)
         cv2.arrowedLine(p, (int(c0[0]), int(c0[1])), (int(tip[0]), int(tip[1])), ACCENT, 3, cv2.LINE_AA, tipLength=0.3)
         # scale bar
-        bx, by = PANEL_W - 30 - int(2 * s), PANEL_H - 70
+        bx, by = PANEL_W - 30 - int(2 * s), 80
         cv2.line(p, (bx, by), (bx + int(2 * s), by), TEXT, 2)
         cv2.line(p, (bx, by - 5), (bx, by + 5), TEXT, 2); cv2.line(p, (bx + int(2 * s), by - 5), (bx + int(2 * s), by + 5), TEXT, 2)
         self.T.put(p, "2 m", bx + int(s), by - 26, 16, TEXT, False, "center")
@@ -994,7 +1033,7 @@ class Screen:
         cv2.line(canvas, (0, y0 + PANEL_H), (SCREEN_W, y0 + PANEL_H), BG, 4)
         if not self.det.ok and self.det.status:
             w, h = self.T.size(self.det.status, 20, True)
-            chip(canvas, self.T, self.det.status, (SCREEN_W - w) // 2 - 10, y0 + PANEL_H - h - 30, 20,
+            chip(canvas, self.T, self.det.status, (PANEL_W - w) // 2 - 10, SCREEN_H - h - 40, 20,
                  fg=rgb(255, 200, 60), alpha=0.75)
         self.header(canvas, fps, ms, n1 + n2 + n3, paused)
         return canvas
@@ -1018,7 +1057,7 @@ def parse():
     ap.add_argument("--no-rectify", dest="rect", action="store_false", help="never use the calibration")
     ap.add_argument("--pitch", type=float, default=5.0, help="cameras tilted up, degrees (levels the map)")
     ap.add_argument("--cam-height", type=float, default=0.28, help="camera height above the ground, m")
-    ap.add_argument("--max-range", type=float, default=10.0, help="depth points further than this are not mapped")
+    ap.add_argument("--max-range", type=float, default=8.0, help="depth points further than this are not mapped")
     ap.add_argument("--map-scale", type=float, default=38.0, help="map pixels per metre (+/- keys)")
     ap.add_argument("--no-pace", action="store_true", help="replays: run as fast as possible, not at their fps")
     ap.add_argument("--headless", action="store_true", help="no window (for --record / --snap)")
