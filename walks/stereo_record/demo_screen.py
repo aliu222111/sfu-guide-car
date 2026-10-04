@@ -399,6 +399,13 @@ class RearSource:
 
 
 # ---------------------------------------------------------------- YOLO on a background thread
+def iou(a, b):
+    x1, y1, x2, y2 = max(a[0], b[0]), max(a[1], b[1]), min(a[2], b[2]), min(a[3], b[3])
+    inter = max(0.0, x2 - x1) * max(0.0, y2 - y1)
+    union = (a[2] - a[0]) * (a[3] - a[1]) + (b[2] - b[0]) * (b[3] - b[1]) - inter
+    return inter / union if union > 0 else 0.0
+
+
 class Detector(threading.Thread):
     CAMS = ("left", "right", "rear")
 
@@ -409,6 +416,7 @@ class Detector(threading.Thread):
         self.conf = conf; self.classes = None; self.names = {}
         self.lock = threading.Lock()
         self.frames = {}     # cam -> (seq, picture)
+        self.last = {}       # cam -> previous raw result (for steady())
         self.results = {}    # cam -> dict(seq, xyxy, conf, cls, t, ms)
         self.rate = {c: deque(maxlen=10) for c in self.CAMS}
         self.label = Path(model_path).stem
@@ -416,7 +424,11 @@ class Detector(threading.Thread):
             self.label = "YOLO" + self.label[4:]
         self.all_classes = all_classes
         self.model_path = Path(model_path)
-        downloadable = self.model_path.parent == Path(".") and self.model_path.suffix == ".pt"  # yolo11s.pt
+        # yolo11s.pt and friends download themselves on first use (to the path given)
+        downloadable = self.model_path.suffix == ".pt" and self.model_path.name.startswith("yolo")
+        fallback = REPO / "models" / "yolo11n.onnx"
+        if downloadable:
+            self.model_path.parent.mkdir(parents=True, exist_ok=True)  # models/ is not in git: may not exist yet
         if not self.model_path.exists() and not downloadable:
             self.label = "no detector"
             self.status = f"no detector: {self.model_path} not found (--model)"; return
@@ -428,8 +440,13 @@ class Detector(threading.Thread):
         try:
             self.model = YOLO(str(self.model_path), task="detect")
         except Exception as e:
-            self.label = "no detector"
-            self.status = f"no detector: {e}"[:90]; return
+            if fallback.exists() and self.model_path != fallback:  # offline: no download
+                print(f"note: {self.model_path.name} unavailable ({type(e).__name__}); using {fallback.name}")
+                self.model_path, self.label = fallback, "YOLO11n"
+                self.model = YOLO(str(fallback), task="detect")
+            else:
+                self.label = "no detector"
+                self.status = f"no detector: {e}"[:90]; return
         self.start()
 
     def run(self):
@@ -457,10 +474,13 @@ class Detector(threading.Thread):
             cam, seq, img = pick
             t0 = time.time()
             try:
-                r = self.model.predict(img, conf=self.conf, classes=self.classes, verbose=False, imgsz=640)[0]
+                # agnostic NMS: one label per object, not "chair" and "couch" on the same box
+                r = self.model.predict(img, conf=self.conf, classes=self.classes, verbose=False, imgsz=640,
+                                       agnostic_nms=True)[0]
                 b = r.boxes
                 res = dict(seq=seq, xyxy=b.xyxy.cpu().numpy(), conf=b.conf.cpu().numpy(),
                            cls=b.cls.cpu().numpy().astype(int), t=time.time(), ms=(time.time() - t0) * 1000)
+                res = self.steady(cam, res)
             except Exception as e:
                 self.status = f"detector error: {e}"[:90]; time.sleep(0.5); continue
             done[cam] = seq
@@ -468,9 +488,32 @@ class Detector(threading.Thread):
                 self.results[cam] = res
                 self.rate[cam].append(time.time())
 
+    def steady(self, cam, res, sure=0.6):
+        """Hide one-off flickers: a box is shown when it is confident (>= ``sure``) or when the same
+        kind of object was in about the same place in this camera's previous result."""
+        prev = self.last.get(cam)
+        self.last[cam] = res
+        if prev is None or len(res["conf"]) == 0:
+            return res
+        keep = []
+        for i, (b, c, k) in enumerate(zip(res["xyxy"], res["conf"], res["cls"])):
+            if c >= sure:
+                keep.append(i); continue
+            for pb, pk in zip(prev["xyxy"], prev["cls"]):
+                if pk == k and iou(b, pb) > 0.3:
+                    keep.append(i); break
+        return dict(res, xyxy=res["xyxy"][keep], conf=res["conf"][keep], cls=res["cls"][keep])
+
     def _limit_threads(self):
         """ONNX Runtime takes every core by default, which starves the stereo + drawing loop: rebuild its
         session with fewer threads (best effort: ultralytics internals differ between versions)."""
+        if self.model_path.suffix == ".pt":                # PyTorch model: same idea, fewer threads
+            try:
+                import torch
+                torch.set_num_threads(self.threads)
+            except Exception as e:
+                print("note: could not limit detector threads:", e)
+            return
         try:
             import onnxruntime as ort
             b = self.model.predictor.model
@@ -1055,9 +1098,10 @@ def parse():
     ap.add_argument("--right", type=int, default=2, help="right camera index (default 2)")
     ap.add_argument("--rear", type=int, default=None, help="rear camera index (e.g. 1)")
     ap.add_argument("--left-file"); ap.add_argument("--right-file"); ap.add_argument("--rear-file")
-    ap.add_argument("--model", default=str(REPO / "models" / "yolo11n.onnx"),
-                    help="detector: models/yolo11n.onnx (fast), yolo11s.pt or yolo11m.pt (more accurate, slower; "
-                         "downloaded on first use), models/yoloe-school.onnx (school objects)")
+    ap.add_argument("--model", default=str(REPO / "models" / "yolo11s.pt"),
+                    help="detector (default models/yolo11s.pt: downloaded on first use, falls back to "
+                         "models/yolo11n.onnx offline); yolo11m.pt is more accurate but slower; "
+                         "models/yoloe-school.onnx knows school objects")
     ap.add_argument("--obstacles-only", action="store_true",
                     help="label only people and obstacles (default: every class the model knows)")
     ap.add_argument("--conf", type=float, default=0.35)
