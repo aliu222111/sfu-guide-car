@@ -41,12 +41,14 @@ def pick_student(people, current_id, lost_for: float = 0.0, last_distance: float
 
 class StudentNode(CameraNode):
     def __init__(self):
-        super().__init__("student_tracker", default_rate=5.0)
+        # The URDF's rear camera: at the back of the body, facing backwards, tilted down a little
+        super().__init__("student_tracker", default_rate=5.0, nominal_mount=(-0.12, 0.0, 0.28, 0.1, math.pi))
         model = self.declare_parameter("model", "yolo11n.pt").value
         if not Path(model).exists():
             self.get_logger().fatal(f"model file {model} is missing: run scripts/export_models.py (README, Install)")
             raise SystemExit(1)
-        self.det = PersonDetector(model)
+        self.det = PersonDetector(model, self.declare_parameter("conf", 0.35).value, self.declare_parameter("imgsz", 640).value,
+                                  self.declare_parameter("device", "").value or None)
         self.lock_distance = self.declare_parameter("lock_distance", 3.0).value
         self.student_id = None
         self.seen_at = 0.0
@@ -58,10 +60,8 @@ class StudentNode(CameraNode):
         self.student_id, self.last_distance = None, None  # lock on afresh
 
     def process(self, bgr, header):
-        pose = self.camera_pose()
-        if self.K is None or pose is None:
-            return
-        people = locate(self.det.detect(bgr), self.K, *pose, bgr.shape[0])
+        K, R, t, _ = self.geometry(bgr.shape)
+        people = locate(self.det.detect(bgr), K, R, t, bgr.shape[0])
         now = self.get_clock().now().nanoseconds * 1e-9
         s = pick_student(people, self.student_id, now - self.seen_at, self.last_distance, self.lock_distance)
         if s:

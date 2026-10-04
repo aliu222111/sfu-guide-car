@@ -105,7 +105,7 @@ local_costmap:
       floor_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
         enabled: True
-        observation_sources: floor_obstacles floor_free
+        observation_sources: floor_obstacles floor_free yolo_objects
         floor_obstacles:              # curbs, grass edges, stair tops, glass bases (spec section 7)
           topic: /floor/obstacles
           data_type: "PointCloud2"
@@ -122,6 +122,14 @@ local_costmap:
           marking: False
           clearing: True
           raytrace_max_range: 5.0
+        yolo_objects:                 # chairs, benches, bags, bikes... where YOLO sees them touch the floor
+          topic: /objects/obstacles
+          data_type: "PointCloud2"
+          min_obstacle_height: 0.05
+          max_obstacle_height: 0.5
+          marking: True
+          clearing: False
+          obstacle_max_range: 5.0
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         # Cost fades gently out to 0.8 m, so the controller keeps off walls and
@@ -147,7 +155,7 @@ global_costmap:
       obstacle_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
         enabled: True
-        observation_sources: stereo floor_obstacles
+        observation_sources: stereo floor_obstacles floor_free yolo_objects
         stereo:
           topic: /stereo/points2
           data_type: "PointCloud2"
@@ -159,6 +167,22 @@ global_costmap:
           raytrace_max_range: 5.0
         floor_obstacles:
           topic: /floor/obstacles
+          data_type: "PointCloud2"
+          min_obstacle_height: 0.05
+          max_obstacle_height: 0.5
+          marking: True
+          clearing: False
+          obstacle_max_range: 5.0
+        floor_free:                   # floor seen clear wipes old floor_obstacles (else false positives pile up)
+          topic: /floor/free
+          data_type: "PointCloud2"
+          min_obstacle_height: -0.1
+          max_obstacle_height: 0.05
+          marking: False
+          clearing: True
+          raytrace_max_range: 5.0
+        yolo_objects:                 # chairs, benches, bags, bikes... where YOLO sees them touch the floor
+          topic: /objects/obstacles
           data_type: "PointCloud2"
           min_obstacle_height: 0.05
           max_obstacle_height: 0.5

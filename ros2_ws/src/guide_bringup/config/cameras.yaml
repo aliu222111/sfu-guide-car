@@ -1,5 +1,8 @@
 # usb_cam for the webcams (1080p front pair, 720p rear), captured at 640x360 MJPEG unless
-# capture:=720p (spec section 7): three fit on
+# capture:=720p (spec section 7). The front pair runs at 30 fps: half the motion between frames
+# for stereo odometry, and the two unsynchronised cameras' frames always fall within RTAB-Map's
+# 20 ms pairing window (at 15 fps they can be 33 ms apart). Stereo odometry skips frames if the
+# laptop cannot keep up; set 15.0 here if `ros2 topic hz /vo` stays far below 30. Three fit on
 # one powered USB 3.0 hub. Through a hub /dev/videoN can change between boots: use the
 # stable names under /dev/v4l/by-path/ (ls -l /dev/v4l/by-path/) for video_device, the
 # "-video-index0" entry of each camera (index1 is its metadata node and cannot be opened).
@@ -8,21 +11,21 @@
 left_camera:
   ros__parameters:
     video_device: /dev/video0
-    framerate: 15.0
+    framerate: 30.0
     image_width: 640
     image_height: 360
     pixel_format: mjpeg2rgb
     camera_name: left
     frame_id: left_camera_optical_frame
     autoexposure: false          # fixed exposure (spec section 7)
-    exposure: 150
+    exposure: 150                # 15 ms (V4L2 units of 100 us): fits within a 30 fps frame
     auto_white_balance: false
     autofocus: false
 
 right_camera:
   ros__parameters:
     video_device: /dev/video2
-    framerate: 15.0
+    framerate: 30.0
     image_width: 640
     image_height: 360
     pixel_format: mjpeg2rgb

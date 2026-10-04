@@ -6,6 +6,12 @@ staleness, the mission's enable flag, the person stop and slow-down
 required with one camera, section 18), indoor/outdoor speed caps (section 2),
 the 30 deg/s turn cap (section 6) and an acceleration limit. Braking is never
 rate limited.
+
+Collision detection: a horizontal jolt in the phone's accelerometer while
+moving (the car hit something), or the car told to drive forward while its
+measured speed stays near zero (it is pushed up against something, and the
+serial bridge's speed trim would keep adding throttle) blocks forward motion
+for ``collision_hold`` seconds. Reversing stays allowed so it can back away.
 """
 
 from __future__ import annotations
@@ -36,6 +42,13 @@ class GateParams:
     bumper_slow_speed: float = 0.15  # m/s cap at bumper_stop distance
     bumper_timeout: float = 0.5  # s without a reading
     require_bumper: bool = False  # True with one camera: no reading, creep
+    jolt_stop: float = 5.0  # m/s^2 horizontal, above the slow trend: a bump (braking gives ~2)
+    jolt_min_speed: float = 0.1  # m/s commanded: only while moving
+    stall_cmd: float = 0.15  # m/s commanded forward ...
+    stall_speed: float = 0.04  # ... while measured speed stays under this ...
+    stall_time: float = 1.2  # s ... this long: blocked
+    collision_hold: float = 3.0  # s with forward motion blocked
+    odom_timeout: float = 0.5  # s: an older speed reading cannot show a stall
 
 
 @dataclass
@@ -70,6 +83,14 @@ class GateState:
     bumper_stamp: float = -math.inf
     last_linear: float = 0.0
     last_time: float | None = None
+    accel_trend: tuple = (0.0, 0.0)  # slow average of the horizontal acceleration (tilt, bias)
+    accel_stamp: float | None = None
+    speed: float = 0.0
+    speed_stamp: float = -math.inf
+    stall_since: float | None = None
+    collision_until: float = -math.inf
+    collision_kind: str = ""
+    collisions: int = 0
 
 
 def _finite(*vals) -> bool:
@@ -114,6 +135,47 @@ class VelocityGate:
         """Ultrasonic range ahead, metres; inf when nothing echoes."""
         self.s.bumper_distance = distance if distance == distance else 0.0  # NaN: assume the worst
         self.s.bumper_stamp = now
+
+    def accel(self, ax: float, ay: float, now: float):
+        """Phone acceleration in base_link axes (m/s^2): x forward, y left."""
+        if not _finite(ax, ay):
+            return
+        s, p = self.s, self.p
+        tx, ty = s.accel_trend
+        if s.accel_stamp is None:
+            s.accel_trend, s.accel_stamp = (ax, ay), now
+            return
+        jolt = math.hypot(ax - tx, ay - ty)
+        a = min(1.0, max(0.0, now - s.accel_stamp) / 1.0)  # 1 s trend
+        s.accel_trend, s.accel_stamp = (tx + a * (ax - tx), ty + a * (ay - ty)), now
+        if jolt > p.jolt_stop and abs(s.last_linear) >= p.jolt_min_speed:
+            self._collided(now, f"jolt {jolt:.1f} m/s^2")
+
+    def odom_speed(self, v: float, now: float):
+        """Measured forward speed, m/s (the EKF's /odometry/local)."""
+        if _finite(v):
+            self.s.speed, self.s.speed_stamp = v, now
+
+    def _collided(self, now: float, kind: str):
+        s = self.s
+        if now >= s.collision_until:
+            s.collisions += 1
+        s.collision_until = now + self.p.collision_hold
+        s.collision_kind = kind
+        s.stall_since = None
+
+    def _check_stall(self, now: float):
+        s, p = self.s, self.p
+        pushing = s.last_linear >= p.stall_cmd and now - s.speed_stamp <= p.odom_timeout and abs(s.speed) < p.stall_speed
+        if not pushing:
+            s.stall_since = None
+        elif s.stall_since is None:
+            s.stall_since = now
+        elif now - s.stall_since >= p.stall_time:
+            self._collided(now, "stalled")
+
+    def collided(self, now: float) -> bool:
+        return now < self.s.collision_until
 
     # Output -------------------------------------------------------------------
     def speed_cap(self, now: float) -> float:
@@ -165,6 +227,10 @@ class VelocityGate:
             lin, ang, why = s.nav.linear, s.nav.angular, "nav"
         else:
             return self._out(0.0, 0.0, "stale")
+
+        self._check_stall(now)
+        if self.collided(now) and lin > 0:
+            return self._out(0.0, 0.0, "collision")  # forward blocked; reversing away is allowed
 
         wanted = lin
         cap = self.speed_cap(now)

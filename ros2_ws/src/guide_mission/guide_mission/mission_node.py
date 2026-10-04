@@ -124,6 +124,7 @@ class MissionNode(Node):
         sub(Bool, "guide/localized", self.on_localized, 10)
         sub(Odometry, "odometry/local", self.on_odom, 10)
         sub(String, "guide/gate_reason", lambda m: setattr(self, "gate_reason", m.data), 10)
+        sub(String, "guide/collision", self.on_collision, 10)
         sub(String, "signs", self.on_sign, 10)
 
         self.create_timer(0.2, self.tick)
@@ -145,6 +146,13 @@ class MissionNode(Node):
         self.odom_at = -math.inf
         self.creep_prev = None
         self.run([SetLocalization(start_floor), DriveEnable(False)])
+
+    def on_collision(self, msg: String):
+        """The velocity gate felt a bump or the car stalled against something: say so (not too often)."""
+        self.get_logger().warn(f"collision: {msg.data}")
+        if self.now() - getattr(self, "_collision_said", -math.inf) > 15.0:
+            self._collision_said = self.now()
+            self.say("Sorry, I bumped into something. Give me a moment to find a way around.")
 
     def now(self) -> float:
         return self.get_clock().now().nanoseconds * 1e-9

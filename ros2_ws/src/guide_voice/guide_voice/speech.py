@@ -66,6 +66,19 @@ class Recorder:
             self._stream, self._rate = self._open(sd, cb)
             self._stream.start()
 
+    def level(self, seconds: float = 0.1) -> float:
+        """RMS of the last ``seconds`` recorded (0 when not recording): for voice-activity detection."""
+        chunks, n, need = [], 0, int(seconds * self._rate)
+        for c in reversed(self._chunks[-50:]):
+            chunks.append(c)
+            n += len(c)
+            if n >= need:
+                break
+        if not chunks:
+            return 0.0
+        a = np.concatenate(chunks[::-1])[-need:]
+        return float(np.sqrt(np.mean(a**2)))
+
     def stop(self) -> np.ndarray:
         with self._lock:
             if self._stream is None:
@@ -85,8 +98,12 @@ def resample(audio: np.ndarray, rate: int) -> np.ndarray:
     return np.interp(np.arange(n) * rate / SAMPLE_RATE, np.arange(audio.size), audio).astype(np.float32)
 
 
-def trim_silence(audio: np.ndarray, threshold: float = 0.01, pad: float = 0.2) -> np.ndarray:
-    """Cut leading and trailing quiet; empty if the clip never gets loud."""
+def trim_silence(audio: np.ndarray, threshold: float | None = None, pad: float = 0.3) -> np.ndarray:
+    """Cut leading and trailing quiet; empty if the clip never gets loud.
+
+    The threshold follows the room's own background (3x the quietest fifth of the clip,
+    between 0.002 and 0.01): a fixed 0.01 cut away all of a quiet laptop microphone.
+    """
     if audio.size == 0:
         return audio
     win = int(0.02 * SAMPLE_RATE)
@@ -94,6 +111,8 @@ def trim_silence(audio: np.ndarray, threshold: float = 0.01, pad: float = 0.2) -
     if n == 0:
         return audio[:0]
     rms = np.sqrt((audio[: n * win].reshape(n, win) ** 2).mean(axis=1))
+    if threshold is None:
+        threshold = min(0.01, max(0.002, 3 * float(np.percentile(rms, 20))))
     loud = np.nonzero(rms > threshold)[0]
     if loud.size == 0:
         return audio[:0]

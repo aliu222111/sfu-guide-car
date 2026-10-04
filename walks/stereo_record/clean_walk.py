@@ -1,9 +1,9 @@
 import sys, csv, cv2, numpy as np
 from pathlib import Path
 
-STEP = 15
-FPS = 15
-MIN_FRAMES = 150
+FPS = 15          # replaced by the recording's own rate (from its times.csv) in __main__
+STEP = 15         # frames between stereo alignment checks (1 s at 15 fps)
+MIN_FRAMES = 150  # shortest clip kept (10 s at 15 fps)
 MAX_DRIFT = 4.0
 MAX_SPREAD = 12.0
 
@@ -115,11 +115,23 @@ def cut(left, right, times, segs, outdir, swap, samples=None):
 if __name__ == "__main__":
     base = Path(sys.argv[1])
     outdir = Path(sys.argv[2])
-    swap = "--no-swap" not in sys.argv
+    # The same point is further right in the left picture than in the right one (xL - xR > 0).
+    # A negative median means the files are the other way round. --swap / --no-swap override.
+    forced = True if "--swap" in sys.argv else False if "--no-swap" in sys.argv else None
     sensors = next((x for x in sys.argv[3:] if not x.startswith("-")), None)
-    lag = float(next((x.split("=")[1] for x in sys.argv if x.startswith("--lag=")), 0.13))
+    # phone_receiver.py measures the phone-to-laptop clock offset; an exported recording needs --lag (or 0.13 s)
+    measured = Path(sensors) / "clock_offset.txt" if sensors else None
+    default = float(measured.read_text()) if measured and measured.exists() else 0.13
+    lag = float(next((x.split("=")[1] for x in sys.argv if x.startswith("--lag=")), default))
     left, right = Path(str(base) + "_left.avi"), Path(str(base) + "_right.avi")
+    _t = np.loadtxt(str(base) + "_times.csv", delimiter=",", skiprows=1)[:, 1]
+    FPS = max(1, round(1 / np.median(np.diff(_t))))  # 15 or 30: keep checks and clip lengths in seconds
+    STEP, MIN_FRAMES = FPS, 10 * FPS
     motion, align, n = scan(left, right)
+    dx = float(np.median([v[0] for v in align.values()])) if align else 0.0
+    swap = forced if forced is not None else dx < 0
+    print(f"median xL - xR {dx:+.1f} px: {'swapping left and right' if swap else 'left and right already in order'}"
+          + (" (forced)" if forced is not None else ""))
     segs = stretches(motion, align)
     samples = phone(sensors, lag) if sensors else None
     print(f"{n} frames, {len(segs)} usable stretches, swap={swap}, imu lag {lag:+.2f} s")

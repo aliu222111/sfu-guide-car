@@ -9,3 +9,7 @@ ros2_ws/log/
 *.egg-info/
 voices/
 models/
+*.pt
+mobileclip*.ts
+voice_last.wav
+.env

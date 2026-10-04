@@ -161,3 +161,62 @@ def test_outdoor_flag_must_keep_arriving():
     assert ramp(g, 0, 1.0, outdoor=True)[0] == 1.0
     g.set_enabled(True, 10.0), g.set_phone_alive(True, 10.0), g.nav_cmd(1.0, 0, 10.0)
     assert g.step(10.0)[0] == GateParams().indoor_max  # outdoor flag 5 s old: indoor cap
+
+
+def drive(g, t0, lin, secs, speed=None, accel=None):
+    """Ticks at 20 Hz with the phone's accelerometer at 100 Hz and odometry at 20 Hz."""
+    t, out = t0, None
+    while t < t0 + secs:
+        for k in range(5):
+            ax, ay = accel(t + k * 0.01) if accel else (0.3, 0.1)  # a slight tilt, gravity leaking in
+            g.accel(ax, ay, t + k * 0.01)
+        if speed is not None:
+            g.odom_speed(speed(t), t)
+        out = tick(g, t, lin)
+        t += 0.05
+    return out, t
+
+
+def test_jolt_while_moving_blocks_forward_then_releases():
+    g = gate()
+    out, t = drive(g, 0, 0.5, 3.0, speed=lambda t: min(0.5, t))
+    assert out[0] > 0.4 and out[2] == "nav"
+    hit = t + 0.2
+    out, t = drive(g, t, 0.5, 0.5, speed=lambda _: 0.0, accel=lambda tt: (-9.0, 0.5) if hit <= tt < hit + 0.03 else (0.3, 0.1))
+    assert out[:3] == (0.0, 0.0, "collision") and g.s.collisions == 1
+    back = [tick(g, t + k * 0.05, -0.1) for k in range(4)]
+    assert back[-1][0] < 0 and back[-1][2] == "nav"  # backing away is allowed (ramped like any start)
+    out, _ = drive(g, t + 3.5, 0.5, 1.0, speed=lambda tt: 0.3)
+    assert out[2] == "nav" and out[0] > 0  # released after collision_hold
+
+
+def test_ordinary_driving_and_braking_are_not_collisions():
+    g = gate()
+    # speeding up, cruising, a gentle brake (2.5 m/s^2) and floor joints (vertical: not seen here)
+    drive(g, 0, 0.6, 4.0, speed=lambda t: min(0.6, 0.5 * t), accel=lambda t: (0.5 + 0.2 * math.sin(40 * t), 0.1))
+    drive(g, 4.0, 0.0, 1.0, speed=lambda t: 0.0, accel=lambda t: (-2.5, 0.1) if t < 4.3 else (0.3, 0.1))
+    assert g.s.collisions == 0
+
+
+def test_jolt_while_standing_still_is_ignored():
+    g = gate()
+    drive(g, 0, 0.0, 1.0, accel=lambda t: (8.0, 0.0) if 0.5 <= t < 0.52 else (0.3, 0.1))  # someone knocks the car
+    assert g.s.collisions == 0
+
+
+def test_pushing_against_something_is_a_stall():
+    g = gate()
+    out, t = drive(g, 0, 0.4, 3.0, speed=lambda _: 0.0)  # told to go, never moves
+    assert out[2] == "collision" and g.s.collision_kind == "stalled"
+
+
+def test_slow_start_is_not_a_stall():
+    g = gate()
+    out, _ = drive(g, 0, 0.4, 3.0, speed=lambda t: min(0.4, 0.4 * t))
+    assert g.s.collisions == 0 and out[2] == "nav"
+
+
+def test_no_odometry_means_no_stall_check():
+    g = gate()
+    out, _ = drive(g, 0, 0.4, 3.0)  # no speed readings at all
+    assert g.s.collisions == 0 and out[0] > 0

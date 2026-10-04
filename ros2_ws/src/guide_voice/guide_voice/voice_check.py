@@ -1,7 +1,9 @@
 """Bench check of the car's voice, no ROS and no car needed (spec section 9).
 
     ros2 run guide_voice voice_check --devices          # list microphones and speakers
-    ros2 run guide_voice voice_check                    # speak, listen 4 s, transcribe (Scribe), ask Gemini, speak the reply
+    ros2 run guide_voice voice_check --meter            # the microphone's live level: does it hear you?
+    ros2 run guide_voice voice_check --drive COM4       # demo: once the room is confirmed, run the motors 5 s
+    ros2 run guide_voice voice_check                    # hands-free: just talk; it confirms the room and stops
     ros2 run guide_voice voice_check --talk             # a conversation: Enter starts and stops each recording
     ros2 run guide_voice voice_check --text "take me to AQ 3046"   # skip the microphone
     ros2 run guide_voice voice_check --file question.wav           # transcribe a recording instead
@@ -26,7 +28,7 @@ from pathlib import Path
 
 import numpy as np
 
-from .cloud import VOICE_ID, ElevenLabsSpeaker, ElevenLabsTranscriber, Unheard
+from .cloud import NATURAL_MODEL, TTS_MODEL, VOICE_ID, ElevenLabsSpeaker, ElevenLabsTranscriber, Unheard, to_wav_bytes
 from .rooms import answer_in, spoken, suggestion, understand
 from .speech import SAMPLE_RATE, Recorder, Speaker, audio_device, read_wav, resample, trim_silence
 
@@ -61,6 +63,133 @@ def listen(rec: Recorder, seconds: float | None) -> np.ndarray:
     return audio
 
 
+def listen_auto(rec: Recorder, max_seconds: float = 10.0, quiet_end: float = 0.9, wait: float = 30.0) -> np.ndarray:
+    """Record one utterance with no keys: starts when the voice rises above the room's
+    background, ends after ``quiet_end`` s of quiet (or ``max_seconds``)."""
+    rec.start()
+    try:
+        time.sleep(0.5)
+        floor = max(rec.level(0.5), 0.0005)  # the room before anyone speaks
+        # 3x a quiet room's background; a noisy microphone (a webcam's: 0.2) gets a margin over
+        # its noise instead, or the threshold would be out of reach of any voice.
+        on = max(0.004, min(3.0 * floor, floor + 0.05))
+        print(f"  listening (background {floor:.4f}, speech above {on:.4f})...", flush=True)
+        if floor > 0.05:
+            print("  that microphone is very noisy: try another (--devices, then --mic <number>)")
+        t0 = time.monotonic()
+        while rec.level(0.15) < on:
+            if time.monotonic() - t0 > wait:
+                return rec.stop()[:0]
+            time.sleep(0.05)
+        print("  hearing you...", flush=True)
+        start = time.monotonic()
+        last_loud = start
+        while time.monotonic() - start < max_seconds:
+            time.sleep(0.05)
+            if rec.level(0.15) >= 0.6 * on:
+                last_loud = time.monotonic()
+            elif time.monotonic() - last_loud > quiet_end:
+                break
+    except BaseException:
+        rec.stop()
+        raise
+    audio = rec.stop()
+    level = float(np.sqrt(np.mean(audio**2))) if audio.size else 0.0
+    print(f"  {audio.size / SAMPLE_RATE:.1f} s recorded, level {level:.3f}")
+    return audio
+
+
+def louder(audio: np.ndarray, peak: float = 0.8) -> np.ndarray:
+    """Scale a clip so its loudest part reaches ``peak``: a laptop microphone often records
+    speech at 1-2 % of full scale, which Scribe can return as an empty transcript."""
+    top = float(np.max(np.abs(audio))) if audio.size else 0.0
+    return audio if top < 1e-4 else (audio * min(peak / top, 50.0)).astype(np.float32)
+
+
+def drive(port: str, throttle: float, seconds: float, steering: float = 0.0):
+    """Demo: drive the ESP32 (guide_motor.ino, or l298n_demo.ino) for ``seconds``, as the car's
+    serial bridge does: "C <steering> <throttle>" 20 times a second, then stop. The firmware also
+    stops by itself 300 ms after the last line (a crash, a pulled cable)."""
+    import serial
+
+    s = serial.Serial()
+    s.port, s.baudrate, s.timeout = port, 115200, 0
+    s.dtr = s.rts = False  # opening must not reset the ESP32
+    s.open()
+    try:
+        time.sleep(0.3)
+        print(f"  driving: throttle {throttle:+.2f} for {seconds:.0f} s on {port}")
+        end = time.monotonic() + seconds
+        while time.monotonic() < end:
+            s.write(f"C {steering:.3f} {throttle:.3f}\n".encode())
+            reply = s.read(256).decode(errors="replace").strip()
+            if reply.startswith("E"):
+                print(f"  ESP32: {reply}")
+            time.sleep(0.05)
+    finally:
+        for _ in range(5):
+            s.write(b"C 0.000 0.000\n")
+            time.sleep(0.05)
+        s.close()
+        print("  stopped")
+
+
+def hands_free(rec: Recorder, stt, speaker: Speaker, keys: dict, save: Path | None = None, go=None) -> int:
+    """Ask where to go, read the room back, and stop once the student says yes."""
+    pending = None
+    while True:
+        audio = listen_auto(rec)
+        if audio.size == 0:
+            continue  # nobody spoke: keep waiting
+        clip = louder(trim_silence(audio))
+        if save is not None:
+            save.write_bytes(to_wav_bytes(clip))  # what was sent: play it to check the microphone
+        print(f"  sending {clip.size / SAMPLE_RATE:.1f} s to ElevenLabs" + (f" (saved to {save})" if save else ""))
+        if clip.size < SAMPLE_RATE * 0.3:
+            print("  too short after trimming: the microphone barely rose above the background")
+        try:
+            text = stt(clip, (pending,) if pending else ())
+        except Unheard:
+            text = ""
+        print(f"heard: {text!r}")
+        if not text:
+            say(speaker, "Sorry, I didn't catch that. Where would you like to go?")
+            continue
+        answer = answer_in(text)
+        if pending and answer == "yes":
+            say(speaker, f"Great. Follow me to {spoken(pending, keys.get(pending))}.")
+            print(f"confirmed: {pending}")
+            if go is not None:
+                try:
+                    go()
+                except ImportError:
+                    print("Driving needs pyserial: py -m pip install pyserial")
+                except Exception as e:  # port busy or wrong: say so, not "microphone failed"
+                    print(f"Driving failed: {type(e).__name__}: {e}\n"
+                          "Check the ESP32's COM port (Device Manager) and close the Arduino Serial Monitor.")
+            return 0
+        if answer == "stop":
+            say(speaker, "Okay, stopping.")
+            return 0
+        if pending and answer == "no":
+            pending = None
+            say(speaker, "Okay. Where would you like to go?")
+            continue
+        heard = understand(text, keys) if keys else None
+        if heard is not None:
+            print(f"  rooms on the map: {heard.rooms or 'none'}"
+                  + (f"; not on the map: {heard.missing}" if heard.missing else "")
+                  + (f"; suggested: {heard.suggestions}" if heard.suggestions else ""))
+        if heard is not None and heard.rooms:
+            pending = heard.rooms[0]
+            say(speaker, f"{spoken(pending, keys.get(pending))}. Is that right?")
+            continue
+        said, key = suggestion(heard, keys) if heard is not None else ("", None)
+        if key:
+            pending = key  # "Do you mean AQ 3005?": a yes takes that room
+        say(speaker, said or "Which room would you like? For example, A Q 3 1 2 8.")
+
+
 def make_agent(model: str):
     if not os.environ.get("GEMINI_API_KEY") and not os.environ.get("GOOGLE_API_KEY"):
         print("No GEMINI_API_KEY: transcripts are not sent to Gemini.")
@@ -82,31 +211,66 @@ def make_agent(model: str):
     return GeminiVoiceAgent(client, actions, model=model)
 
 
+def load_env(path: Path = Path(".env")):
+    """KEY=value lines from .env (repository root, git-ignored) into the environment, so API keys
+    need not be retyped in every new terminal. Variables already set win."""
+    try:
+        for line in path.read_text(encoding="utf-8-sig").splitlines():
+            key, sep, value = line.strip().partition("=")
+            if sep and key and not key.startswith("#"):
+                os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+    except OSError:
+        pass
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--devices", action="store_true", help="list audio devices and exit")
+    ap.add_argument("--drive", metavar="PORT", help="demo: run the motors on this serial port (COM4) once a room is confirmed")
+    ap.add_argument("--throttle", type=float, default=0.3, help="--drive throttle, -1..1 (default 0.3)")
+    ap.add_argument("--drive-seconds", type=float, default=5.0)
+    ap.add_argument("--meter", action="store_true", help="show the microphone's live level for 15 s (talk and watch it move)")
     ap.add_argument("--talk", action="store_true", help="keep talking: Enter starts and stops each recording")
     ap.add_argument("--text", help="what the student says, instead of the microphone")
     ap.add_argument("--file", help="a WAV recording to transcribe, instead of the microphone")
     ap.add_argument("--echo", action="store_true", help="say back what was heard instead of asking Gemini")
     ap.add_argument("--say", help="speak this and exit (tests the speaker and the ElevenLabs voice)")
     ap.add_argument("--voice-id", default=VOICE_ID, help="ElevenLabs voice id (from its voice library)")
+    ap.add_argument("--fast", action="store_true", help=f"the low-latency voice model ({TTS_MODEL}) the car uses, "
+                    f"instead of the more natural {NATURAL_MODEL}")
     ap.add_argument("--seconds", type=float, default=4.0)
     ap.add_argument("--voice", default="voices/en_US-lessac-medium.onnx")
     ap.add_argument("--gemini-model", default=None)
     ap.add_argument("--mic", default="", help="device name or index (see --devices)")
     ap.add_argument("--speaker", default="")
     args = ap.parse_args(argv)
+    load_env()
 
     if args.devices:
         import sounddevice as sd
 
         print(sd.query_devices())
         return 0
+    if args.meter:
+        import sounddevice as sd
+
+        rec = Recorder(audio_device(args.mic))
+        print(f"microphone: {sd.query_devices(rec.device, 'input')['name']}. Talk: the bar should jump past |")
+        rec.start()
+        try:
+            for _ in range(150):
+                time.sleep(0.1)
+                v = rec.level(0.1)
+                print(f"\r  {v:.4f} " + "#" * min(60, int(v * 1500)) + " " * max(0, 6 - int(v * 1500)) + "|", end="     ", flush=True)
+        finally:
+            rec.stop()
+            print()
+        return 0
     eleven = bool(os.environ.get("ELEVENLABS_API_KEY"))
     if not eleven:
         print("No ELEVENLABS_API_KEY: Piper speaks, and nothing can be heard.")
-    speaker = (ElevenLabsSpeaker(args.voice, audio_device(args.speaker), voice_id=args.voice_id, log=print) if eleven
+    speaker = (ElevenLabsSpeaker(args.voice, audio_device(args.speaker), voice_id=args.voice_id,
+                                     model=TTS_MODEL if args.fast else NATURAL_MODEL, timeout=10.0, log=print) if eleven
                else Speaker(args.voice, audio_device(args.speaker)))
     if not Path(args.voice).exists():
         print(f"No Piper voice at {args.voice}: run ros2_ws/src/guide_bringup/scripts/setup_voice.sh")
@@ -125,6 +289,24 @@ def main(argv=None):
 
         keys = RouteGraph.load("maps/route_graph.json").destinations
     rec = Recorder(audio_device(args.mic))
+    if not (args.talk or args.text or args.file or args.echo):
+        if stt is None:
+            print("Hands-free listening needs ELEVENLABS_API_KEY.")
+            return 1
+        try:
+            try:
+                import sounddevice as sd
+
+                print(f"microphone: {sd.query_devices(rec.device, 'input')['name']}  (another: --mic <number> from --devices)")
+            except Exception:
+                pass
+            go = (lambda: drive(args.drive, args.throttle, args.drive_seconds)) if args.drive else None
+            return hands_free(rec, stt, speaker, keys, Path("voice_last.wav"), go)
+        except KeyboardInterrupt:
+            return 0
+        except Exception as e:
+            print(f"Microphone failed: {e}\nPick a device with input channels from --devices and pass --mic <number>.")
+            return 1
     while True:
         if args.text:
             text = args.text
@@ -143,7 +325,7 @@ def main(argv=None):
                 return 1
             t = time.monotonic()
             try:
-                text = stt(trim_silence(audio))
+                text = stt(louder(trim_silence(audio)))
             except Unheard:
                 text = ""
             print(f"heard ({time.monotonic() - t:.1f} s): {text!r}")

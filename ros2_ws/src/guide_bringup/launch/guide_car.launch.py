@@ -35,6 +35,10 @@ from common import Node, ROSBRIDGE_PARAMS, cfg, repo_path  # noqa: E402
 HERE = os.path.dirname(__file__)
 
 
+
+# Person/object detector models in models/ (scripts/export_models.py --only yolo | --only school)
+DETECTORS = {"coco": "yolo11n.onnx", "school": "yoloe-school.onnx"}
+
 def include(name, **args):
     return IncludeLaunchDescription(PythonLaunchDescriptionSource(os.path.join(HERE, name)), launch_arguments=args.items())
 
@@ -87,7 +91,7 @@ def setup(context):
         actions += [
             Node(package="guide_perception", executable="floor_segmentation", name="floor_segmentation", parameters=[guide, models], remappings=left),
             Node(package="guide_perception", executable="person_detection", name="person_detection", parameters=[guide,
-                 {"model": repo_path("models", "yolo11n.onnx")}], remappings=left),
+                 {"model": repo_path("models", DETECTORS[LaunchConfiguration("detector").perform(context)])}], remappings=left),
             Node(package="guide_perception", executable="sign_reader", name="sign_reader", parameters=[guide], remappings=left),
         ]
     if flag(context, "rear_camera"):
@@ -110,6 +114,9 @@ def generate_launch_description():
         DeclareLaunchArgument("motor_port", default_value="/dev/ttyUSB0", description="the ESP32 (CP2102 / CH340)"),
         DeclareLaunchArgument("gps_port", default_value="/dev/ttyUSB1", description="the Adafruit GPS adapter"),
         DeclareLaunchArgument("perception", default_value="true"),
+        DeclareLaunchArgument("detector", default_value="coco", choices=list(DETECTORS),
+                              description="people and objects: coco (yolo11n, ~10 Hz on CPU) or school (YOLOE with "
+                                          "bins, carts, wet floor signs, desks...; about half the rate)"),
         DeclareLaunchArgument("cameras", default_value="stereo", choices=["stereo", "mono", "iphone"]),
         DeclareLaunchArgument("camera_driver", default_value="true"),
         DeclareLaunchArgument("record3d_path", default_value=""),

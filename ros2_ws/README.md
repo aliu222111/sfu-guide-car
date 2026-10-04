@@ -145,6 +145,8 @@ fights the new one.
 **1, handheld stereo rig.** Mount and level the cameras, then
 `bash $(ros2 pkg prefix guide_bringup)/share/guide_bringup/scripts/set_exposure.sh 150`, calibrate with
 `ros2 run camera_calibration cameracalibrator --approximate 0.05 --size 8x6 --square 0.025 right:=/stereo/right/image_raw left:=/stereo/left/image_raw right_camera:=/stereo/right left_camera:=/stereo/left`
+(or, on any laptop without ROS, Windows included: `scripts/stereo_calibrate.py board`, `capture <left> <right>`,
+`solve calib`, then copy `calib/left.yaml` and `right.yaml` to `~/.ros/camera_info`)
 and save `left.yaml`/`right.yaml` into `~/.ros/camera_info/`. Map a floor:
 `ros2 launch guide_bringup mapping.launch.py floor:=AQ-03 fresh:=true`, carry the rig round the concourse
 and close the loop. Align it to the GIS frame at three or more doors:

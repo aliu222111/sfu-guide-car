@@ -19,12 +19,14 @@ def open_cam(i, w, h):
 
 if len(sys.argv) < 3:
     print("cameras found at:", find())
-    print("run: py stereo_test.py <left> <right> [720]")
+    print("run: py stereo_test.py <left> <right> [720] [--rear <number>]")
     sys.exit()
 L, R = int(sys.argv[1]), int(sys.argv[2])
+REAR = next((int(sys.argv[i + 1]) for i, a in enumerate(sys.argv) if a == "--rear"), None)
 w, h = (1280, 720) if "720" in sys.argv[3:] else (640, 360)
 cl, cr = open_cam(L, w, h), open_cam(R, w, h)
-n, t0 = 0, time.time()
+crear = open_cam(REAR, 640, 360) if REAR is not None else None
+n, t0, nrear = 0, time.time(), 0
 while True:
     ok1, a = cl.read(); ok2, b = cr.read()
     if not (ok1 and ok2):
@@ -39,9 +41,22 @@ while True:
     fps = n / (time.time() - t0)
     cv2.putText(view, f"{a.shape[1]}x{a.shape[0]}  {fps:.1f} fps  L={L} R={R}", (10, 25),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+    if crear is not None:  # the rear camera underneath, half width
+        okr, c = crear.read()
+        if okr:
+            nrear += 1
+        else:
+            c = view[:, :view.shape[1] // 2] * 0
+        c = cv2.resize(c, (view.shape[1] // 2, view.shape[0] // 2 if h == 360 else view.shape[0] // 2))
+        cv2.putText(c, f"REAR={REAR}  {nrear / (time.time() - t0):.1f} fps" + ("" if okr else "  NO PICTURE"),
+                    (10, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+        pad = view[:c.shape[0], c.shape[1]:] * 0
+        view = cv2.vconcat([view, cv2.hconcat([c, pad])])
     cv2.imshow("stereo (s = save pair, q = quit)", view)
     k = cv2.waitKey(1) & 0xFF
     if k == ord("q"): break
     if k == ord("s"):
         cv2.imwrite(f"left{n}.png", a); cv2.imwrite(f"right_{n}.png", b); print("saved pair", n)
-cl.release(); cr.release(); cv2.destroyAllWindows()
+cl.release(); cr.release()
+if crear is not None: crear.release()
+cv2.destroyAllWindows()
