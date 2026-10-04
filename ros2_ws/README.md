@@ -53,6 +53,8 @@ bash ros2_ws/src/guide_bringup/scripts/setup_voice.sh     # packages and the off
 export ELEVENLABS_API_KEY=...                              # https://elevenlabs.io/app/settings/api-keys
 export GEMINI_API_KEY=...                                  # https://aistudio.google.com/apikey (paid tier: see below)
 ros2 run guide_voice voice_check --devices                 # find the USB speaker and microphone
+ros2 run guide_voice voice_check --say "Could you hold the door?" --speaker 3   # the ElevenLabs voice alone
+ros2 run guide_voice voice_check --echo --talk --mic 2 --speaker 3   # ElevenLabs alone: it says back what Scribe heard
 ros2 run guide_voice voice_check --talk --mic 2 --speaker 3   # Enter, speak, Enter: hear Gemini's reply
 ```
 

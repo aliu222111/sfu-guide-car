@@ -5,6 +5,8 @@
     ros2 run guide_voice voice_check --talk             # a conversation: Enter starts and stops each recording
     ros2 run guide_voice voice_check --text "take me to AQ 3046"   # skip the microphone
     ros2 run guide_voice voice_check --file question.wav           # transcribe a recording instead
+    ros2 run guide_voice voice_check --echo --talk      # ElevenLabs only: say back what Scribe heard
+    ros2 run guide_voice voice_check --say "Could you hold the door, please?"   # just the speaker
 
 Run from the repository root (voices/ and maps/ live there). ElevenLabs
 (ELEVENLABS_API_KEY) hears and speaks, Piper speaks when it cannot; the
@@ -24,7 +26,7 @@ from pathlib import Path
 
 import numpy as np
 
-from .cloud import ElevenLabsSpeaker, ElevenLabsTranscriber, Unheard
+from .cloud import VOICE_ID, ElevenLabsSpeaker, ElevenLabsTranscriber, Unheard
 from .rooms import rooms_in
 from .speech import SAMPLE_RATE, Recorder, Speaker, audio_device, read_wav, trim_silence
 
@@ -86,6 +88,9 @@ def main(argv=None):
     ap.add_argument("--talk", action="store_true", help="keep talking: Enter starts and stops each recording")
     ap.add_argument("--text", help="what the student says, instead of the microphone")
     ap.add_argument("--file", help="a WAV recording to transcribe, instead of the microphone")
+    ap.add_argument("--echo", action="store_true", help="say back what was heard instead of asking Gemini")
+    ap.add_argument("--say", help="speak this and exit (tests the speaker and the ElevenLabs voice)")
+    ap.add_argument("--voice-id", default=VOICE_ID, help="ElevenLabs voice id (from its voice library)")
     ap.add_argument("--seconds", type=float, default=4.0)
     ap.add_argument("--voice", default="voices/en_US-lessac-medium.onnx")
     ap.add_argument("--gemini-model", default=None)
@@ -101,15 +106,18 @@ def main(argv=None):
     eleven = bool(os.environ.get("ELEVENLABS_API_KEY"))
     if not eleven:
         print("No ELEVENLABS_API_KEY: Piper speaks, and nothing can be heard.")
-    speaker = (ElevenLabsSpeaker(args.voice, audio_device(args.speaker), log=print) if eleven
+    speaker = (ElevenLabsSpeaker(args.voice, audio_device(args.speaker), voice_id=args.voice_id, log=print) if eleven
                else Speaker(args.voice, audio_device(args.speaker)))
     if not Path(args.voice).exists():
-        print(f"No Piper voice at {args.voice}: run scripts/setup_voice.sh")
+        print(f"No Piper voice at {args.voice}: run ros2_ws/src/guide_bringup/scripts/setup_voice.sh")
+    if args.say:
+        say(speaker, args.say)
+        return 0
     say(speaker, GREETING)
 
     from .gemini_agent import MODEL
 
-    agent = make_agent(args.gemini_model or MODEL)
+    agent = None if args.echo else make_agent(args.gemini_model or MODEL)
     stt = ElevenLabsTranscriber(log=print) if eleven and not args.text else None
     keys = {}
     if Path("maps/route_graph.json").exists():
@@ -136,9 +144,12 @@ def main(argv=None):
             except Unheard:
                 text = ""
             print(f"heard ({time.monotonic() - t:.1f} s): {text!r}")
+        rooms = rooms_in(text, keys) if keys else []
         if keys:
-            print(f"  rooms: {rooms_in(text, keys) or 'none'}")
-        if agent is not None and text:
+            print(f"  rooms: {rooms or 'none'}")
+        if args.echo:
+            say(speaker, f"I heard: {text}." + (f" That's room {rooms[0]}." if rooms else "") if text else "I didn't catch that.")
+        elif agent is not None and text:
             t = time.monotonic()
             reply = agent.handle(text, "idle")
             print(f"  (Gemini {time.monotonic() - t:.1f} s)")
