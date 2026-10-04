@@ -28,7 +28,7 @@ import numpy as np
 
 from .cloud import VOICE_ID, ElevenLabsSpeaker, ElevenLabsTranscriber, Unheard
 from .rooms import rooms_in
-from .speech import SAMPLE_RATE, Recorder, Speaker, audio_device, read_wav, trim_silence
+from .speech import SAMPLE_RATE, Recorder, Speaker, audio_device, read_wav, resample, trim_silence
 
 GREETING = "Hello, I'm the SFU guide car. Where would you like to go?"
 
@@ -132,10 +132,13 @@ def main(argv=None):
             if args.file:
                 data, rate = read_wav(Path(args.file))
                 audio = data[:, 0].astype(np.float32) / 32768.0
-                if rate != SAMPLE_RATE:
-                    audio = np.interp(np.arange(0, len(audio), rate / SAMPLE_RATE), np.arange(len(audio)), audio).astype(np.float32)
+                audio = resample(audio, rate)
             else:
-                audio = listen(rec, None if args.talk else args.seconds)
+                try:
+                    audio = listen(rec, None if args.talk else args.seconds)
+                except Exception as e:
+                    print(f"Microphone failed: {e}\nPick a device with input channels from --devices and pass --mic <number>.")
+                    return 1
             if stt is None:
                 return 1
             t = time.monotonic()

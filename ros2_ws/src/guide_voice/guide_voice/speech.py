@@ -24,14 +24,32 @@ def audio_device(name: str):
 
 
 class Recorder:
-    """Records from the default microphone while ``start()``..``stop()``."""
+    """Records from the default microphone while ``start()``..``stop()``, as 16 kHz mono.
+
+    The microphone is opened at its own sample rate and channel count (many
+    Windows and USB microphones refuse 16 kHz mono) and converted on ``stop()``.
+    """
 
     def __init__(self, device=None, max_seconds: float = 15.0):
         self.device = device
-        self.max_frames = int(max_seconds * SAMPLE_RATE)
+        self.max_seconds = max_seconds
         self._chunks: list[np.ndarray] = []
         self._stream = None
+        self._rate = SAMPLE_RATE
         self._lock = threading.Lock()
+
+    def _open(self, sd, callback):
+        info = sd.query_devices(self.device, "input")  # raises if the device cannot record
+        channels = int(info["max_input_channels"])
+        if channels < 1:
+            raise ValueError(f"audio device {info['name']!r} is not a microphone (no input channels)")
+        for rate, ch in ((SAMPLE_RATE, 1), (int(info["default_samplerate"]), 1), (int(info["default_samplerate"]), channels)):
+            try:
+                stream = sd.InputStream(samplerate=rate, channels=ch, dtype="float32", device=self.device, callback=callback)
+                return stream, rate
+            except sd.PortAudioError:
+                continue
+        raise ValueError(f"audio device {info['name']!r} would not open for recording")
 
     def start(self):
         import sounddevice as sd
@@ -42,10 +60,10 @@ class Recorder:
             self._chunks = []
 
             def cb(indata, frames, time_info, status):
-                if sum(len(c) for c in self._chunks) < self.max_frames:
-                    self._chunks.append(indata[:, 0].copy())
+                if sum(len(c) for c in self._chunks) < self.max_seconds * self._rate:
+                    self._chunks.append(indata.mean(axis=1).astype(np.float32))
 
-            self._stream = sd.InputStream(samplerate=SAMPLE_RATE, channels=1, dtype="float32", device=self.device, callback=cb)
+            self._stream, self._rate = self._open(sd, cb)
             self._stream.start()
 
     def stop(self) -> np.ndarray:
@@ -55,7 +73,16 @@ class Recorder:
             self._stream.stop()
             self._stream.close()
             self._stream = None
-            return np.concatenate(self._chunks) if self._chunks else np.zeros(0, np.float32)
+            audio = np.concatenate(self._chunks) if self._chunks else np.zeros(0, np.float32)
+            return resample(audio, self._rate)
+
+
+def resample(audio: np.ndarray, rate: int) -> np.ndarray:
+    """``audio`` at ``rate`` Hz as SAMPLE_RATE (linear interpolation: plenty for speech recognition)."""
+    if rate == SAMPLE_RATE or audio.size == 0:
+        return audio.astype(np.float32)
+    n = int(round(audio.size * SAMPLE_RATE / rate))
+    return np.interp(np.arange(n) * rate / SAMPLE_RATE, np.arange(audio.size), audio).astype(np.float32)
 
 
 def trim_silence(audio: np.ndarray, threshold: float = 0.01, pad: float = 0.2) -> np.ndarray:
