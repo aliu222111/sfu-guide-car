@@ -257,6 +257,7 @@ class Heard:
     missing: str = ""  # a room said that is not ("AQ 3064")
     suggestions: list = field(default_factory=list)  # real rooms or places it may have meant
     kind: str = ""  # a kind of place asked for ("washroom")
+    near: bool = False  # the suggestion is the nearest to the car (its floor and pose were known)
 
 
 def understand(text: str, destinations: dict, here: dict | None = None) -> Heard:
@@ -269,7 +270,7 @@ def understand(text: str, destinations: dict, here: dict | None = None) -> Heard
         missing = f"{codes[0]} {digits}" if len(codes) == 1 else f"room {digits}"
         return Heard(missing=missing, suggestions=suggest_rooms(codes, digits, destinations))
     places, kind = places_in(text, destinations, here)
-    return Heard(suggestions=places, kind=kind)
+    return Heard(suggestions=places, kind=kind, near=bool((here or {}).get("floor")))
 
 
 def suggestion(h: Heard, destinations: dict) -> tuple[str, str | None]:
@@ -295,7 +296,7 @@ def suggestion(h: Heard, destinations: dict) -> tuple[str, str | None]:
     if len(h.suggestions) == 1:
         k = h.suggestions[0]
         if h.kind:
-            return f"The nearest {h.kind} I know is {where(k)}. Shall we go there?", k
+            return f"The {'nearest ' if h.near else ''}{h.kind} I know {'is' if h.near else 'of is'} {where(k)}. Shall we go there?", k
         return f"Do you mean {where(k)}?", k
     if h.suggestions:
         names = [f"{destinations[k].get('name') or k}, {k}" for k in h.suggestions]
