@@ -1,0 +1,1736 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=390, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#E4E0DF">
+<title>Sparky Scout</title>
+<script src="./support.js"></script>
+<script src="data/asb-data.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&amp;display=swap">
+<style>
+body { margin: 0; }
+@keyframes sc-rise {
+  from { transform: translateY(28px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+@keyframes sc-slide {
+  from { transform: translateX(-110%); }
+  to { transform: translateX(300%); }
+}
+.sc-sheet { animation: sc-rise .28s cubic-bezier(.2, .8, .2, 1) both; }
+.sc-bar { animation: sc-slide 1.15s ease-in-out infinite; }
+.sc-btn { font: inherit; color: inherit; border: 0; margin: 0; cursor: pointer; -webkit-tap-highlight-color: transparent; transition: opacity .12s; }
+.sc-btn:active { opacity: .65; }
+.sc-btn:disabled { cursor: default; opacity: 1; }
+.sc-btn:focus-visible { outline: 2px solid #1F5FE0; outline-offset: 2px; }
+.sc-in { font: inherit; color: #000000; border: 0; outline: 0; background: transparent; padding: 0; }
+.sc-in::placeholder { color: #5E5E5E; opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .sc-sheet, .sc-bar { animation: none; }
+}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #E4E0DF; color: #000000; font-family: 'DM Sans', system-ui, sans-serif; font-size: 16px; line-height: 1.3">
+
+<div ref="{{vpRef}}" onPointerDown="{{vpDown}}" onPointerMove="{{vpMove}}" onPointerUp="{{vpUp}}" onPointerCancel="{{vpUp}}" onWheel="{{vpWheel}}" style="position: absolute; left: 0; top: 0; width: 390px; height: 844px; overflow: hidden; touch-action: none; cursor: grab; background: #E4E0DF">
+<div style="position: absolute; left: 0; top: 0; width: {{mapW}}px; height: {{mapH}}px; pointer-events: none; transform: translate({{tx}}px, {{ty}}px); transition: {{camT}}">
+<svg width="{{mapW}}" height="{{mapH}}" viewBox="0 0 1230 1100" aria-hidden="true" style="position: absolute; left: 0; top: 0; display: block; overflow: visible">
+<path d="{{artFloor}}" style="fill: #FFFFFF; stroke: #FFFFFF; stroke-width: 0.4"></path>
+<path d="{{artRoom}}" style="fill: #E9E3E2; stroke: #E9E3E2; stroke-width: 0.4"></path>
+<path d="{{artVert}}" style="fill: #DCD3D2; stroke: #DCD3D2; stroke-width: 0.4"></path>
+<path d="{{artWash}}" style="fill: #CFE0FA; stroke: #CFE0FA; stroke-width: 0.4"></path>
+<path d="{{artHall}}" style="fill: none; stroke: {{accent}}; opacity: 0.32; stroke-width: 5; stroke-linecap: round; stroke-linejoin: round"></path>
+<path d="{{artStair}}" style="fill: none; stroke: #C9C1C0; stroke-width: 0.5; stroke-linecap: round; stroke-linejoin: round"></path>
+<path d="{{artWall}}" style="fill: none; stroke: #7E7574; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round"></path>
+<path d="{{ghostD}}" style="fill: none; stroke: #9A9A9A; stroke-width: {{routeW}}; stroke-linecap: round; stroke-linejoin: round"></path>
+<path d="{{routeD}}" style="fill: none; stroke: {{accent}}; stroke-width: {{routeW}}; stroke-linecap: round; stroke-linejoin: round"></path>
+</svg>
+
+<sc-for list="{{labels}}" as="l" hint-placeholder-count="0">
+<div style="position: absolute; left: {{l.x}}px; top: {{l.y}}px; transform: translate(-50%, -50%); font-size: 10px; font-weight: 600; color: #6A6160; white-space: nowrap; letter-spacing: 0.01em">{{l.n}}</div>
+</sc-for>
+
+<sc-for list="{{poiMarks}}" as="p" hint-placeholder-count="0">
+<div style="position: absolute; left: {{p.x}}px; top: {{p.y}}px; width: 20px; height: 20px; margin: -10px 0 0 -10px; box-sizing: border-box; border-radius: 50%; background: #FFFFFF; border: {{p.border}}; display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18)">
+<svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true" style="fill: none; stroke: {{p.color}}; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round"><path d="{{p.icon}}"></path></svg>
+</div>
+</sc-for>
+
+<sc-if value="{{showUser}}" hint-placeholder-val="{{false}}">
+<div style="position: absolute; left: {{userX}}px; top: {{userY}}px; width: 20px; height: 20px; margin: -10px 0 0 -10px; transition: left .12s linear, top .12s linear">
+<div style="position: absolute; left: -10px; top: -10px; width: 40px; height: 40px; border-radius: 50%; background: rgba(31, 95, 224, 0.18)"></div>
+<div style="position: absolute; left: 0; top: 0; width: 20px; height: 20px; box-sizing: border-box; border-radius: 50%; background: #1F5FE0; border: 3px solid #FFFFFF; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3)"></div>
+</div>
+</sc-if>
+
+<sc-if value="{{showPickup}}" hint-placeholder-val="{{false}}">
+<div style="position: absolute; left: {{pickX}}px; top: {{pickY}}px; width: 20px; height: 20px; margin: -10px 0 0 -10px; box-sizing: border-box; border-radius: 50%; background: #FFFFFF; border: 6px solid #000000; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3)"></div>
+</sc-if>
+
+<sc-if value="{{showDest}}" hint-placeholder-val="{{false}}">
+<div style="position: absolute; left: {{destX}}px; top: {{destY}}px; width: 18px; height: 18px; margin: -9px 0 0 -9px; box-sizing: border-box; background: #FFFFFF; border: 6px solid {{accent}}; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3)"></div>
+</sc-if>
+
+<sc-if value="{{showCar}}" hint-placeholder-val="{{false}}">
+<div style="position: absolute; left: {{carX}}px; top: {{carY}}px; width: 30px; height: 18px; margin: -9px 0 0 -15px; transform: rotate({{carDeg}}deg); transition: left .12s linear, top .12s linear, transform .25s ease; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4))">
+<svg width="30" height="18" viewBox="0 0 30 18" aria-hidden="true" style="display: block">
+<g style="fill: #000000">
+<rect x="4" y="0" width="7" height="4" rx="1.5"></rect>
+<rect x="19" y="0" width="7" height="4" rx="1.5"></rect>
+<rect x="4" y="14" width="7" height="4" rx="1.5"></rect>
+<rect x="19" y="14" width="7" height="4" rx="1.5"></rect>
+</g>
+<rect x="1" y="2.5" width="28" height="13" rx="5" style="fill: #000000; stroke: #FFFFFF; stroke-width: 1.5"></rect>
+<path d="M18 5.5 h4 a2 2 0 0 1 2 2 v3 a2 2 0 0 1 -2 2 h-4 z" style="fill: #FFFFFF"></path>
+</svg>
+</div>
+</sc-if>
+
+<sc-if value="{{showPickTag}}" hint-placeholder-val="{{false}}">
+<div style="position: absolute; left: {{pickX}}px; top: {{pickTagY}}px; transform: translate(-50%, -100%); display: flex; align-items: stretch; background: #FFFFFF; border-radius: 4px; overflow: hidden; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.22); font-size: 13px; font-weight: 600; white-space: nowrap">
+<span style="background: {{accent}}; color: #FFFFFF; padding: 7px 8px">{{pickTagEta}}</span>
+<span style="padding: 7px 10px">{{pickupShort}}</span>
+</div>
+</sc-if>
+
+<sc-if value="{{showDestTag}}" hint-placeholder-val="{{false}}">
+<div style="position: absolute; left: {{destX}}px; top: {{destTagY}}px; transform: translate(-50%, -100%); display: flex; align-items: stretch; background: #FFFFFF; border-radius: 4px; overflow: hidden; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.22); font-size: 13px; font-weight: 600; white-space: nowrap">
+<sc-if value="{{showDestEta}}" hint-placeholder-val="{{false}}">
+<span style="background: {{accent}}; color: #FFFFFF; padding: 7px 8px">{{etaLabel}}</span>
+</sc-if>
+<span style="padding: 7px 10px">{{destName}}</span>
+</div>
+</sc-if>
+</div>
+</div>
+
+<sc-if value="{{noMap}}" hint-placeholder-val="{{false}}">
+<div role="alert" style="position: absolute; left: 24px; right: 24px; top: 320px; padding: 20px; border-radius: 12px; background: #FFFFFF; box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15); font-size: 15px">The building map did not load. Check that data/asb-data.js sits next to this screen.</div>
+</sc-if>
+
+<sc-if value="{{showMapUi}}" hint-placeholder-val="{{true}}">
+<div style="position: absolute; left: 16px; top: 52px; display: flex; flex-direction: column; align-items: flex-start; gap: 8px">
+<sc-if value="{{isHome}}" hint-placeholder-val="{{true}}">
+<div style="height: 40px; padding: 0 16px; border-radius: 20px; background: {{accent}}; color: #FFFFFF; font-size: 18px; font-weight: 700; letter-spacing: -0.01em; display: flex; align-items: center; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2)">Sparky Scout</div>
+</sc-if>
+<sc-if value="{{showBack}}" hint-placeholder-val="{{false}}">
+<button class="sc-btn" onClick="{{goHome}}" aria-label="Back" style="width: 44px; height: 44px; border-radius: 50%; background: #FFFFFF; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2)">
+<svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true" style="fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><path d="M19 12H5M11 6l-6 6 6 6"></path></svg>
+</button>
+</sc-if>
+<div style="height: 30px; padding: 0 12px; border-radius: 15px; background: #FFFFFF; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px; box-shadow: 0 1px 6px rgba(0, 0, 0, 0.16)">
+<span>{{buildingName}}</span>
+<span style="color: #5E5E5E">{{levelChip}}</span>
+</div>
+</div>
+
+<div style="position: absolute; right: 12px; top: 52px; display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; flex-direction: column; border-radius: 10px; overflow: hidden; background: #FFFFFF; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2)">
+<sc-for list="{{levelButtons}}" as="lv" hint-placeholder-count="4">
+<button class="sc-btn" onClick="{{lv.pick}}" aria-label="{{lv.aria}}" style="position: relative; width: 44px; height: 44px; background: {{lv.bg}}; color: {{lv.fg}}; font-size: 15px; font-weight: 700">
+<span>{{lv.label}}</span>
+<span style="position: absolute; right: 5px; top: 5px; width: 7px; height: 7px; border-radius: 50%; background: #1F5FE0; display: {{lv.dot}}"></span>
+</button>
+</sc-for>
+</div>
+<div style="display: flex; flex-direction: column; border-radius: 10px; overflow: hidden; background: #FFFFFF; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2)">
+<button class="sc-btn" onClick="{{zoomIn}}" aria-label="Zoom in" style="width: 44px; height: 44px; background: #FFFFFF; display: flex; align-items: center; justify-content: center; border-bottom: 1px solid #EEEEEE">
+<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" style="fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round"><path d="M12 5v14M5 12h14"></path></svg>
+</button>
+<button class="sc-btn" onClick="{{zoomOut}}" aria-label="Zoom out" style="width: 44px; height: 44px; background: #FFFFFF; display: flex; align-items: center; justify-content: center; border-bottom: 1px solid #EEEEEE">
+<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" style="fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round"><path d="M5 12h14"></path></svg>
+</button>
+<button class="sc-btn" onClick="{{recenter}}" aria-label="Centre on my location" style="width: 44px; height: 44px; background: #FFFFFF; display: flex; align-items: center; justify-content: center">
+<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" style="fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><circle cx="12" cy="12" r="7"></circle><circle cx="12" cy="12" r="2"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3"></path></svg>
+</button>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{isHome}}" hint-placeholder-val="{{true}}">
+<div class="sc-sheet" style="position: absolute; left: 0; right: 0; bottom: 0; box-sizing: border-box; background: #FFFFFF; border-radius: 16px 16px 0 0; box-shadow: 0 -2px 16px rgba(0, 0, 0, 0.14); padding: 8px 16px 28px; display: flex; flex-direction: column">
+<button class="sc-btn" onClick="{{openNearest}}" style="position: absolute; left: 16px; top: -58px; height: 46px; padding: 0 18px 0 14px; border-radius: 23px; background: {{accent}}; color: #FFFFFF; font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; box-shadow: 0 3px 10px rgba(0, 0, 0, 0.28)">
+<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" style="fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><circle cx="12" cy="12" r="9"></circle><path d="M15.5 8.5l-2 5-5 2 2-5z"></path></svg>
+<span>Find the nearest…</span>
+</button>
+<div style="width: 36px; height: 4px; border-radius: 2px; background: #D4D4D4; align-self: center; margin-bottom: 14px"></div>
+<div style="display: flex; align-items: center; gap: 8px; margin: 0 4px 12px; font-size: 14px; font-weight: 500; color: #5E5E5E">
+<span style="width: 8px; height: 8px; border-radius: 50%; background: {{statusDot}}; flex-shrink: 0"></span>
+<span>{{homeStatus}}</span>
+</div>
+<div style="display: flex; align-items: center; gap: 8px">
+<button class="sc-btn" onClick="{{openSearch}}" style="flex-grow: 1; min-width: 0; height: 56px; border-radius: 28px; background: #EEEEEE; display: flex; align-items: center; gap: 12px; padding: 0 20px; font-size: 20px; font-weight: 600; text-align: left">
+<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" style="flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+<span>Where to?</span>
+</button>
+<button class="sc-btn" onClick="{{openChat}}" aria-label="Chat with Scout" style="width: 56px; height: 56px; border-radius: 50%; background: {{accent}}; color: #FFFFFF; display: flex; align-items: center; justify-content: center; flex-shrink: 0">
+<svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true" style="flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3zM5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3"></path></svg>
+</button>
+</div>
+<button class="sc-btn" onClick="{{openPickup}}" style="margin-top: 8px; width: 100%; min-height: 64px; padding: 0 4px; background: transparent; display: flex; align-items: center; gap: 16px; text-align: left">
+<span style="width: 40px; height: 40px; border-radius: 50%; background: #EEEEEE; display: flex; align-items: center; justify-content: center; flex-shrink: 0">
+<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" style="fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><circle cx="12" cy="12" r="7"></circle><circle cx="12" cy="12" r="2"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3"></path></svg>
+</span>
+<span style="flex-grow: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0">
+<span style="font-size: 16px; font-weight: 600">{{pickupName}}</span>
+<span style="font-size: 14px; color: #5E5E5E">{{pickupSub}}</span>
+</span>
+<span style="font-size: 14px; font-weight: 600; background: #EEEEEE; border-radius: 16px; padding: 7px 12px; flex-shrink: 0">Change</span>
+</button>
+</div>
+</sc-if>
+
+<sc-if value="{{isNearest}}" hint-placeholder-val="{{false}}">
+<div class="sc-sheet" style="position: absolute; left: 0; right: 0; bottom: 0; box-sizing: border-box; background: #FFFFFF; border-radius: 16px 16px 0 0; box-shadow: 0 -2px 16px rgba(0, 0, 0, 0.14); padding: 8px 16px 20px; display: flex; flex-direction: column">
+<div style="width: 36px; height: 4px; border-radius: 2px; background: #D4D4D4; align-self: center; margin-bottom: 8px"></div>
+<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px">
+<h1 style="margin: 0; flex-grow: 1; font-size: 22px; font-weight: 700">Find the nearest…</h1>
+<button class="sc-btn" onClick="{{goHome}}" aria-label="Close" style="width: 44px; height: 44px; border-radius: 50%; background: #EEEEEE; display: flex; align-items: center; justify-content: center; flex-shrink: 0">
+<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" style="fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+</button>
+</div>
+<sc-for list="{{categories}}" as="c" hint-placeholder-count="7">
+<button class="sc-btn" onClick="{{c.pick}}" disabled="{{c.off}}" style="width: 100%; min-height: 62px; padding: 0 4px; background: transparent; display: flex; align-items: center; gap: 16px; text-align: left; border-bottom: 1px solid #EEEEEE">
+<span style="width: 40px; height: 40px; border-radius: 50%; background: #EEEEEE; display: flex; align-items: center; justify-content: center; flex-shrink: 0">
+<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" style="fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><path d="{{c.icon}}"></path></svg>
+</span>
+<span style="flex-grow: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0">
+<span style="font-size: 16px; font-weight: 600">{{c.title}}</span>
+<span style="font-size: 14px; color: #5E5E5E">{{c.sub}}</span>
+</span>
+<span style="font-size: 14px; font-weight: 700; flex-shrink: 0">{{c.time}}</span>
+</button>
+</sc-for>
+</div>
+</sc-if>
+
+<sc-if value="{{isConfirm}}" hint-placeholder-val="{{false}}">
+<div class="sc-sheet" style="position: absolute; left: 0; right: 0; bottom: 0; box-sizing: border-box; background: #FFFFFF; border-radius: 16px 16px 0 0; box-shadow: 0 -2px 16px rgba(0, 0, 0, 0.14); padding: 8px 16px 20px; display: flex; flex-direction: column">
+<div style="width: 36px; height: 4px; border-radius: 2px; background: #D4D4D4; align-self: center; margin-bottom: 12px"></div>
+<h1 style="margin: 0 0 12px; font-size: 20px; font-weight: 700; text-align: center">{{confirmTitle}}</h1>
+<sc-if value="{{carOffered}}" hint-placeholder-val="{{true}}">
+<div style="display: flex; align-items: center; gap: 12px; border: 2px solid {{accent}}; border-radius: 12px; padding: 8px 14px 8px 8px">
+<div style="width: 72px; height: 48px; border-radius: 8px; background: #F3F3F3; display: flex; align-items: center; justify-content: center; flex-shrink: 0">
+<svg width="60" height="38" viewBox="0 0 64 40" aria-hidden="true" style="display: block">
+<path d="M45 7v9" style="fill: none; stroke: #000000; stroke-width: 1.5; stroke-linecap: round"></path>
+<circle cx="45" cy="6" r="2.2" style="fill: #000000"></circle>
+<path d="M7 27l3-9h19l6-6h13l8 8v7z" style="fill: #000000"></path>
+<path d="M37.5 14.5h9l4.5 4.5H33z" style="fill: #F3F3F3"></path>
+<circle cx="18" cy="28" r="8" style="fill: #000000; stroke: #F3F3F3; stroke-width: 2.5"></circle>
+<circle cx="18" cy="28" r="2.8" style="fill: #F3F3F3"></circle>
+<circle cx="47" cy="28" r="8" style="fill: #000000; stroke: #F3F3F3; stroke-width: 2.5"></circle>
+<circle cx="47" cy="28" r="2.8" style="fill: #F3F3F3"></circle>
+</svg>
+</div>
+<div style="flex-grow: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0">
+<span style="font-size: 18px; font-weight: 700">Scout</span>
+<span style="font-size: 14px; color: #5E5E5E">{{carAway}}</span>
+</div>
+<div style="display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0">
+<span style="font-size: 18px; font-weight: 700">{{arriveAt}}</span>
+<span style="font-size: 14px; color: #5E5E5E">arrival</span>
+</div>
+</div>
+</sc-if>
+<sc-if value="{{carNote}}" hint-placeholder-val="{{false}}">
+<div style="padding: 12px 14px; border-radius: 8px; background: #F3F3F3; font-size: 14px; font-weight: 500">{{carNoteText}}</div>
+</sc-if>
+<div style="display: flex; align-items: center; gap: 12px; min-height: 46px; border-bottom: 1px solid #EEEEEE; font-size: 15px; margin-top: 4px">
+<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" style="flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><circle cx="13" cy="4.5" r="1.8"></circle><path d="M13 8.5l-3 4 3 3v5.5M10 12.5l-1 5-2 3.5M13 8.5l3 3h3"></path></svg>
+<span style="flex-grow: 1; min-width: 0">{{walkLabel}}</span>
+<span style="font-weight: 700; flex-shrink: 0">{{walkEta}}</span>
+</div>
+<sc-if value="{{hasLink}}" hint-placeholder-val="{{false}}">
+<div style="display: flex; align-items: center; gap: 12px; min-height: 46px; border-bottom: 1px solid #EEEEEE; font-size: 15px">
+<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" style="flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><path d="{{linkIcon}}"></path></svg>
+<span style="flex-grow: 1; min-width: 0">{{linkLine}}</span>
+</div>
+</sc-if>
+<button class="sc-btn" onClick="{{toggleStepFree}}" role="switch" aria-checked="{{stepFreeOn}}" style="width: 100%; min-height: 48px; padding: 0; background: transparent; display: flex; align-items: center; gap: 12px; text-align: left; font-size: 15px">
+<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" style="flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><path d="M6 3.5h12v17H6zM9.5 10l2.5-2.5 2.5 2.5M9.5 14l2.5 2.5 2.5-2.5"></path></svg>
+<span style="flex-grow: 1">Step-free route (elevator only)</span>
+<span style="width: 44px; height: 26px; border-radius: 13px; background: {{switchBg}}; position: relative; flex-shrink: 0; transition: background .15s">
+<span style="position: absolute; top: 3px; left: {{switchKnob}}; width: 20px; height: 20px; border-radius: 50%; background: #FFFFFF; transition: left .15s"></span>
+</span>
+</button>
+<sc-if value="{{hasError}}" hint-placeholder-val="{{false}}">
+<div role="alert" style="margin-top: 4px; padding: 12px 14px; border-radius: 8px; background: #FBE9E7; color: #8C1D12; font-size: 14px; font-weight: 500">{{error}}</div>
+</sc-if>
+<button class="sc-btn" onClick="{{primaryGo}}" disabled="{{requestOff}}" style="margin-top: 8px; width: 100%; height: 56px; border-radius: 8px; background: {{requestBg}}; color: #FFFFFF; font-size: 18px; font-weight: 600">{{primaryLabel}}</button>
+<sc-if value="{{carOffered}}" hint-placeholder-val="{{true}}">
+<button class="sc-btn" onClick="{{walkOnly}}" disabled="{{requestOff}}" style="margin-top: 2px; width: 100%; height: 44px; border-radius: 8px; background: transparent; color: #000000; font-size: 15px; font-weight: 600">Walk it without Scout</button>
+</sc-if>
+</div>
+</sc-if>
+
+<sc-if value="{{isFinding}}" hint-placeholder-val="{{false}}">
+<div class="sc-sheet" style="position: absolute; left: 0; right: 0; bottom: 0; box-sizing: border-box; background: #FFFFFF; border-radius: 16px 16px 0 0; box-shadow: 0 -2px 16px rgba(0, 0, 0, 0.14); padding: 8px 16px 28px; display: flex; flex-direction: column">
+<div style="width: 36px; height: 4px; border-radius: 2px; background: #D4D4D4; align-self: center; margin-bottom: 14px"></div>
+<h1 style="margin: 0 0 4px; font-size: 22px; font-weight: 700">Requesting Scout</h1>
+<p style="margin: 0 0 16px; font-size: 15px; color: #5E5E5E">Confirming with the car. This only takes a moment.</p>
+<div style="height: 4px; border-radius: 2px; background: #EEEEEE; overflow: hidden">
+<div class="sc-bar" style="width: 35%; height: 100%; border-radius: 2px; background: {{accent}}"></div>
+</div>
+<div style="display: flex; flex-direction: column; margin-top: 8px">
+<div style="display: flex; align-items: center; gap: 14px; min-height: 56px; border-bottom: 1px solid #EEEEEE">
+<span style="width: 10px; height: 10px; border-radius: 50%; background: #000000; margin: 0 7px; flex-shrink: 0"></span>
+<span style="display: flex; flex-direction: column; gap: 1px">
+<span style="font-size: 12px; font-weight: 500; color: #5E5E5E">Pickup</span>
+<span style="font-size: 16px; font-weight: 600">{{pickupName}}</span>
+</span>
+</div>
+<div style="display: flex; align-items: center; gap: 14px; min-height: 56px">
+<span style="width: 10px; height: 10px; background: #000000; margin: 0 7px; flex-shrink: 0"></span>
+<span style="display: flex; flex-direction: column; gap: 1px">
+<span style="font-size: 12px; font-weight: 500; color: #5E5E5E">Going to</span>
+<span style="font-size: 16px; font-weight: 600">{{destFull}}</span>
+</span>
+</div>
+</div>
+<button class="sc-btn" onClick="{{cancel}}" style="margin-top: 12px; width: 100%; height: 56px; border-radius: 8px; background: #EEEEEE; color: #000000; font-size: 18px; font-weight: 600">Cancel</button>
+</div>
+</sc-if>
+
+<sc-if value="{{isEnroute}}" hint-placeholder-val="{{false}}">
+<div class="sc-sheet" style="position: absolute; left: 0; right: 0; bottom: 0; box-sizing: border-box; background: #FFFFFF; border-radius: 16px 16px 0 0; box-shadow: 0 -2px 16px rgba(0, 0, 0, 0.14); padding: 8px 16px 28px; display: flex; flex-direction: column">
+<div style="width: 36px; height: 4px; border-radius: 2px; background: #D4D4D4; align-self: center; margin-bottom: 14px"></div>
+<div style="display: flex; align-items: center; gap: 12px">
+<div style="flex-grow: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0">
+<h1 style="margin: 0; font-size: 22px; font-weight: 700">Scout is on the way</h1>
+<span style="font-size: 15px; color: #5E5E5E">{{meetLine}}</span>
+</div>
+<div style="width: 64px; height: 64px; border-radius: 8px; background: {{accent}}; color: #FFFFFF; display: flex; flex-direction: column; align-items: center; justify-content: center; flex-shrink: 0">
+<span style="font-size: 24px; font-weight: 700; line-height: 1">{{etaNum}}</span>
+<span style="font-size: 12px; font-weight: 500; margin-top: 3px">{{etaUnit}}</span>
+</div>
+</div>
+<div style="height: 4px; border-radius: 2px; background: #EEEEEE; overflow: hidden; margin-top: 16px">
+<div style="width: {{progressPct}}; height: 100%; background: {{accent}}; transition: width .12s linear"></div>
+</div>
+<div style="display: flex; align-items: center; gap: 14px; min-height: 80px; border-bottom: 1px solid #EEEEEE">
+<div style="width: 56px; height: 56px; border-radius: 50%; background: #F3F3F3; display: flex; align-items: center; justify-content: center; flex-shrink: 0">
+<svg width="46" height="29" viewBox="0 0 64 40" aria-hidden="true" style="display: block">
+<path d="M45 7v9" style="fill: none; stroke: #000000; stroke-width: 1.5; stroke-linecap: round"></path>
+<circle cx="45" cy="6" r="2.2" style="fill: #000000"></circle>
+<path d="M7 27l3-9h19l6-6h13l8 8v7z" style="fill: #000000"></path>
+<path d="M37.5 14.5h9l4.5 4.5H33z" style="fill: #F3F3F3"></path>
+<circle cx="18" cy="28" r="8" style="fill: #000000; stroke: #F3F3F3; stroke-width: 2.5"></circle>
+<circle cx="18" cy="28" r="2.8" style="fill: #F3F3F3"></circle>
+<circle cx="47" cy="28" r="8" style="fill: #000000; stroke: #F3F3F3; stroke-width: 2.5"></circle>
+<circle cx="47" cy="28" r="2.8" style="fill: #F3F3F3"></circle>
+</svg>
+</div>
+<div style="flex-grow: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0">
+<span style="font-size: 17px; font-weight: 700">{{carName}}</span>
+<span style="font-size: 14px; color: #5E5E5E">{{carMeta}}</span>
+</div>
+<span style="border: 1px solid #C4C4C4; border-radius: 4px; padding: 4px 8px; font-size: 13px; font-weight: 700; letter-spacing: 0.06em; flex-shrink: 0">{{carPlate}}</span>
+</div>
+<div style="display: flex; align-items: center; gap: 14px; min-height: 60px">
+<span style="width: 10px; height: 10px; background: #000000; margin: 0 7px; flex-shrink: 0"></span>
+<span style="display: flex; flex-direction: column; gap: 1px">
+<span style="font-size: 12px; font-weight: 500; color: #5E5E5E">Guiding you to</span>
+<span style="font-size: 16px; font-weight: 600">{{destFull}}</span>
+</span>
+</div>
+<button class="sc-btn" onClick="{{openChat}}" style="margin-top: 4px; width: 100%; height: 52px; border-radius: 8px; background: #FFFFFF; color: #000000; box-shadow: inset 0 0 0 2px #000000; font-size: 16px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px">
+<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" style="flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3zM5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3"></path></svg>
+<span>Chat with Scout while you wait</span>
+</button>
+<button class="sc-btn" onClick="{{cancel}}" style="margin-top: 8px; width: 100%; height: 56px; border-radius: 8px; background: #EEEEEE; color: #000000; font-size: 18px; font-weight: 600">Cancel request</button>
+</div>
+</sc-if>
+
+<sc-if value="{{isArrived}}" hint-placeholder-val="{{false}}">
+<div class="sc-sheet" style="position: absolute; left: 0; right: 0; bottom: 0; box-sizing: border-box; background: #FFFFFF; border-radius: 16px 16px 0 0; box-shadow: 0 -2px 16px rgba(0, 0, 0, 0.14); padding: 8px 16px 28px; display: flex; flex-direction: column">
+<div style="width: 36px; height: 4px; border-radius: 2px; background: #D4D4D4; align-self: center; margin-bottom: 14px"></div>
+<h1 style="margin: 0 0 4px; font-size: 24px; font-weight: 700">Scout is here</h1>
+<p style="margin: 0; font-size: 15px; color: #5E5E5E">It is waiting next to you. Start when you are ready to walk.</p>
+<div style="display: flex; align-items: center; gap: 14px; min-height: 84px">
+<div style="width: 56px; height: 56px; border-radius: 50%; background: #F3F3F3; display: flex; align-items: center; justify-content: center; flex-shrink: 0">
+<svg width="46" height="29" viewBox="0 0 64 40" aria-hidden="true" style="display: block">
+<path d="M45 7v9" style="fill: none; stroke: #000000; stroke-width: 1.5; stroke-linecap: round"></path>
+<circle cx="45" cy="6" r="2.2" style="fill: #000000"></circle>
+<path d="M7 27l3-9h19l6-6h13l8 8v7z" style="fill: #000000"></path>
+<path d="M37.5 14.5h9l4.5 4.5H33z" style="fill: #F3F3F3"></path>
+<circle cx="18" cy="28" r="8" style="fill: #000000; stroke: #F3F3F3; stroke-width: 2.5"></circle>
+<circle cx="18" cy="28" r="2.8" style="fill: #F3F3F3"></circle>
+<circle cx="47" cy="28" r="8" style="fill: #000000; stroke: #F3F3F3; stroke-width: 2.5"></circle>
+<circle cx="47" cy="28" r="2.8" style="fill: #F3F3F3"></circle>
+</svg>
+</div>
+<div style="flex-grow: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0">
+<span style="font-size: 17px; font-weight: 700">{{carName}}</span>
+<span style="font-size: 14px; color: #5E5E5E">{{carMeta}}</span>
+</div>
+<span style="border: 1px solid #C4C4C4; border-radius: 4px; padding: 4px 8px; font-size: 13px; font-weight: 700; letter-spacing: 0.06em; flex-shrink: 0">{{carPlate}}</span>
+</div>
+<button class="sc-btn" onClick="{{start}}" style="width: 100%; height: 56px; border-radius: 8px; background: {{accent}}; color: #FFFFFF; font-size: 18px; font-weight: 600">Start walking</button>
+<button class="sc-btn" onClick="{{cancel}}" style="margin-top: 4px; width: 100%; height: 48px; border-radius: 8px; background: transparent; color: #000000; font-size: 16px; font-weight: 600">Cancel</button>
+</div>
+</sc-if>
+
+<sc-if value="{{isGuiding}}" hint-placeholder-val="{{false}}">
+<div class="sc-sheet" style="position: absolute; left: 0; right: 0; bottom: 0; box-sizing: border-box; background: #FFFFFF; border-radius: 16px 16px 0 0; box-shadow: 0 -2px 16px rgba(0, 0, 0, 0.14); padding: 8px 16px 28px; display: flex; flex-direction: column">
+<div style="width: 36px; height: 4px; border-radius: 2px; background: #D4D4D4; align-self: center; margin-bottom: 14px"></div>
+<div style="display: flex; align-items: center; gap: 12px">
+<div style="flex-grow: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0">
+<h1 style="margin: 0; font-size: 22px; font-weight: 700">{{guideTitle}}</h1>
+<span style="font-size: 15px; color: #5E5E5E">{{guideLine}}</span>
+</div>
+<div style="width: 64px; height: 64px; border-radius: 8px; background: {{accent}}; color: #FFFFFF; display: flex; flex-direction: column; align-items: center; justify-content: center; flex-shrink: 0">
+<span style="font-size: 24px; font-weight: 700; line-height: 1">{{etaNum}}</span>
+<span style="font-size: 12px; font-weight: 500; margin-top: 3px">{{etaUnit}}</span>
+</div>
+</div>
+<div style="height: 4px; border-radius: 2px; background: #EEEEEE; overflow: hidden; margin-top: 16px">
+<div style="width: {{progressPct}}; height: 100%; background: {{accent}}; transition: width .12s linear"></div>
+</div>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 16px">
+<div style="display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; border-radius: 8px; background: #F3F3F3">
+<span style="font-size: 13px; font-weight: 500; color: #5E5E5E">Left on this level</span>
+<span style="font-size: 20px; font-weight: 700">{{leftM}}</span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; border-radius: 8px; background: #F3F3F3">
+<span style="font-size: 13px; font-weight: 500; color: #5E5E5E">{{statLabel}}</span>
+<span style="font-size: 20px; font-weight: 700">{{statValue}}</span>
+</div>
+</div>
+<button class="sc-btn" onClick="{{cancel}}" style="margin-top: 16px; width: 100%; height: 56px; border-radius: 8px; background: #EEEEEE; color: #000000; font-size: 18px; font-weight: 600">End trip</button>
+</div>
+</sc-if>
+
+<sc-if value="{{isTransfer}}" hint-placeholder-val="{{false}}">
+<div class="sc-sheet" style="position: absolute; left: 0; right: 0; bottom: 0; box-sizing: border-box; background: #FFFFFF; border-radius: 16px 16px 0 0; box-shadow: 0 -2px 16px rgba(0, 0, 0, 0.14); padding: 8px 16px 28px; display: flex; flex-direction: column">
+<div style="width: 36px; height: 4px; border-radius: 2px; background: #D4D4D4; align-self: center; margin-bottom: 14px"></div>
+<div style="width: 48px; height: 48px; border-radius: 50%; background: {{accent}}; color: #FFFFFF; display: flex; align-items: center; justify-content: center; margin-bottom: 12px">
+<svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true" style="fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round"><path d="{{linkIcon}}"></path></svg>
+</div>
+<h1 style="margin: 0 0 4px; font-size: 24px; font-weight: 700">{{transferTitle}}</h1>
+<p style="margin: 0; font-size: 15px; color: #5E5E5E">{{transferLine}}</p>
+<button class="sc-btn" onClick="{{continueTrip}}" style="margin-top: 16px; width: 100%; height: 56px; border-radius: 8px; background: {{accent}}; color: #FFFFFF; font-size: 18px; font-weight: 600">{{transferButton}}</button>
+<button class="sc-btn" onClick="{{cancel}}" style="margin-top: 4px; width: 100%; height: 48px; border-radius: 8px; background: transparent; color: #000000; font-size: 16px; font-weight: 600">End trip</button>
+</div>
+</sc-if>
+
+<sc-if value="{{isDone}}" hint-placeholder-val="{{false}}">
+<div class="sc-sheet" style="position: absolute; left: 0; right: 0; bottom: 0; box-sizing: border-box; background: #FFFFFF; border-radius: 16px 16px 0 0; box-shadow: 0 -2px 16px rgba(0, 0, 0, 0.14); padding: 8px 16px 28px; display: flex; flex-direction: column">
+<div style="width: 36px; height: 4px; border-radius: 2px; background: #D4D4D4; align-self: center; margin-bottom: 14px"></div>
+<div style="width: 48px; height: 48px; border-radius: 50%; background: {{accent}}; color: #FFFFFF; display: flex; align-items: center; justify-content: center; margin-bottom: 12px">
+<svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true" style="fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>
+</div>
+<h1 style="margin: 0 0 4px; font-size: 24px; font-weight: 700">You've arrived</h1>
+<p style="margin: 0; font-size: 15px; color: #5E5E5E">{{destFull}}</p>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 16px">
+<div style="display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; border-radius: 8px; background: #F3F3F3">
+<span style="font-size: 13px; font-weight: 500; color: #5E5E5E">Walk time</span>
+<span style="font-size: 20px; font-weight: 700">{{walkTime}}</span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; border-radius: 8px; background: #F3F3F3">
+<span style="font-size: 13px; font-weight: 500; color: #5E5E5E">Distance</span>
+<span style="font-size: 20px; font-weight: 700">{{tripDist}}</span>
+</div>
+</div>
+<sc-if value="{{withCar}}" hint-placeholder-val="{{true}}">
+<p style="margin: 14px 0 0; font-size: 14px; color: #5E5E5E">Scout is heading back to its dock.</p>
+</sc-if>
+<button class="sc-btn" onClick="{{finish}}" style="margin-top: 14px; width: 100%; height: 56px; border-radius: 8px; background: {{accent}}; color: #FFFFFF; font-size: 18px; font-weight: 600">Done</button>
+</div>
+</sc-if>
+
+<sc-if value="{{isSearch}}" hint-placeholder-val="{{false}}">
+<div class="sc-sheet" style="position: absolute; left: 0; top: 0; width: 390px; height: 844px; box-sizing: border-box; background: #FFFFFF; display: flex; flex-direction: column">
+<div style="display: flex; align-items: center; padding: 48px 8px 4px">
+<button class="sc-btn" onClick="{{goHome}}" aria-label="Back" style="width: 48px; height: 48px; border-radius: 50%; background: transparent; display: flex; align-items: center; justify-content: center; flex-shrink: 0">
+<svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true" style="fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><path d="M19 12H5M11 6l-6 6 6 6"></path></svg>
+</button>
+<h1 style="margin: 0; flex-grow: 1; text-align: center; font-size: 18px; font-weight: 600; padding-right: 48px">Plan your route</h1>
+</div>
+<div style="display: flex; gap: 12px; margin: 8px 16px 0">
+<div style="width: 12px; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 19px 0; flex-shrink: 0">
+<span style="width: 10px; height: 10px; box-sizing: border-box; border-radius: 50%; border: 3px solid #000000"></span>
+<span style="width: 2px; flex-grow: 1; background: #000000"></span>
+<span style="width: 10px; height: 10px; box-sizing: border-box; border: 3px solid #000000"></span>
+</div>
+<div style="flex-grow: 1; display: flex; flex-direction: column; gap: 8px; min-width: 0">
+<label style="position: relative; display: flex; align-items: center; height: 48px; border-radius: 8px; padding: 0 14px; background: {{pickupBg}}; box-shadow: {{pickupRing}}">
+<span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap">Where you are</span>
+<input class="sc-in" type="text" autocomplete="off" value="{{pickupValue}}" placeholder="Where are you? Room number" onChange="{{onQuery}}" onFocus="{{focusPickup}}" onKeyDown="{{onSearchKey}}" ref="{{pickupRef}}" style="flex-grow: 1; min-width: 0; height: 44px; font-size: 16px; font-weight: 500">
+</label>
+<label style="position: relative; display: flex; align-items: center; height: 48px; border-radius: 8px; padding: 0 14px; background: {{destBg}}; box-shadow: {{destRing}}">
+<span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap">Destination</span>
+<input class="sc-in" type="text" autocomplete="off" value="{{destValue}}" placeholder="Where to? Try 9896" onChange="{{onQuery}}" onFocus="{{focusDest}}" onKeyDown="{{onSearchKey}}" ref="{{destRef}}" style="flex-grow: 1; min-width: 0; height: 44px; font-size: 16px; font-weight: 500">
+</label>
+</div>
+</div>
+<div style="height: 8px; background: #F3F3F3; margin-top: 16px; flex-shrink: 0"></div>
+<div style="flex-grow: 1; overflow-y: auto; padding: 4px 16px 28px; display: flex; flex-direction: column">
+<sc-for list="{{results}}" as="item" hint-placeholder-count="6">
+<button class="sc-btn" onClick="{{item.pick}}" style="width: 100%; min-height: 64px; padding: 0 4px; background: transparent; display: flex; align-items: center; gap: 16px; text-align: left; border-bottom: 1px solid #EEEEEE; flex-shrink: 0">
+<span style="width: 40px; height: 40px; border-radius: 50%; background: #EEEEEE; display: flex; align-items: center; justify-content: center; flex-shrink: 0">
+<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" style="fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><path d="{{item.icon}}"></path></svg>
+</span>
+<span style="display: flex; flex-direction: column; gap: 2px; min-width: 0">
+<span style="font-size: 16px; font-weight: 600">{{item.name}}</span>
+<span style="font-size: 14px; color: #5E5E5E">{{item.sub}}</span>
+</span>
+</button>
+</sc-for>
+<sc-if value="{{noResults}}" hint-placeholder-val="{{false}}">
+<p style="margin: 24px 4px 0; font-size: 15px; color: #5E5E5E">No room in this building matches that. Try the number on the door, like 9896 or 10900.</p>
+</sc-if>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{isChat}}" hint-placeholder-val="{{false}}">
+<div class="sc-sheet" style="position: absolute; left: 0; top: 0; width: 390px; height: 844px; box-sizing: border-box; background: #FFFFFF; display: flex; flex-direction: column">
+<div style="display: flex; align-items: center; padding: 48px 8px 8px; border-bottom: 1px solid #EEEEEE">
+<button class="sc-btn" onClick="{{closeChat}}" aria-label="Back" style="width: 48px; height: 48px; border-radius: 50%; background: transparent; display: flex; align-items: center; justify-content: center; flex-shrink: 0">
+<svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true" style="fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><path d="M19 12H5M11 6l-6 6 6 6"></path></svg>
+</button>
+<div style="flex-grow: 1; display: flex; flex-direction: column; gap: 1px; min-width: 0">
+<h1 style="margin: 0; font-size: 18px; font-weight: 700">Chat with Scout</h1>
+<span style="font-size: 13px; color: #5E5E5E">{{chatSub}}</span>
+</div>
+<div style="display: flex; flex-direction: column; align-items: flex-end; gap: 2px; padding: 0 12px 0 8px; flex-shrink: 0">
+<span style="font-size: 11px; font-weight: 500; color: #5E5E5E">Powered by</span>
+<span style="display: flex; align-items: center; gap: 5px">
+<svg width="12" height="14" viewBox="0 0 12 14" role="img" aria-label="ElevenLabs logo" style="display: block"><rect x="1.5" y="0" width="3" height="14" style="fill: #000000"></rect><rect x="7.5" y="0" width="3" height="14" style="fill: #000000"></rect></svg>
+<span style="font-size: 14px; font-weight: 700; letter-spacing: -0.01em">ElevenLabs</span>
+</span>
+</div>
+</div>
+<div style="flex-grow: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 10px">
+<sc-if value="{{chatEmpty}}" hint-placeholder-val="{{false}}">
+<p style="margin: 8px 0 4px; font-size: 22px; font-weight: 700; line-height: 1.2">Ask Scout anything, out loud.</p>
+<p style="margin: 0 0 8px; font-size: 15px; color: #5E5E5E">Food, coffee, a washroom, a room number. It answers by voice, even before the car reaches you.</p>
+<sc-for list="{{chatIdeas}}" as="idea" hint-placeholder-count="3">
+<button class="sc-btn" onClick="{{idea.ask}}" style="align-self: flex-start; max-width: 100%; min-height: 44px; padding: 10px 14px; border-radius: 22px; background: #EEEEEE; font-size: 15px; font-weight: 500; text-align: left">{{idea.text}}</button>
+</sc-for>
+</sc-if>
+<sc-for list="{{chatMessages}}" as="m" hint-placeholder-count="0">
+<div style="align-self: {{m.side}}; max-width: 84%; padding: 10px 14px; border-radius: 18px; background: {{m.bg}}; color: {{m.fg}}; font-size: 16px; display: flex; flex-direction: column; gap: 8px">
+<span>{{m.text}}</span>
+<sc-if value="{{m.canGo}}" hint-placeholder-val="{{false}}">
+<button class="sc-btn" onClick="{{m.go}}" style="align-self: flex-start; min-height: 44px; padding: 0 16px; border-radius: 8px; background: {{accent}}; color: #FFFFFF; font-size: 15px; font-weight: 600">{{m.goLabel}}</button>
+</sc-if>
+</div>
+</sc-for>
+<sc-if value="{{chatBusy}}" hint-placeholder-val="{{false}}">
+<div style="align-self: flex-start; padding: 10px 14px; border-radius: 18px; background: #F3F3F3; color: #5E5E5E; font-size: 16px">Thinking…</div>
+</sc-if>
+</div>
+<sc-if value="{{chatListening}}" hint-placeholder-val="{{false}}">
+<div role="status" style="margin: 0 16px 8px; padding: 12px 14px; border-radius: 8px; background: {{accent}}; color: #FFFFFF; font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 10px">
+<span style="width: 10px; height: 10px; border-radius: 50%; background: #FFFFFF; flex-shrink: 0"></span>
+<span>Listening… tap the microphone when you are done</span>
+</div>
+</sc-if>
+<div style="display: flex; align-items: center; gap: 8px; padding: 8px 16px 28px; border-top: 1px solid #EEEEEE">
+<label style="position: relative; flex-grow: 1; min-width: 0; display: flex; align-items: center; height: 48px; border-radius: 24px; padding: 0 16px; background: #EEEEEE">
+<span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap">Your question</span>
+<input class="sc-in" type="text" autocomplete="off" value="{{chatDraft}}" placeholder="Type, or tap the microphone" onChange="{{onChatDraft}}" onKeyDown="{{onChatKey}}" style="flex-grow: 1; min-width: 0; height: 44px; font-size: 16px; font-weight: 500">
+</label>
+<button class="sc-btn" onClick="{{chatSend}}" aria-label="Send" style="width: 48px; height: 48px; border-radius: 50%; background: #EEEEEE; display: flex; align-items: center; justify-content: center; flex-shrink: 0">
+<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" style="flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><path d="M5 12h13M13 6l6 6-6 6"></path></svg>
+</button>
+<button class="sc-btn" onClick="{{chatMic}}" aria-label="{{micLabel}}" style="width: 56px; height: 56px; border-radius: 50%; background: {{micBg}}; color: #FFFFFF; display: flex; align-items: center; justify-content: center; flex-shrink: 0">
+<svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true" style="flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><path d="{{micIcon}}"></path></svg>
+</button>
+</div>
+</div>
+</sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"screen":{"editor":"enum","options":["live","home","search","nearest","chat","confirm","finding","enroute","arrived","guiding","transfer","done"],"default":"live","section":"Prototype"},"accent":{"editor":"color","options":["#A6192E","#CC0633","#000000"],"default":"#A6192E","section":"Look"},"demoSpeed":{"editor":"range","min":1,"max":20,"step":1,"unit":"×","default":4,"section":"Prototype"},"$preview":{"width":390,"height":844}}'>
+/* ======================================================================
+   SPARKY SCOUT RIDER APP - SFU Applied Sciences Building
+
+   MAP DATA  (data/asb-data.js -> window.ASB_DATA, built from the keyplans)
+     frame   { w, h, cell, gw, gh, metersPerUnit }   map units = keyplan points
+     levels  [ { id, name, art, walk } ]   art = SVG path data per layer; walk = base64 bitmap of walkable cells
+     rooms   [ { n, lv, x, y, k, w } ]     k: room | area | washroom | lab
+     pois    [ { kind, lv, x, y, name, link?, room?, unverified? } ]
+     links   [ { id, kind, name, at: { level: [x, y] } } ]   stairs / elevator
+
+   BACKEND SEAM
+   The UI talks to the car only through `this.api` (makeApi below). Swap
+   each body for a real request / websocket; keep the shapes. makeSim()
+   is the stand-in planner + fake car and can go once nothing calls it.
+
+     place = { name, lv, x, y }
+     getUserLocation()            -> { lv, x, y }
+     getCar()                     -> { id, name, battery, status, lv, x, y, heading }
+     getQuote(from, to, opts)     -> { legs: [ { lv, path, lengthM, via } ], distanceM, walkSec,
+                                       carAvailable, carEtaSec, approach: { lv, path } }
+     findNearest(from, opts)      -> { kind: { place, meters, walkSec } }
+     requestTrip(from, to, opts)  -> { tripId }           opts: { stepFree, walkOnly }
+     onTripUpdate(tripId, cb)     -> unsubscribe()
+            cb({ phase, leg, progress, etaSec })
+            phase: enroute | arrived | guiding | transfer | done
+     startGuiding(tripId)  continueTrip(tripId)  cancelTrip(tripId)
+     chat(text, from)             -> { reply, room: place | null }     "Chat with Scout":
+                                     the real one is guide_api's /api/chat (Gemini answers,
+                                     ElevenLabs hears and speaks); the mock answers from the map only
+
+   paths are arrays of [x, y] in map units on that leg's level.
+   Props: screen ('live' or a frozen state), demoSpeed (mock time scale).
+   ====================================================================== */
+class Component extends DCLogic {
+  constructor(...args) {
+    super(...args);
+    this.map = (typeof window !== 'undefined' && window.ASB_DATA) || null;
+    this.sim = this.map ? this.makeSim(this.map) : null;
+    this.api = this.makeApi(this.sim);
+    this.places = this.map ? this.buildPlaces(this.map) : [];
+    this.roomsByLevel = {};
+    (this.map ? this.map.rooms : []).forEach((r) => { (this.roomsByLevel[r.lv] = this.roomsByLevel[r.lv] || []).push(r); });
+    Object.keys(this.roomsByLevel).forEach((k) => this.roomsByLevel[k].sort((p, q) => (q.w || 30) - (p.w || 30)));
+    this.state = this.seed(this.screen());
+
+    const live = (fn) => (...xs) => { if (!this.frozen() && this.map) fn(...xs); };
+    this.act = {
+      openSearch: live(() => this.openSearch('dest')),
+      openPickup: live(() => this.openSearch('pickup')),
+      openNearest: live(() => this.openNearest()),
+      goHome: live(() => this.reset(false)),
+      onQuery: live((e) => this.setState({ query: e.target.value })),
+      focusPickup: live(() => { if (this.state.field !== 'pickup') this.setState({ field: 'pickup', query: '' }); }),
+      focusDest: live(() => { if (this.state.field !== 'dest') this.setState({ field: 'dest', query: '' }); }),
+      onSearchKey: live((e) => { if (e.key === 'Enter' && this.firstResult) this.pickPlace(this.firstResult); }),
+      toggleStepFree: live(() => this.toggleStepFree()),
+      primaryGo: live(() => this.request(false)),
+      walkOnly: live(() => this.request(true)),
+      cancel: live(() => this.reset(true)),
+      start: live(() => this.startWalking()),
+      continueTrip: live(() => this.continueTrip()),
+      finish: live(() => this.reset(false)),
+      openChat: live(() => this.setState({ chat: Object.assign({}, this.state.chat, { open: true }) })),
+      closeChat: live(() => this.setState({ chat: Object.assign({}, this.state.chat, { open: false, listening: false }) })),
+      onChatDraft: live((e) => this.setState({ chat: Object.assign({}, this.state.chat, { draft: e.target.value }) })),
+      onChatKey: live((e) => { if (e.key === 'Enter') this.chatSend(this.state.chat.draft); }),
+      chatSend: live(() => this.chatSend(this.state.chat.draft)),
+      chatMic: live(() => this.chatMic()),
+      zoomIn: live(() => this.zoomAt({ x: 195, y: 290 }, 1.45)),
+      zoomOut: live(() => this.zoomAt({ x: 195, y: 290 }, 1 / 1.45)),
+      recenter: live(() => this.recenter()),
+      vpDown: live((e) => this.vpDown(e)),
+      vpMove: live((e) => this.vpMove(e)),
+      vpUp: live((e) => this.vpUp(e)),
+      vpWheel: live((e) => { const p = this.local(e); if (p) this.zoomAt(p, Math.exp(-e.deltaY * 0.0016)); }),
+      vpRef: (el) => { this.vpEl = el; },
+      pickupRef: (el) => { this.pickupEl = el; },
+      destRef: (el) => { this.destEl = el; }
+    };
+  }
+
+  icons() {
+    return {
+      washroom: 'M8 5.6h.01M16 5.6h.01M8 9.5v10.5M5.5 12.5h5M16 9.5v10.5M13.4 19.5l2.6-8.5 2.6 8.5',
+      fountain: 'M12 3.5s6 6.3 6 10.6a6 6 0 0 1-12 0c0-4.3 6-10.6 6-10.6z',
+      lab: 'M4 5h16v10H4zM9 19.5h6M12 15v4.5',
+      elevator: 'M6 3.5h12v17H6zM9.5 10l2.5-2.5 2.5 2.5M9.5 14l2.5 2.5 2.5-2.5',
+      stairs: 'M4 19h4v-4.5h4V10h4V5.5h4',
+      vending: 'M7 3.5h10v17H7zM10 7.5h4M10 11h4M13.5 16h.01',
+      exit: 'M11 4.5H5.5v15H11M14.5 8.5L18 12l-3.5 3.5M9.5 12H18',
+      pin: 'M12 21s7-6.1 7-11a7 7 0 1 0-14 0c0 4.9 7 11 7 11zM12 12.4a2.4 2.4 0 1 0 0-4.8 2.4 2.4 0 0 0 0 4.8z',
+      here: 'M12 5a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM12 2v3M12 19v3M2 12h3M19 12h3'
+    };
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* BACKEND SEAM: replace these bodies with real calls                */
+  /* ---------------------------------------------------------------- */
+  makeApi(sim) {
+    const ui = this;
+    const wait = (ms, value) => new Promise((ok) => setTimeout(() => ok(value), ms));
+    let trip = null;
+
+    return {
+      getUserLocation: () => wait(0, sim.here),
+      getCar: () => wait(0, sim.car),
+      getQuote: (from, to, opts) => wait(40).then(() => sim.quote(from, to, opts || {})),
+      chat: (text, from) => wait(900).then(() => ui.mockChat(text, from)),
+      findNearest: (from, opts) => wait(40).then(() => sim.nearestAll(from, opts || {})),
+
+      requestTrip: (from, to, opts) => {
+        const o = opts || {};
+        const quote = sim.quote(from, to, o);
+        const withCar = !o.walkOnly && quote.carAvailable;
+        trip = { id: 'trip-' + Date.now(), quote: quote, withCar: withCar, phase: withCar ? 'enroute' : 'guiding', leg: 0, t: 0 };
+        return wait(withCar ? 1600 : 150, { tripId: trip.id });
+      },
+
+      onTripUpdate: (tripId, cb) => {
+        const timer = setInterval(() => {
+          if (!trip || trip.id !== tripId) return;
+          const q = trip.quote;
+          const dt = 0.1 * ui.demoSpeed();
+          if (trip.phase === 'enroute') {
+            const total = Math.max(1, q.carEtaSec);
+            trip.t += dt;
+            if (trip.t >= total) { trip.phase = 'arrived'; cb({ phase: 'arrived', leg: 0, progress: 1, etaSec: 0 }); }
+            else cb({ phase: 'enroute', leg: 0, progress: trip.t / total, etaSec: total - trip.t });
+          } else if (trip.phase === 'guiding') {
+            const total = Math.max(1, q.legs[trip.leg].lengthM / sim.WALK_MPS);
+            let after = 0;
+            for (let i = trip.leg + 1; i < q.legs.length; i++) after += q.legs[i].lengthM / sim.WALK_MPS + q.linkSec;
+            trip.t += dt;
+            if (trip.t >= total) {
+              if (trip.leg < q.legs.length - 1) { trip.phase = 'transfer'; cb({ phase: 'transfer', leg: trip.leg, progress: 1, etaSec: after }); }
+              else { trip.phase = 'done'; cb({ phase: 'done', leg: trip.leg, progress: 1, etaSec: 0 }); }
+            } else cb({ phase: 'guiding', leg: trip.leg, progress: trip.t / total, etaSec: total - trip.t + after });
+          }
+        }, 100);
+        return () => clearInterval(timer);
+      },
+
+      startGuiding: (tripId) => {
+        if (trip && trip.id === tripId && trip.phase === 'arrived') { trip.phase = 'guiding'; trip.t = 0; }
+        return wait(0, true);
+      },
+      continueTrip: (tripId) => {
+        if (trip && trip.id === tripId && trip.phase === 'transfer') { trip.leg += 1; trip.phase = 'guiding'; trip.t = 0; }
+        return wait(0, true);
+      },
+      cancelTrip: (tripId) => {
+        if (trip && trip.id === tripId) trip = null;
+        return wait(0, true);
+      }
+    };
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* MOCK ONLY: grid route planner over the keyplan + a fake car       */
+  /* ---------------------------------------------------------------- */
+  makeSim(map) {
+    const F = map.frame;
+    const GW = F.gw, GH = F.gh, CELL = F.cell, M = F.metersPerUnit;
+    const CAR_MPS = 1.2, WALK_MPS = 1.1;
+    const LINK_SEC = { stairs: 25, elevator: 45 };
+    const grids = {};
+
+    const grid = (lv) => {
+      if (grids[lv]) return grids[lv];
+      const L = map.levels.find((l) => l.id === lv);
+      const raw = atob(L.walk);
+      const n = GW * GH;
+      const walk = new Uint8Array(n);
+      for (let i = 0; i < n; i++) walk[i] = (raw.charCodeAt(i >> 3) >> (7 - (i & 7))) & 1;
+      // distance to the nearest wall (cells), so routes keep to the middle of corridors
+      const clr = new Uint8Array(n);
+      for (let y = 0; y < GH; y++) {
+        for (let x = 0; x < GW; x++) {
+          const i = y * GW + x;
+          if (!walk[i]) continue;
+          let v = 20;
+          v = Math.min(v, (x > 0 ? clr[i - 1] : 0) + 1, (y > 0 ? clr[i - GW] : 0) + 1);
+          clr[i] = v;
+        }
+      }
+      for (let y = GH - 1; y >= 0; y--) {
+        for (let x = GW - 1; x >= 0; x--) {
+          const i = y * GW + x;
+          if (!walk[i]) continue;
+          clr[i] = Math.min(clr[i], (x < GW - 1 ? clr[i + 1] : 0) + 1, (y < GH - 1 ? clr[i + GW] : 0) + 1);
+        }
+      }
+      const cost = new Float32Array(n);
+      for (let i = 0; i < n; i++) cost[i] = 1 + 0.55 * Math.max(0, 5 - clr[i]) + 0.06 * Math.max(0, 20 - clr[i]);
+      grids[lv] = { walk: walk, cost: cost };
+      return grids[lv];
+    };
+
+    const snap = (lv, x, y) => {
+      const g = grid(lv);
+      const cx = Math.floor(x / CELL), cy = Math.floor(y / CELL);
+      for (let r = 0; r <= 26; r++) {
+        for (let dy = -r; dy <= r; dy++) {
+          for (let dx = -r; dx <= r; dx++) {
+            if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+            const nx = cx + dx, ny = cy + dy;
+            if (nx >= 0 && ny >= 0 && nx < GW && ny < GH && g.walk[ny * GW + nx]) return ny * GW + nx;
+          }
+        }
+      }
+      return -1;
+    };
+
+    const DX = [1, -1, 0, 0, 1, 1, -1, -1];
+    const DY = [0, 0, 1, -1, 1, -1, 1, -1];
+    const dijkstra = (lv, seeds) => {
+      const g = grid(lv);
+      const n = GW * GH;
+      const dist = new Float64Array(n).fill(Infinity);
+      const prev = new Int32Array(n).fill(-1);
+      const steps = new Float32Array(n);
+      const hc = [], hn = [];
+      const push = (c, i) => {
+        let k = hc.length;
+        hc.push(c); hn.push(i);
+        while (k > 0) {
+          const p = (k - 1) >> 1;
+          if (hc[p] <= c) break;
+          hc[k] = hc[p]; hn[k] = hn[p]; k = p;
+        }
+        hc[k] = c; hn[k] = i;
+      };
+      let topC = 0;
+      const pop = () => {
+        const topN = hn[0];
+        topC = hc[0];
+        const c = hc.pop(), i = hn.pop();
+        const len = hc.length;
+        if (len) {
+          let k = 0;
+          for (;;) {
+            let a = 2 * k + 1;
+            if (a >= len) break;
+            if (a + 1 < len && hc[a + 1] < hc[a]) a++;
+            if (hc[a] >= c) break;
+            hc[k] = hc[a]; hn[k] = hn[a]; k = a;
+          }
+          hc[k] = c; hn[k] = i;
+        }
+        return topN;
+      };
+      seeds.forEach((s) => {
+        if (s.cell >= 0 && s.cost < dist[s.cell]) { dist[s.cell] = s.cost; steps[s.cell] = s.steps || 0; prev[s.cell] = -2 - s.tag; push(s.cost, s.cell); }
+      });
+      while (hc.length) {
+        const u = pop();
+        const du = topC;
+        if (du > dist[u]) continue;
+        const ux = u % GW, uy = (u - ux) / GW;
+        for (let k = 0; k < 8; k++) {
+          const vx = ux + DX[k], vy = uy + DY[k];
+          if (vx < 0 || vy < 0 || vx >= GW || vy >= GH) continue;
+          const v = vy * GW + vx;
+          if (!g.walk[v]) continue;
+          if (k >= 4 && (!g.walk[uy * GW + vx] || !g.walk[vy * GW + ux])) continue;
+          const nd = du + (k < 4 ? 1 : 1.4142) * g.cost[v];
+          if (nd < dist[v]) { dist[v] = nd; steps[v] = steps[u] + (k < 4 ? 1 : 1.4142); prev[v] = u; push(nd, v); }
+        }
+      }
+      return { lv: lv, dist: dist, prev: prev, steps: steps };
+    };
+
+    const simplify = (pts, tol) => {
+      if (pts.length < 3) return pts;
+      const keep = new Uint8Array(pts.length);
+      keep[0] = 1; keep[pts.length - 1] = 1;
+      const stack = [[0, pts.length - 1]];
+      while (stack.length) {
+        const seg = stack.pop();
+        const a = pts[seg[0]], b = pts[seg[1]];
+        const dx = b[0] - a[0], dy = b[1] - a[1];
+        const len = Math.hypot(dx, dy) || 1;
+        let worst = 0, at = -1;
+        for (let i = seg[0] + 1; i < seg[1]; i++) {
+          const d = Math.abs((pts[i][0] - a[0]) * dy - (pts[i][1] - a[1]) * dx) / len;
+          if (d > worst) { worst = d; at = i; }
+        }
+        if (worst > tol && at > 0) { keep[at] = 1; stack.push([seg[0], at], [at, seg[1]]); }
+      }
+      return pts.filter((p, i) => keep[i]);
+    };
+
+    const soften = (pts, r) => {
+      if (pts.length < 3) return pts;
+      const out = [pts[0]];
+      for (let i = 1; i < pts.length - 1; i++) {
+        const p = pts[i - 1], c = pts[i], q = pts[i + 1];
+        const a = Math.hypot(c[0] - p[0], c[1] - p[1]), b = Math.hypot(q[0] - c[0], q[1] - c[1]);
+        const ra = Math.min(r, a / 2), rb = Math.min(r, b / 2);
+        if (a > 0) out.push([c[0] - (c[0] - p[0]) * ra / a, c[1] - (c[1] - p[1]) * ra / a]);
+        if (b > 0) out.push([c[0] + (q[0] - c[0]) * rb / b, c[1] + (q[1] - c[1]) * rb / b]);
+      }
+      out.push(pts[pts.length - 1]);
+      return out;
+    };
+
+    const pathFrom = (run, cell) => {
+      if (cell < 0 || run.dist[cell] === Infinity) return null;
+      const cells = [];
+      let c = cell;
+      while (c >= 0) { cells.push(c); c = run.prev[c]; }
+      cells.reverse();
+      const pts = cells.map((i) => [(i % GW) * CELL + CELL / 2, Math.floor(i / GW) * CELL + CELL / 2]);
+      return { pts: soften(simplify(pts, 1.7), 5), tag: -2 - c };
+    };
+
+    const length = (pts) => this.pathLen(pts);
+    const linkCost = (kind) => LINK_SEC[kind] * WALK_MPS / M / CELL;     // seconds -> grid cost
+    const linksBetween = (a, b, stepFree) => map.links.filter((l) => l.at[a] && l.at[b] && (!stepFree || l.kind === 'elevator'));
+
+    const plan = (from, to, stepFree) => {
+      const a = snap(from.lv, from.x, from.y), b = snap(to.lv, to.x, to.y);
+      if (a < 0 || b < 0) return null;
+      const runA = dijkstra(from.lv, [{ cell: a, cost: 0, tag: 0 }]);
+      if (from.lv === to.lv) {
+        const p = pathFrom(runA, b);
+        return p ? { legs: [{ lv: from.lv, path: p.pts, via: null }], link: null } : null;
+      }
+      const links = linksBetween(from.lv, to.lv, stepFree);
+      const seeds = [];
+      links.forEach((l, i) => {
+        const ca = snap(from.lv, l.at[from.lv][0], l.at[from.lv][1]);
+        const cb = snap(to.lv, l.at[to.lv][0], l.at[to.lv][1]);
+        if (ca < 0 || cb < 0 || runA.dist[ca] === Infinity) return;
+        seeds.push({ cell: cb, cost: runA.dist[ca] + linkCost(l.kind), tag: i, ca: ca });
+      });
+      if (!seeds.length) return null;
+      const runB = dijkstra(to.lv, seeds);
+      const p2 = pathFrom(runB, b);
+      if (!p2 || p2.tag < 0) return null;
+      const link = links[p2.tag];
+      const seed = seeds.find((s) => s.tag === p2.tag);
+      const p1 = pathFrom(runA, seed.ca);
+      if (!p1) return null;
+      const via = { id: link.id, kind: link.kind, name: link.name };
+      return { legs: [{ lv: from.lv, path: p1.pts, via: via }, { lv: to.lv, path: p2.pts, via: null }], link: via };
+    };
+
+    const hereAsb = { lv: '9', x: 751, y: 430 };
+    const carAsb = { id: 'scout-02', name: 'Scout 02', battery: 82, status: 'available', lv: '9', x: 751, y: 955, heading: -90 };
+    const ballroom = map.rooms.find((r) => r.lv === 'S5' && r.name === 'Ballroom');
+    const lounge = map.rooms.find((r) => r.lv === 'S5' && r.name === 'Lounge');
+    const here = ballroom ? { lv: 'S5', x: ballroom.x, y: ballroom.y + 22 } : hereAsb;   // just below the room's label
+    const carSub = lounge ? { id: 'scout-01', name: 'Scout 01', battery: 76, status: 'available', lv: 'S5', x: lounge.x, y: lounge.y, heading: -90 } : null;
+    const cars = [carSub, carAsb].filter(Boolean);
+    const carOn = (lv) => cars.find((c) => c.lv === lv) || null;
+    const car = carOn(here.lv) || carAsb;
+
+    const cache = {};
+    const quote = (from, to, opts) => {
+      const key = [from.lv, from.x, from.y, to.lv, to.x, to.y, opts.stepFree ? 1 : 0].join('|');
+      if (cache[key]) return cache[key];
+      const trip = plan(from, to, !!opts.stepFree);
+      if (!trip) return null;
+      const legs = trip.legs.map((l) => ({ lv: l.lv, path: l.path, lengthM: length(l.path) * M, via: l.via }));
+      const distanceM = legs.reduce((s, l) => s + l.lengthM, 0);
+      const linkSec = trip.link ? LINK_SEC[trip.link.kind] : 0;
+      let approach = null, carEtaSec = 0;
+      const near = carOn(from.lv);                      // a car only serves the level it is on
+      if (near && near.status === 'available') {
+        const ap = plan({ lv: near.lv, x: near.x, y: near.y }, from, false);
+        if (ap) { approach = { lv: near.lv, path: ap.legs[0].path }; carEtaSec = length(approach.path) * M / CAR_MPS; }
+      }
+      cache[key] = {
+        legs: legs, link: trip.link, linkSec: linkSec, distanceM: distanceM,
+        walkSec: distanceM / WALK_MPS + linkSec,
+        carAvailable: !!approach, carEtaSec: carEtaSec, approach: approach
+      };
+      return cache[key];
+    };
+
+    const nearestAll = (from, opts) => {
+      const a = snap(from.lv, from.x, from.y);
+      const runs = {};
+      runs[from.lv] = dijkstra(from.lv, [{ cell: a, cost: 0, tag: 0 }]);
+      map.levels.forEach((L) => {
+        if (!L.walk || L.id === from.lv) return;
+        const seeds = [];
+        linksBetween(from.lv, L.id, !!opts.stepFree).forEach((l, i) => {
+          const ca = snap(from.lv, l.at[from.lv][0], l.at[from.lv][1]);
+          const cb = snap(L.id, l.at[L.id][0], l.at[L.id][1]);
+          if (ca >= 0 && cb >= 0 && runs[from.lv].dist[ca] < Infinity) seeds.push({ cell: cb, cost: runs[from.lv].dist[ca] + linkCost(l.kind), steps: runs[from.lv].steps[ca], tag: i });
+        });
+        if (seeds.length) runs[L.id] = dijkstra(L.id, seeds);
+      });
+      const out = {};
+      map.pois.forEach((p) => {
+        const run = runs[p.lv];
+        if (!run) return;
+        const link = p.link ? map.links.find((l) => l.id === p.link) : null;
+        const pt = link && link.at[p.lv] ? link.at[p.lv] : [p.x, p.y];
+        const c = snap(p.lv, pt[0], pt[1]);
+        const d = c < 0 ? Infinity : run.dist[c];
+        if (d < Infinity && (!out[p.kind] || d < out[p.kind].cost)) {
+          const meters = run.steps[c] * CELL * M;
+          const change = p.lv === from.lv ? 0 : (opts.stepFree ? LINK_SEC.elevator : LINK_SEC.stairs);
+          out[p.kind] = { cost: d, meters: meters, walkSec: meters / WALK_MPS + change, place: { name: p.name, lv: p.lv, x: pt[0], y: pt[1], kind: p.kind, unverified: !!p.unverified } };
+        }
+      });
+      return out;
+    };
+
+    return { here: here, car: car, hereAsb: hereAsb, carAsb: carAsb, quote: quote, nearestAll: nearestAll, WALK_MPS: WALK_MPS, CAR_MPS: CAR_MPS };
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Places (search index) built from the map data                     */
+  /* ---------------------------------------------------------------- */
+  levelName(lv) {
+    const L = this.map ? this.map.levels.find((l) => l.id === lv) : null;
+    if (!L) return '';
+    return L.id === 'R' ? 'Roof' : (L.b ? L.b + ' ' : '') + 'Level ' + L.name;
+  }
+
+  // The building a level belongs to: its code for room names, its title for the map chip.
+  building(lv) {
+    const L = this.map ? this.map.levels.find((l) => l.id === lv) : null;
+    return L && L.b ? { code: L.b, title: 'SFU ' + L.title } : { code: 'ASB', title: 'SFU Applied Sciences' };
+  }
+
+  homeZoom(lv) { return this.building(lv).code === 'ASB' ? 0.72 : 1.0; }
+
+  buildPlaces(map) {
+    const kindText = { room: 'Room', area: 'Service or shared area', washroom: 'Washroom', lab: 'CSIL computer lab' };
+    const icons = this.icons();
+    const out = map.rooms.map((r) => ({
+      key: r.n.toLowerCase(), name: this.building(r.lv).code + ' ' + r.n, short: r.n, lv: r.lv, x: r.x, y: r.y, kind: r.k,
+      sub: (r.name ? r.name + ' · ' : '') + this.levelName(r.lv) + ' · ' + (kindText[r.k] || 'Room'),
+      icon: icons[r.k] || icons.pin
+    }));
+    map.pois.forEach((p) => {
+      if (p.kind === 'washroom' || p.kind === 'lab') return;
+      const link = p.link ? map.links.find((l) => l.id === p.link) : null;
+      const pt = link && link.at[p.lv] ? link.at[p.lv] : [p.x, p.y];
+      out.push({
+        key: p.name.toLowerCase(), name: p.name, short: p.name, lv: p.lv, x: pt[0], y: pt[1], kind: p.kind,
+        sub: this.levelName(p.lv) + (p.unverified ? ' · location not confirmed' : ''),
+        icon: icons[p.kind] || icons.pin
+      });
+    });
+    return out;
+  }
+
+  herePlace(here) {
+    if (!here) return null;
+    let best = null, bd = Infinity;
+    (this.map ? this.map.rooms : []).forEach((r) => {
+      if (r.lv !== here.lv) return;
+      const d = Math.hypot(r.x - here.x, r.y - here.y);
+      if (d < bd) { bd = d; best = r; }
+    });
+    return { name: 'Current location', short: 'You', lv: here.lv, x: here.x, y: here.y, kind: 'here', sub: this.levelName(here.lv) + (best ? ' · ' + (best.name ? 'in the ' + best.name : 'near ' + best.n) : '') };
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Screen state                                                      */
+  /* ---------------------------------------------------------------- */
+  screen() {
+    const p = this.props || {};
+    return p.screen && p.screen !== 'live' ? p.screen : 'live';
+  }
+
+  frozen() { return this.screen() !== 'live'; }
+
+  demoSpeed() {
+    const n = Number((this.props || {}).demoSpeed);
+    return n > 0 ? n : 4;
+  }
+
+  centred(x, y, z) { return { z: z, tx: 195 - x * z, ty: 290 - y * z }; }
+
+  fitPts(pts, lv) {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    pts.forEach((p) => { x0 = Math.min(x0, p[0]); y0 = Math.min(y0, p[1]); x1 = Math.max(x1, p[0]); y1 = Math.max(y1, p[1]); });
+    if (!isFinite(x0)) return {};
+    const z = Math.max(0.5, Math.min(2.2, 270 / Math.max(60, x1 - x0), 250 / Math.max(60, y1 - y0)));
+    return { view: this.centred((x0 + x1) / 2, (y0 + y1) / 2, z), level: lv, follow: false };
+  }
+
+  seed(screen) {
+    this._seeded = screen;
+    const base = {
+      phase: 'home', here: null, car: null, pickup: null, dest: null, field: 'dest', query: '',
+      quote: null, error: '', tripId: null, leg: 0, progress: 0, etaSec: 0, withCar: true, stepFree: false,
+      level: '9', view: this.centred(751, 470, 0.72), follow: false, nearest: null, nearestBusy: false,
+      chat: { open: false, messages: [], busy: false, listening: false, draft: '' }
+    };
+    if (screen === 'live' || !this.sim) return base;
+
+    // Frozen frame: fill one state straight from the mock.
+    const sim = this.sim;
+    const snap = Object.assign(base, { phase: screen, here: sim.hereAsb, car: sim.carAsb });
+    if (screen === 'home' || screen === 'search') return snap;
+    const from = this.herePlace(sim.hereAsb);
+    if (screen === 'nearest') { snap.nearest = sim.nearestAll(from, {}); return snap; }
+    if (screen === 'chat') {
+      const q = this.chatIdeas()[1];
+      const a = this.mockChat(q, from);
+      snap.phase = 'home';
+      snap.chat = { open: true, busy: false, listening: false, draft: '', messages: [{ who: 'you', text: q }, { who: 'scout', text: a.reply, room: a.room }] };
+      return snap;
+    }
+    const far = screen === 'transfer' || screen === 'done';
+    const dest = this.places.find((p) => p.short === (far ? '10900' : '9896'));
+    const q = sim.quote(from, dest, {});
+    snap.dest = dest;
+    snap.quote = q;
+    if (!q) return snap;
+    const leg0 = q.legs[0].path;
+    if (screen === 'confirm' || screen === 'finding') Object.assign(snap, this.fitPts(leg0.concat([[from.x, from.y]]), from.lv));
+    if (screen === 'enroute') { snap.progress = 0.45; snap.etaSec = q.carEtaSec * 0.55; Object.assign(snap, this.fitPts(q.approach.path, from.lv)); }
+    if (screen === 'arrived') { snap.progress = 1; snap.view = this.centred(from.x, from.y, 1.5); }
+    if (screen === 'guiding') {
+      snap.progress = 0.5; snap.etaSec = q.walkSec * 0.5;
+      const at = this.along(leg0, 0.5);
+      snap.view = this.centred(at.x, at.y, 1.5);
+    }
+    if (screen === 'transfer') {
+      snap.progress = 1; snap.etaSec = q.walkSec - q.legs[0].lengthM / sim.WALK_MPS;
+      const end = this.along(leg0, 1);
+      snap.view = this.centred(end.x, end.y, 1.5);
+    }
+    if (screen === 'done') {
+      const last = q.legs[q.legs.length - 1];
+      const end = this.along(last.path, 1);
+      snap.leg = q.legs.length - 1; snap.progress = 1; snap.level = last.lv;
+      snap.view = this.centred(end.x, end.y, 1.5);
+    }
+    return snap;
+  }
+
+  componentDidMount() {
+    this.alive = true;
+    if (this._seeded !== this.screen()) this.setState(this.seed(this.screen()));
+    if (!this.frozen()) this.boot();
+  }
+
+  componentDidUpdate() {
+    const now = this.screen();
+    if (this._seeded !== now) {
+      this.stopTrip();
+      this.setState(this.seed(now));
+      if (now === 'live') this.boot();
+    }
+  }
+
+  componentWillUnmount() {
+    this.alive = false;
+    this.stopTrip();
+  }
+
+  boot() {
+    if (!this.map) return;
+    this.api.getUserLocation().then((here) => {
+      if (this.alive) this.setState({ here: here, level: here.lv, view: this.centred(here.x, here.y + 40, this.homeZoom(here.lv)) });
+    });
+    this.api.getCar().then((car) => { if (this.alive) this.setState({ car: car }); });
+  }
+
+  me() { return this.state.pickup || this.herePlace(this.state.here); }
+
+  /* ---------------------------------------------------------------- */
+  /* Flow                                                              */
+  /* ---------------------------------------------------------------- */
+  openSearch(field) {
+    this.setState({ phase: 'search', field: field, query: '', error: '' });
+    this.focusSoon(field);
+  }
+
+  focusSoon(field) {
+    setTimeout(() => {
+      const el = field === 'pickup' ? this.pickupEl : this.destEl;
+      if (this.alive && el && el.focus) el.focus();
+    }, 80);
+  }
+
+  openNearest() {
+    const from = this.me();
+    if (!from) return;
+    this.setState({ phase: 'nearest', nearest: null, nearestBusy: true });
+    this.api.findNearest(from, { stepFree: this.state.stepFree }).then((res) => {
+      if (this.alive) this.setState({ nearest: res || {}, nearestBusy: false });
+    }).catch(() => { if (this.alive) this.setState({ nearest: {}, nearestBusy: false }); });
+  }
+
+  pickPlace(place) {
+    if (this.state.field === 'pickup') {
+      const pickup = place.kind === 'here' ? null : place;
+      const at = pickup || this.state.here;
+      const patch = { pickup: pickup, field: 'dest', query: '' };
+      if (at) { patch.level = at.lv; patch.view = this.centred(at.x, at.y + 40, 0.9); }
+      this.setState(patch);
+      this.focusSoon('dest');
+      return;
+    }
+    this.chooseDest(place);
+  }
+
+  chooseDest(place) {
+    const from = this.me();
+    if (!from || !place) return;
+    this.setState({ phase: 'confirm', dest: place, quote: null, error: '', level: from.lv });
+    this.loadQuote(from, place, this.state.stepFree);
+  }
+
+  loadQuote(from, place, stepFree) {
+    this.api.getQuote(from, place, { stepFree: stepFree }).then((quote) => {
+      if (!this.alive || this.state.dest !== place || this.state.phase !== 'confirm') return;
+      if (!quote) { this.setState({ error: stepFree ? 'No step-free route to that room. Turn the switch off to use the stairs.' : 'No walking route to that room was found on the plans.' }); return; }
+      this.setState(Object.assign({ quote: quote, error: '' }, this.fitPts(quote.legs[0].path.concat([[from.x, from.y]]), from.lv)));
+    }).catch(() => {
+      if (this.alive) this.setState({ error: 'Could not reach Scout. Check your connection and try again.' });
+    });
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Chat with Scout (ElevenLabs hears and speaks)                     */
+  /* ---------------------------------------------------------------- */
+  chatIdeas() {
+    return ['What are the building hours?', 'Where is the nearest washroom?', 'Give me some good Chinese food recommendations'];
+  }
+
+  chatSend(text) {
+    const said = (text || '').trim();
+    const c = this.state.chat;
+    if (!said || c.busy) return;
+    const messages = c.messages.concat([{ who: 'you', text: said }]);
+    this.setState({ chat: Object.assign({}, c, { messages: messages, draft: '', busy: true, listening: false }) });
+    const done = (a) => {
+      if (!this.alive) return;
+      const now = this.state.chat;
+      this.setState({ chat: Object.assign({}, now, { busy: false, messages: now.messages.concat([{ who: 'scout', text: a.reply, room: a.room || null }]) }) });
+    };
+    this.api.chat(said, this.me()).then(done).catch(() => done({ reply: 'I could not reach the assistant. Check your connection and try again.' }));
+  }
+
+  // In the prototype there is no microphone: "listening" ends by itself and asks the first idea.
+  // With the backend, record here and send the audio to /api/chat/audio instead.
+  chatMic() {
+    const c = this.state.chat;
+    if (c.busy) return;
+    if (c.listening) { this.setState({ chat: Object.assign({}, c, { listening: false }) }); this.chatSend(this.chatIdeas()[0]); return; }
+    this.setState({ chat: Object.assign({}, c, { listening: true }) });
+    setTimeout(() => { if (this.alive && this.state.chat.listening) { this.chatSend(this.chatIdeas()[0]); } }, 2200);
+  }
+
+  // MOCK ONLY: answers from the building map; anything else is left to the live assistant.
+  mockChat(text, from) {
+    const t = (text || '').toLowerCase();
+    // Hours as published by SFU (sfu.ca/srs, Building access), checked 2026-10-04.
+    if (/hour|open|close/.test(t)) return { reply: 'The Applied Sciences Building is open 7 a.m. to 7 p.m., Monday to Friday, and closed on weekends and holidays. The Academic Quadrangle next door is open 24 hours, 7 days a week.', room: null };
+    const kinds = [['washroom', /washroom|bathroom|toilet|restroom/], ['lab', /computer|lab\b|csil/], ['elevator', /elevator|lift/],
+      ['stairs', /stair/], ['vending', /vending|snack/], ['fountain', /water|fountain/], ['exit', /exit|way out|outside/]];
+    const hit = kinds.find((k) => k[1].test(t));
+    if (hit && from && this.sim) {
+      const res = this.sim.nearestAll(from, {})[hit[0]];
+      if (res) {
+        const p = res.place;
+        const secs = Math.max(5, Math.round(res.walkSec / 5) * 5);
+        return {
+          reply: 'The nearest one is ' + p.name + ' on ' + this.levelName(p.lv) + ', about ' + (secs < 55 ? secs + ' seconds' : Math.round(secs / 60) + ' minutes') + ' from you.' + (p.unverified ? ' Its exact spot is not confirmed yet.' : ''),
+          room: { name: p.name, short: p.name, lv: p.lv, x: p.x, y: p.y, kind: p.kind, sub: this.levelName(p.lv) }
+        };
+      }
+    }
+    const num = t.match(/\b(l?\d{3,5}(?:\.\d+)?[a-c]?)\b/);
+    if (num) {
+      const place = this.places.find((p) => p.key === num[1]);
+      if (place) return { reply: place.name + ' is on ' + this.levelName(place.lv) + '.', room: place };
+    }
+    return { reply: 'That one needs the live assistant. In this preview I can only answer from the building map: try a washroom, a computer lab or a room number. With the car connected, ElevenLabs hears you and answers out loud.', room: null };
+  }
+
+  toggleStepFree() {
+    const stepFree = !this.state.stepFree;
+    this.setState({ stepFree: stepFree, quote: null, error: '' });
+    const from = this.me();
+    if (from && this.state.dest) this.loadQuote(from, this.state.dest, stepFree);
+  }
+
+  request(walkOnly) {
+    const s = this.state;
+    const q = s.quote;
+    const from = this.me();
+    if (!q || !from) return;
+    const withCar = !walkOnly && q.carAvailable;
+    const patch = { phase: withCar ? 'finding' : 'guiding', withCar: withCar, leg: 0, progress: 0, etaSec: withCar ? q.carEtaSec : q.walkSec, error: '' };
+    if (!withCar) Object.assign(patch, { follow: true, level: from.lv, view: this.centred(from.x, from.y, Math.max(1.4, s.view.z)) });
+    this.setState(patch);
+    const waitingFor = patch.phase;
+    this.api.requestTrip(from, s.dest, { stepFree: s.stepFree, walkOnly: !withCar }).then((res) => {
+      if (!this.alive || this.state.phase !== waitingFor) { this.api.cancelTrip(res.tripId); return; }
+      const next = { tripId: res.tripId };
+      if (withCar) Object.assign(next, { phase: 'enroute' }, this.fitPts(q.approach.path, q.approach.lv));
+      this.setState(next);
+      this.unsub = this.api.onTripUpdate(res.tripId, (u) => this.onUpdate(u));
+    }).catch((err) => {
+      if (this.alive) this.setState({ phase: 'confirm', error: (err && err.message) || 'Scout is busy right now. Try again in a moment.' });
+    });
+  }
+
+  onUpdate(u) {
+    if (!this.alive) return;
+    const patch = { phase: u.phase, leg: u.leg, progress: u.progress, etaSec: u.etaSec };
+    if (this.state.follow) {
+      const sc = this.scene(Object.assign({}, this.state, patch));
+      const t = sc.user;
+      if (t) { patch.view = this.centred(t.x, t.y, this.state.view.z); patch.level = t.lv; }
+    }
+    this.setState(patch);
+    if (u.phase === 'done') this.stopTrip();
+  }
+
+  startWalking() {
+    const from = this.me();
+    if (from) this.setState({ follow: true, level: from.lv, view: this.centred(from.x, from.y, Math.max(1.4, this.state.view.z)) });
+    this.api.startGuiding(this.state.tripId);
+  }
+
+  continueTrip() {
+    const q = this.state.quote;
+    const next = q && q.legs[this.state.leg + 1];
+    if (next) this.setState({ follow: true, level: next.lv, view: this.centred(next.path[0][0], next.path[0][1], Math.max(1.4, this.state.view.z)) });
+    this.api.continueTrip(this.state.tripId);
+  }
+
+  stopTrip() {
+    if (this.unsub) { this.unsub(); this.unsub = null; }
+  }
+
+  reset(cancelTrip) {
+    this.stopTrip();
+    if (cancelTrip && this.state.tripId) this.api.cancelTrip(this.state.tripId);
+    const at = this.me();
+    const patch = {
+      phase: 'home', dest: null, field: 'dest', query: '', quote: null, error: '',
+      tripId: null, leg: 0, progress: 0, etaSec: 0, withCar: true, follow: false, nearest: null, nearestBusy: false
+    };
+    if (at) { patch.level = at.lv; patch.view = this.centred(at.x, at.y + 40, this.homeZoom(at.lv)); }
+    this.setState(patch);
+    this.api.getCar().then((car) => { if (this.alive) this.setState({ car: car }); });
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Map camera: drag, pinch, wheel, buttons, tap a room               */
+  /* ---------------------------------------------------------------- */
+  local(e) {
+    const el = this.vpEl;
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    const k = r.width ? r.width / 390 : 1;
+    return { x: (e.clientX - r.left) / k, y: (e.clientY - r.top) / k };
+  }
+
+  zoomAt(p, factor, dx, dy) {
+    const v = this.state.view;
+    const z = Math.max(0.4, Math.min(5, v.z * factor));
+    const k = z / v.z;
+    this.setState({ view: { z: z, tx: p.x - (p.x - v.tx) * k + (dx || 0), ty: p.y - (p.y - v.ty) * k + (dy || 0) }, follow: false });
+  }
+
+  vpDown(e) {
+    const p = this.local(e);
+    if (!p) return;
+    this.ptrs = this.ptrs || {};
+    this.ptrs[e.pointerId] = p;
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) { /* not capturable */ }
+    this.tap = Object.keys(this.ptrs).length === 1 ? { x: p.x, y: p.y, t: Date.now(), moved: false } : null;
+    this.pinch = null;
+  }
+
+  vpMove(e) {
+    const ptrs = this.ptrs;
+    if (!ptrs || !ptrs[e.pointerId]) return;
+    const p = this.local(e);
+    if (!p) return;
+    const last = ptrs[e.pointerId];
+    ptrs[e.pointerId] = p;
+    const ids = Object.keys(ptrs);
+    if (ids.length === 1) {
+      if (this.tap && !this.tap.moved) {
+        if (Math.hypot(p.x - this.tap.x, p.y - this.tap.y) < 6) { ptrs[e.pointerId] = last; return; }
+        this.tap.moved = true;
+      }
+      const v = this.state.view;
+      this.setState({ view: { z: v.z, tx: v.tx + p.x - last.x, ty: v.ty + p.y - last.y }, follow: false });
+    } else if (ids.length === 2) {
+      const a = ptrs[ids[0]], b = ptrs[ids[1]];
+      const d = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+      const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+      if (this.pinch) this.zoomAt(mid, d / this.pinch.d, mid.x - this.pinch.mid.x, mid.y - this.pinch.mid.y);
+      this.pinch = { d: d, mid: mid };
+    }
+  }
+
+  vpUp(e) {
+    const ptrs = this.ptrs || {};
+    const had = !!ptrs[e.pointerId];
+    delete ptrs[e.pointerId];
+    this.pinch = null;
+    const tap = this.tap;
+    if (had && tap && !tap.moved && Date.now() - tap.t < 450 && Object.keys(ptrs).length === 0) this.tapAt(tap);
+    if (Object.keys(ptrs).length === 0) this.tap = null;
+  }
+
+  // Tap a room on the map to go there (home screen only).
+  tapAt(p) {
+    const s = this.state;
+    if (s.phase !== 'home') return;
+    const v = s.view;
+    const mx = (p.x - v.tx) / v.z, my = (p.y - v.ty) / v.z;
+    let best = null, bd = 26 / v.z + 8;
+    this.places.forEach((pl) => {
+      if (pl.lv !== s.level) return;
+      const d = Math.hypot(pl.x - mx, pl.y - my);
+      if (d < bd) { bd = d; best = pl; }
+    });
+    if (best) this.chooseDest(best);
+  }
+
+  recenter() {
+    const sc = this.scene(this.state);
+    const t = sc.user;
+    if (t) this.setState({ level: t.lv, view: this.centred(t.x, t.y, Math.max(1, this.state.view.z)), follow: true });
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Path helpers                                                      */
+  /* ---------------------------------------------------------------- */
+  pathLen(pts) {
+    let d = 0;
+    for (let i = 1; i < pts.length; i++) d += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+    return d;
+  }
+
+  // Point a fraction of the way along a path, its heading, and what is left of the path.
+  along(pts, frac) {
+    let left = Math.max(0, Math.min(1, frac)) * this.pathLen(pts);
+    for (let i = 1; i < pts.length; i++) {
+      const p = pts[i - 1];
+      const q = pts[i];
+      const seg = Math.hypot(q[0] - p[0], q[1] - p[1]);
+      if (left <= seg || i === pts.length - 1) {
+        const k = seg ? Math.min(1, left / seg) : 0;
+        const x = p[0] + (q[0] - p[0]) * k;
+        const y = p[1] + (q[1] - p[1]) * k;
+        return { x: x, y: y, deg: Math.atan2(q[1] - p[1], q[0] - p[0]) * 180 / Math.PI, rest: [[x, y]].concat(pts.slice(i)) };
+      }
+      left -= seg;
+    }
+    return { x: pts[0][0], y: pts[0][1], deg: 0, rest: pts };
+  }
+
+  toD(pts) {
+    if (!pts || pts.length < 2) return '';
+    return 'M' + pts.map((p) => p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' L');
+  }
+
+  // Where the rider and the car are right now, and which route lines to draw.
+  scene(s) {
+    const q = s.quote;
+    const phase = s.phase;
+    const me = s.pickup || s.here;
+    let user = me ? { lv: me.lv, x: me.x, y: me.y } : null;
+    let car = s.car ? { lv: s.car.lv, x: s.car.x, y: s.car.y, deg: s.car.heading || 0 } : null;
+    const active = [], ghost = [];
+    if (q && phase !== 'home' && phase !== 'search' && phase !== 'nearest') {
+      const legs = q.legs;
+      const li = Math.min(s.leg || 0, legs.length - 1);
+      const leg = legs[li];
+      const unitsPerM = 1 / this.map.frame.metersPerUnit;
+      const ap = q.approach;
+      const apLen = ap ? this.pathLen(ap.path) || 1 : 1;
+      const shortBy = Math.min(0.5, 1.1 * unitsPerM / apLen);          // car stops ~1 m before the rider
+      const lag = Math.min(0.5, 1.5 * unitsPerM / (this.pathLen(leg.path) || 1)); // rider ~1.5 m behind the car
+      const parked = () => { const e = this.along(legs[0].path, 1); return { lv: legs[0].lv, x: e.x, y: e.y, deg: e.deg }; };
+      if (phase === 'confirm' || phase === 'finding') legs.forEach((l) => active.push({ lv: l.lv, pts: l.path }));
+      if (phase === 'enroute' && ap) {
+        const a = this.along(ap.path, (s.progress || 0) * (1 - shortBy));
+        car = { lv: ap.lv, x: a.x, y: a.y, deg: a.deg };
+        active.push({ lv: ap.lv, pts: a.rest });
+        legs.forEach((l) => ghost.push({ lv: l.lv, pts: l.path }));
+      }
+      if (phase === 'arrived') {
+        if (ap) { const a = this.along(ap.path, 1 - shortBy); car = { lv: ap.lv, x: a.x, y: a.y, deg: a.deg }; }
+        legs.forEach((l) => active.push({ lv: l.lv, pts: l.path }));
+      }
+      if (phase === 'guiding') {
+        const a = this.along(leg.path, s.progress || 0);
+        legs.slice(li + 1).forEach((l) => active.push({ lv: l.lv, pts: l.path }));
+        active.push({ lv: leg.lv, pts: a.rest });
+        if (s.withCar && li === 0) {
+          car = { lv: leg.lv, x: a.x, y: a.y, deg: a.deg };
+          const u = this.along(leg.path, Math.max(0, (s.progress || 0) - lag));
+          user = { lv: leg.lv, x: u.x, y: u.y };
+        } else {
+          user = { lv: leg.lv, x: a.x, y: a.y };
+          if (s.withCar) car = parked();
+        }
+      }
+      if (phase === 'transfer') {
+        const e = this.along(leg.path, 1 - (s.withCar && li === 0 ? lag : 0));
+        user = { lv: leg.lv, x: e.x, y: e.y };
+        if (s.withCar) car = parked();
+        legs.slice(li + 1).forEach((l) => active.push({ lv: l.lv, pts: l.path }));
+      }
+      if (phase === 'done') {
+        const last = legs[legs.length - 1];
+        const solo = !s.withCar || legs.length > 1;
+        const e = this.along(last.path, solo ? 1 : 1 - lag);
+        user = { lv: last.lv, x: e.x, y: e.y };
+        if (s.withCar) car = legs.length > 1 ? parked() : (() => { const c = this.along(last.path, 1); return { lv: last.lv, x: c.x, y: c.y, deg: c.deg }; })();
+      }
+    }
+    return { user: user, car: car, active: active, ghost: ghost };
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Everything the template reads                                     */
+  /* ---------------------------------------------------------------- */
+  renderVals() {
+    const s = this.state || {};
+    const a = this.act;
+    const map = this.map;
+    const icons = this.icons();
+    const accent = (this.props && this.props.accent) || '#A6192E';
+    const phase = s.phase || 'home';
+    const is = (...list) => list.indexOf(phase) !== -1;
+    const view = s.view || { z: 1, tx: 0, ty: 0 };
+    const z = view.z;
+    const level = s.level || '9';
+    const car = s.car || null;
+    const q = s.quote || null;
+    const dest = s.dest || null;
+    const me = s.pickup || this.herePlace(s.here);
+    const px = (n) => Math.round(n * z * 10) / 10;
+    const fmt = (sec) => {
+      const v = Math.max(0, sec || 0);
+      return v < 55 ? { n: String(Math.max(5, Math.round(v / 5) * 5)), u: 'sec' } : { n: String(Math.round(v / 60)), u: 'min' };
+    };
+    const dur = (sec) => { const f = fmt(sec); return f.n + ' ' + f.u; };
+    const metres = (m) => Math.max(1, Math.round(m)) + ' m';
+    const clock = (sec) => new Date(Date.now() + sec * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+
+    const art = (map && phase !== 'search' ? (map.levels.find((L) => L.id === level) || {}).art : null) || {};
+    const sc = map ? this.scene(s) : { user: null, car: null, active: [], ghost: [] };
+    const onLevel = (list) => list.filter((l) => l.lv === level).map((l) => this.toD(l.pts)).join(' ');
+    const carPose = sc.car;
+    if (carPose) {
+      const lastDeg = this._deg == null ? carPose.deg : this._deg;
+      this._deg = lastDeg + ((((carPose.deg - lastDeg) % 360) + 540) % 360) - 180;
+    }
+
+    // Room numbers: only those that fit at this zoom and sit inside the screen.
+    const labels = [];
+    const poiMarks = [];
+    if (map && phase !== 'search') {
+      const x0 = (-40 - view.tx) / z, x1 = (430 - view.tx) / z, y0 = (-20 - view.ty) / z, y1 = (864 - view.ty) / z;
+      const rooms = this.roomsByLevel[level] || [];
+      const boxes = [];
+      for (let i = 0; i < rooms.length && labels.length < 120; i++) {
+        const r = rooms[i];
+        if (r.x < x0 || r.x > x1 || r.y < y0 || r.y > y1) continue;
+        if (r.k === 'area' && z < 1.6) continue;
+        const text = r.name || r.n;
+        const wpx = 6.1 * text.length + 4;
+        if (z < Math.min(1.7, (wpx + 8) / (r.w || (r.name ? 160 : 30)))) continue;
+        const cx = r.x * z, cy = r.y * z;
+        let clash = false;
+        for (let j = 0; j < boxes.length; j++) {
+          const b = boxes[j];
+          if (Math.abs(b[0] - cx) < (b[2] + wpx) / 2 + 5 && Math.abs(b[1] - cy) < 15) { clash = true; break; }
+        }
+        if (clash) continue;
+        boxes.push([cx, cy, wpx]);
+        labels.push({ n: text, x: px(r.x), y: px(r.y) });
+      }
+      const always = { washroom: 1, elevator: 1, stairs: 1 };
+      map.pois.forEach((p) => {
+        if (p.lv !== level || (!always[p.kind] && z < 0.95)) return;
+        poiMarks.push({ x: px(p.x), y: px(p.y) - (p.kind === 'washroom' || p.kind === 'lab' ? 15 : 0), icon: icons[p.kind] || icons.pin, color: accent, border: p.unverified ? '1.5px dashed #9A8F8E' : '1px solid #CFC7C6' });
+      });
+    }
+
+    const levelButtons = map ? map.levels.slice().reverse().map((L) => ({
+      label: L.label || L.id, aria: 'Show ' + this.levelName(L.id),
+      bg: L.id === level ? accent : '#FFFFFF', fg: L.id === level ? '#FFFFFF' : '#000000',
+      dot: sc.user && sc.user.lv === L.id && L.id !== level ? 'block' : 'none',
+      pick: () => { if (!this.frozen()) this.setState({ level: L.id, follow: false }); }
+    })) : [];
+
+    // Find the nearest…
+    const cats = [
+      ['washroom', 'Washroom'], ['fountain', 'Water fountain'], ['lab', 'Computer lab'], ['elevator', 'Elevator'],
+      ['stairs', 'Stairs'], ['vending', 'Vending machines'], ['exit', 'Exit']
+    ];
+    const near = s.nearest || {};
+    const categories = cats.map((c) => {
+      const res = near[c[0]];
+      return {
+        title: c[1], icon: icons[c[0]],
+        sub: s.nearestBusy ? 'Looking…' : res ? res.place.name + ' · ' + this.levelName(res.place.lv) + (res.place.unverified ? ' · not confirmed' : '') : 'None on these floor plans',
+        time: !s.nearestBusy && res ? dur(res.walkSec) : '',
+        off: !res,
+        pick: () => {
+          if (this.frozen() || !res) return;
+          const p = res.place;
+          this.chooseDest({ name: p.name, short: p.name, lv: p.lv, x: p.x, y: p.y, kind: p.kind, sub: this.levelName(p.lv) });
+        }
+      };
+    });
+
+    // Search
+    const query = (s.query || '').toLowerCase().replace(/asb/g, '').replace(/\s+/g, ' ').trim();
+    let list = [];
+    if (phase === 'search') {
+      const pool = this.places;
+      if (query) {
+        const starts = [], has = [];
+        for (let i = 0; i < pool.length; i++) {
+          const at = pool[i].key.indexOf(query);
+          if (at === 0) starts.push(pool[i]); else if (at > 0) has.push(pool[i]);
+        }
+        list = starts.concat(has).slice(0, 40);
+      } else {
+        list = pool.filter((p) => p.lv === level && (p.kind === 'room' || p.kind === 'lab')).slice(0, 40);
+      }
+      if (s.field === 'pickup' && s.here && !query) {
+        const hp = this.herePlace(s.here);
+        list = [Object.assign({}, hp, { name: 'Use my detected location', icon: icons.here })].concat(list);
+      }
+    }
+    this.firstResult = list[0] || null;
+    const results = list.map((p) => ({
+      name: p.name, sub: p.sub, icon: p.icon || icons.pin,
+      pick: () => { if (!this.frozen()) this.pickPlace(p); }
+    }));
+    const ring = 'inset 0 0 0 2px #000000';
+
+    const chat = s.chat || { open: false, messages: [], busy: false, listening: false, draft: '' };
+    const chatMessages = chat.open ? chat.messages.map((m) => ({
+      text: m.text,
+      side: m.who === 'you' ? 'flex-end' : 'flex-start',
+      bg: m.who === 'you' ? '#000000' : '#F3F3F3', fg: m.who === 'you' ? '#FFFFFF' : '#000000',
+      canGo: !!m.room && phase === 'home',
+      goLabel: m.room ? 'Take me to ' + m.room.name : '',
+      go: () => {
+        if (this.frozen() || !m.room) return;
+        this.setState({ chat: Object.assign({}, this.state.chat, { open: false }) });
+        this.chooseDest(m.room);
+      }
+    })) : [];
+    const carName = car ? car.name : 'Scout';
+    const link = q ? q.link : null;
+    const legNow = q ? q.legs[Math.min(s.leg || 0, q.legs.length - 1)] : null;
+    const nextLeg = q ? q.legs[(s.leg || 0) + 1] : null;
+    const carOffered = !q || q.carAvailable;
+    const eta = fmt(phase === 'enroute' || phase === 'guiding' || phase === 'transfer' ? s.etaSec : (q ? q.carEtaSec : 0));
+    const viaNow = legNow && legNow.via ? legNow.via : null;
+    const showUser = !!sc.user && sc.user.lv === level && map && phase !== 'search';
+    const showCar = !!carPose && carPose.lv === level && phase !== 'search';
+    const pickOn = !!me && me.lv === level && is('confirm', 'finding', 'enroute', 'arrived');
+    const destOn = !!dest && dest.lv === level && is('confirm', 'finding', 'enroute', 'arrived', 'guiding', 'transfer', 'done');
+
+    return {
+      noMap: !map,
+      accent: accent,
+      buildingName: this.building(level).title,
+      isChat: !!chat.open,
+      chatSub: phase === 'enroute' ? 'Scout is ' + dur(s.etaSec) + ' away. Ask while you wait.' : 'Ask out loud or type. Scout answers by voice.',
+      chatEmpty: chat.messages.length === 0,
+      chatIdeas: this.chatIdeas().map((text) => ({ text: text, ask: () => { if (!this.frozen()) this.chatSend(text); } })),
+      chatMessages: chatMessages, chatBusy: !!chat.busy, chatListening: !!chat.listening, chatDraft: chat.draft || '',
+      micLabel: chat.listening ? 'Stop listening' : 'Talk',
+      micBg: chat.listening ? '#000000' : accent,
+      micIcon: chat.listening ? 'M7 7h10v10H7z' : 'M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3zM5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3',
+      openChat: a.openChat, closeChat: a.closeChat, onChatDraft: a.onChatDraft, onChatKey: a.onChatKey, chatSend: a.chatSend, chatMic: a.chatMic,
+      showMapUi: !!map && phase !== 'search',
+      isHome: phase === 'home', isSearch: phase === 'search', isNearest: phase === 'nearest', isConfirm: phase === 'confirm',
+      isFinding: phase === 'finding', isEnroute: phase === 'enroute', isArrived: phase === 'arrived',
+      isGuiding: phase === 'guiding', isTransfer: phase === 'transfer', isDone: phase === 'done',
+      showBack: phase === 'confirm',
+
+      mapW: px(1230), mapH: px(1100),
+      tx: Math.round(view.tx * 10) / 10, ty: Math.round(view.ty * 10) / 10,
+      camT: s.follow && !this.tap ? 'transform .12s linear' : 'none',
+      artFloor: art.floor || '', artRoom: art.room || '', artVert: art.vert || '', artWash: art.wash || '',
+      artHall: art.hall || '', artStair: art.stair || '', artWall: art.wall || '',
+      levelChip: this.levelName(level),
+      routeD: onLevel(sc.active), ghostD: onLevel(sc.ghost),
+      routeW: Math.round(50 / z) / 10,
+      labels: labels, poiMarks: poiMarks, levelButtons: levelButtons,
+
+      showUser: showUser, userX: sc.user ? px(sc.user.x) : 0, userY: sc.user ? px(sc.user.y) : 0,
+      showCar: showCar, carX: carPose ? px(carPose.x) : 0, carY: carPose ? px(carPose.y) : 0, carDeg: Math.round((this._deg || 0) * 10) / 10,
+      showPickup: pickOn, pickX: me ? px(me.x) : 0, pickY: me ? px(me.y) : 0,
+      showDest: destOn, destX: dest ? px(dest.x) : 0, destY: dest ? px(dest.y) : 0,
+      showPickTag: pickOn && is('confirm', 'finding', 'enroute') && !!q && q.carAvailable,
+      pickTagY: me ? px(me.y) - 16 : 0, pickTagEta: dur(phase === 'enroute' ? s.etaSec : (q ? q.carEtaSec : 0)), pickupShort: me ? me.short : '',
+      showDestTag: destOn && is('confirm', 'finding', 'enroute', 'arrived', 'guiding'),
+      showDestEta: phase === 'guiding', destTagY: dest ? px(dest.y) - 16 : 0, etaLabel: dur(s.etaSec),
+
+      homeStatus: !car ? 'Looking for your Scout…'
+        : car.status === 'available' ? car.name + ' is free on ' + this.levelName(car.lv)
+        : car.name + ' is on another trip',
+      statusDot: car && car.status === 'available' ? '#0E8345' : '#AFAFAF',
+      pickupName: me ? me.name : 'Finding where you are…',
+      pickupSub: me ? me.sub : '',
+      categories: categories,
+
+      results: results,
+      noResults: phase === 'search' && !!query && results.length === 0,
+      pickupValue: s.field === 'pickup' ? (s.query || '') : (me ? me.name : ''),
+      destValue: s.field === 'dest' ? (s.query || '') : (dest ? dest.name : ''),
+      pickupBg: s.field === 'pickup' ? '#FFFFFF' : '#EEEEEE',
+      pickupRing: s.field === 'pickup' ? ring : 'none',
+      destBg: s.field === 'dest' ? '#FFFFFF' : '#EEEEEE',
+      destRing: s.field === 'dest' ? ring : 'none',
+
+      destName: dest ? dest.name : '',
+      destFull: dest ? dest.name + ' · ' + this.levelName(dest.lv) : '',
+      carName: carName,
+      carMeta: car ? 'RC guide car · ' + car.battery + '% battery' : 'RC guide car',
+      carPlate: car ? String(car.id).toUpperCase() : '',
+      confirmTitle: carOffered ? 'Confirm your Scout' : 'Walking directions',
+      carOffered: carOffered,
+      carNote: !!q && !q.carAvailable,
+      carNoteText: car ? car.name + ' runs on ' + this.levelName(car.lv) + ' only. You will get walking directions from here.' : 'Scout is not available. You will get walking directions.',
+      carAway: q ? dur(q.carEtaSec) + ' away · ' + carName : 'Working out the route…',
+      arriveAt: q ? clock(q.carEtaSec + q.walkSec) : '…',
+      walkLabel: dest ? 'Walk to ' + dest.name : 'Walk',
+      walkEta: q ? dur(q.walkSec) + ' · ' + metres(q.distanceM) : '…',
+      hasLink: !!link,
+      linkIcon: icons[(viaNow || link || { kind: 'stairs' }).kind],
+      linkLine: link && dest ? 'Take ' + link.name + ' to ' + this.levelName(dest.lv) + (q && q.carAvailable ? '. Scout guides you as far as there.' : '') : '',
+      stepFreeOn: s.stepFree ? 'true' : 'false',
+      switchBg: s.stepFree ? accent : '#C4C4C4',
+      switchKnob: s.stepFree ? '21px' : '3px',
+      hasError: !!s.error,
+      error: s.error || '',
+      requestOff: !q,
+      requestBg: q ? accent : '#A6A6A6',
+      primaryLabel: carOffered ? 'Request Scout' : 'Start directions',
+
+      etaNum: eta.n, etaUnit: eta.u,
+      progressPct: (Math.max(0, Math.min(1, s.progress || 0)) * 100).toFixed(1) + '%',
+      meetLine: s.pickup ? 'Meet it at ' + s.pickup.name + '.' : 'Stay where you are. It will pull up next to you.',
+      guideTitle: s.withCar && (s.leg || 0) === 0 ? 'Follow Scout' : 'Follow the route',
+      guideLine: viaNow ? 'to ' + viaNow.name + ', then ' + (nextLeg ? this.levelName(nextLeg.lv) : '') : (dest ? 'to ' + dest.name : ''),
+      leftM: legNow ? metres(legNow.lengthM * (1 - (s.progress || 0))) : '—',
+      statLabel: s.withCar && (s.leg || 0) === 0 ? 'Scout battery' : 'You are on',
+      statValue: s.withCar && (s.leg || 0) === 0 ? (car ? car.battery + '%' : '—') : (legNow ? this.levelName(legNow.lv) : '—'),
+      transferTitle: viaNow && nextLeg ? 'Take ' + viaNow.name + ' to ' + this.levelName(nextLeg.lv) : 'Change level',
+      transferLine: (s.withCar ? carName + ' stays on ' + (legNow ? this.levelName(legNow.lv) : 'this level') + '. ' : '') + 'Your route carries on from there on the map.',
+      transferButton: nextLeg ? 'I am on ' + this.levelName(nextLeg.lv) : 'Continue',
+      withCar: !!s.withCar,
+      walkTime: q ? dur(q.walkSec) : '—',
+      tripDist: q ? metres(q.distanceM) : '—',
+
+      openSearch: a.openSearch, openPickup: a.openPickup, openNearest: a.openNearest, goHome: a.goHome,
+      onQuery: a.onQuery, focusPickup: a.focusPickup, focusDest: a.focusDest, onSearchKey: a.onSearchKey,
+      toggleStepFree: a.toggleStepFree, primaryGo: a.primaryGo, walkOnly: a.walkOnly, cancel: a.cancel,
+      start: a.start, continueTrip: a.continueTrip, finish: a.finish,
+      zoomIn: a.zoomIn, zoomOut: a.zoomOut, recenter: a.recenter,
+      vpDown: a.vpDown, vpMove: a.vpMove, vpUp: a.vpUp, vpWheel: a.vpWheel,
+      vpRef: a.vpRef, pickupRef: a.pickupRef, destRef: a.destRef
+    };
+  }
+}
+</script>
+</body>
+</html>
