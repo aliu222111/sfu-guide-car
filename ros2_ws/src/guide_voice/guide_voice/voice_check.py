@@ -1,6 +1,7 @@
 """Bench check of the car's voice, no ROS and no car needed (spec section 9).
 
     ros2 run guide_voice voice_check --devices          # list microphones and speakers
+    ros2 run guide_voice voice_check --meter            # the microphone's live level: does it hear you?
     ros2 run guide_voice voice_check                    # hands-free: just talk; it confirms the room and stops
     ros2 run guide_voice voice_check --talk             # a conversation: Enter starts and stops each recording
     ros2 run guide_voice voice_check --text "take me to AQ 3046"   # skip the microphone
@@ -184,6 +185,7 @@ def load_env(path: Path = Path(".env")):
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--devices", action="store_true", help="list audio devices and exit")
+    ap.add_argument("--meter", action="store_true", help="show the microphone's live level for 15 s (talk and watch it move)")
     ap.add_argument("--talk", action="store_true", help="keep talking: Enter starts and stops each recording")
     ap.add_argument("--text", help="what the student says, instead of the microphone")
     ap.add_argument("--file", help="a WAV recording to transcribe, instead of the microphone")
@@ -202,6 +204,21 @@ def main(argv=None):
         import sounddevice as sd
 
         print(sd.query_devices())
+        return 0
+    if args.meter:
+        import sounddevice as sd
+
+        rec = Recorder(audio_device(args.mic))
+        print(f"microphone: {sd.query_devices(rec.device, 'input')['name']}. Talk: the bar should jump past |")
+        rec.start()
+        try:
+            for _ in range(150):
+                time.sleep(0.1)
+                v = rec.level(0.1)
+                print(f"\r  {v:.4f} " + "#" * min(60, int(v * 1500)) + " " * max(0, 6 - int(v * 1500)) + "|", end="     ", flush=True)
+        finally:
+            rec.stop()
+            print()
         return 0
     eleven = bool(os.environ.get("ELEVENLABS_API_KEY"))
     if not eleven:
