@@ -1,9 +1,9 @@
 import sys, csv, cv2, numpy as np
 from pathlib import Path
 
-STEP = 15
-FPS = 15
-MIN_FRAMES = 150
+FPS = 15          # replaced by the recording's own rate (from its times.csv) in __main__
+STEP = 15         # frames between stereo alignment checks (1 s at 15 fps)
+MIN_FRAMES = 150  # shortest clip kept (10 s at 15 fps)
 MAX_DRIFT = 4.0
 MAX_SPREAD = 12.0
 
@@ -122,6 +122,9 @@ if __name__ == "__main__":
     default = float(measured.read_text()) if measured and measured.exists() else 0.13
     lag = float(next((x.split("=")[1] for x in sys.argv if x.startswith("--lag=")), default))
     left, right = Path(str(base) + "_left.avi"), Path(str(base) + "_right.avi")
+    _t = np.loadtxt(str(base) + "_times.csv", delimiter=",", skiprows=1)[:, 1]
+    FPS = max(1, round(1 / np.median(np.diff(_t))))  # 15 or 30: keep checks and clip lengths in seconds
+    STEP, MIN_FRAMES = FPS, 10 * FPS
     motion, align, n = scan(left, right)
     segs = stretches(motion, align)
     samples = phone(sensors, lag) if sensors else None
