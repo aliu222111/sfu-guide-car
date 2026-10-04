@@ -69,8 +69,12 @@ def listen_auto(rec: Recorder, max_seconds: float = 10.0, quiet_end: float = 0.9
     try:
         time.sleep(0.5)
         floor = max(rec.level(0.5), 0.0005)  # the room before anyone speaks
-        on = max(3.0 * floor, 0.004)
+        # 3x a quiet room's background; a noisy microphone (a webcam's: 0.2) gets a margin over
+        # its noise instead, or the threshold would be out of reach of any voice.
+        on = max(0.004, min(3.0 * floor, floor + 0.05))
         print(f"  listening (background {floor:.4f}, speech above {on:.4f})...", flush=True)
+        if floor > 0.05:
+            print("  that microphone is very noisy: try another (--devices, then --mic <number>)")
         t0 = time.monotonic()
         while rec.level(0.15) < on:
             if time.monotonic() - t0 > wait:
