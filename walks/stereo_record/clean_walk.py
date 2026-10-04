@@ -117,7 +117,10 @@ if __name__ == "__main__":
     outdir = Path(sys.argv[2])
     swap = "--no-swap" not in sys.argv
     sensors = next((x for x in sys.argv[3:] if not x.startswith("-")), None)
-    lag = float(next((x.split("=")[1] for x in sys.argv if x.startswith("--lag=")), 0.13))
+    # phone_receiver.py measures the phone-to-laptop clock offset; an exported recording needs --lag (or 0.13 s)
+    measured = Path(sensors) / "clock_offset.txt" if sensors else None
+    default = float(measured.read_text()) if measured and measured.exists() else 0.13
+    lag = float(next((x.split("=")[1] for x in sys.argv if x.startswith("--lag=")), default))
     left, right = Path(str(base) + "_left.avi"), Path(str(base) + "_right.avi")
     motion, align, n = scan(left, right)
     segs = stretches(motion, align)
