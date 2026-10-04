@@ -74,7 +74,7 @@ def capture(li: int, ri: int, out: Path, want: int = 40):
         c = cv2.VideoCapture(i, cv2.CAP_DSHOW) if sys.platform == "win32" else cv2.VideoCapture(i)
         c.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
         c.set(cv2.CAP_PROP_FRAME_WIDTH, SIZE[0]); c.set(cv2.CAP_PROP_FRAME_HEIGHT, SIZE[1])
-        c.set(cv2.CAP_PROP_FPS, 15)
+        c.set(cv2.CAP_PROP_FPS, 30)  # as the car runs them
         return c
 
     out.mkdir(parents=True, exist_ok=True)
