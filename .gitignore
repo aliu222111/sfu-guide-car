@@ -9,3 +9,4 @@ ros2_ws/log/
 *.egg-info/
 voices/
 models/
+*.pt

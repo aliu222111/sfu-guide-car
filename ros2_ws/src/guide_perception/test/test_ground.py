@@ -61,3 +61,30 @@ def test_pick_student_keeps_lock():
     assert pick_student([stranger], 1, lost_for=0.2, last_distance=2.0) is None  # occluded: no hand-over
     assert pick_student([stranger], 1, lost_for=5.0, last_distance=2.5) is None  # gone long, but not where the student was
     assert pick_student([stranger], 1, lost_for=5.0, last_distance=1.2).track_id == 3  # new id, same place: re-lock
+
+
+def test_nominal_camera_places_feet_on_the_ground():
+    """The fallback before calibration: the URDF left camera (28 cm up, 5 deg up) and a 70 deg lens."""
+    from guide_perception.ground import mount_pose, nominal_K
+    from guide_perception.people import Person, locate, nearest_ahead
+
+    K = nominal_K(640, 360, 70.0)
+    R, t = mount_pose(0.50, 0.05, 0.28, -0.09, 0.0)
+    for ahead, left in ((2.0, 0.0), (3.5, 0.6), (6.0, -1.0)):
+        foot = np.array([ahead, left, 0.0])
+        cam = R.T @ (foot - t)  # base_link -> optical frame
+        u, v = (K @ cam)[:2] / cam[2]
+        p = locate([Person(None, (u - 20, v - 150, u + 20, v), 0.9)], K, R, t, 360)[0]
+        assert abs(p.x - ahead) < 0.05 and abs(p.y - left) < 0.05
+    # a person filling the bottom of the picture is right in front: stop
+    near = locate([Person(None, (300, 50, 340, 359), 0.9)], K, R, t, 360)
+    assert nearest_ahead(near) == 0.5
+
+
+def test_rear_camera_mount_faces_backwards():
+    from guide_perception.ground import mount_pose, nominal_K, project_to_ground
+
+    K = nominal_K(640, 360)
+    R, t = mount_pose(-0.12, 0.0, 0.28, 0.1, math.pi)
+    pts, ok = project_to_ground(K, R, t, np.array([320.0]), np.array([300.0]))
+    assert ok[0] and pts[0, 0] < -0.5 and abs(pts[0, 1]) < 0.01  # behind the car, on its centre line

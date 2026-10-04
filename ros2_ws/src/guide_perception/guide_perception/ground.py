@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+
 import numpy as np
 
 
@@ -11,6 +13,21 @@ def rays(K: np.ndarray, u, v) -> np.ndarray:
     v = np.asarray(v, dtype=float)
     fx, fy, cx, cy = K[0, 0], K[1, 1], K[0, 2], K[1, 2]
     return np.stack([(u - cx) / fx, (v - cy) / fy, np.ones_like(u)], axis=-1)
+
+
+def nominal_K(width: int, height: int, hfov_deg: float = 70.0):
+    """Pinhole intrinsics from the image size and horizontal field of view (no calibration yet)."""
+    f = (width / 2) / math.tan(math.radians(hfov_deg) / 2)
+    return np.array([[f, 0, width / 2], [0, f, height / 2], [0, 0, 1.0]])
+
+
+def mount_pose(x: float, y: float, z: float, pitch: float, yaw: float):
+    """(R, t) of a camera's optical frame in base_link from its URDF mount (pitch < 0: tilted up)."""
+    R0 = np.array([[0, 0, 1], [-1, 0, 0], [0, -1, 0]], dtype=float)  # optical (x right, y down, z ahead) -> link
+    cp, sp, cy, sy = math.cos(pitch), math.sin(pitch), math.cos(yaw), math.sin(yaw)
+    Ry = np.array([[cp, 0, sp], [0, 1, 0], [-sp, 0, cp]])
+    Rz = np.array([[cy, -sy, 0], [sy, cy, 0], [0, 0, 1]])
+    return Rz @ Ry @ R0, np.array([x, y, z], dtype=float)
 
 
 def project_to_ground(K, R, t, u, v, max_range: float = 8.0):

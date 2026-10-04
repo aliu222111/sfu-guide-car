@@ -14,13 +14,16 @@ from rclpy.time import Time
 from sensor_msgs.msg import CameraInfo, Image
 from tf2_ros import Buffer, TransformException, TransformListener
 
-from .ground import quat_to_matrix
+from .ground import mount_pose, nominal_K, quat_to_matrix
 
 
 class CameraNode(Node):
     """Subclasses implement ``process(bgr, header)``; it runs on a worker thread."""
 
-    def __init__(self, name: str, default_rate: float):
+    # The URDF's left camera: x, y, z (m), pitch (rad, < 0 tilted up), yaw (rad)
+    NOMINAL_MOUNT = (0.50, 0.05, 0.28, -0.09, 0.0)
+
+    def __init__(self, name: str, default_rate: float, nominal_mount=None):
         super().__init__(name)
         self.rate = self.declare_parameter("rate_hz", default_rate).value
         self.base_frame = self.declare_parameter("base_frame", "base_link").value
@@ -34,6 +37,10 @@ class CameraNode(Node):
         self.tf_listener = TransformListener(self.tf, self)
         self.create_subscription(Image, "image", self._on_image, qos_profile_sensor_data)
         self.create_subscription(CameraInfo, "camera_info", self._on_info, qos_profile_sensor_data)
+        # Until the camera is calibrated (or its TF is up), geometry() falls back to these.
+        self.nominal_hfov = self.declare_parameter("nominal_hfov_deg", 70.0).value
+        self.nominal_mount = list(self.declare_parameter("nominal_mount", list(nominal_mount or self.NOMINAL_MOUNT)).value)
+        self._warned_nominal = False
         self._stop = False
         self._worker = threading.Thread(target=self._loop, daemon=True)
         self._worker.start()
@@ -61,6 +68,21 @@ class CameraNode(Node):
             except TransformException as e:
                 self.get_logger().warn(f"no transform {self.base_frame} <- {self.camera_frame}: {e}", throttle_duration_sec=5.0)
         return self._R_t
+
+    def geometry(self, shape):
+        """(K, R, t, nominal): the calibration and mount when known, else the nominal camera
+        (its field of view and URDF mount): good to a few tens of percent in distance, which
+        beats treating everyone as close (that stops the car whenever anyone is in view)."""
+        pose = self.camera_pose()
+        if self.K is not None and pose is not None:
+            return self.K, pose[0], pose[1], False
+        K = self.K if self.K is not None else nominal_K(shape[1], shape[0], self.nominal_hfov)
+        R, t = pose if pose is not None else mount_pose(*self.nominal_mount)
+        if not self._warned_nominal:
+            self.get_logger().warn("no camera calibration or transform yet: placing people with the nominal camera "
+                                   f"({self.nominal_hfov:.0f} deg view, mount {self.nominal_mount})")
+            self._warned_nominal = True
+        return K, R, t, True
 
     def _loop(self):
         period = 1.0 / max(self.rate, 0.1)

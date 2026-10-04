@@ -3,8 +3,10 @@
 
     pip install torch transformers ultralytics onnx
     python export_models.py --out models --segformer b0     # b2 on an NVIDIA laptop
+    python export_models.py --out models --only yolo        # people only: pip install ultralytics onnx
 
-Writes models/segformer-<size>-ade.onnx (+ .labels.json) and yolo11n.onnx.
+Run from the repository root. Writes models/segformer-<size>-ade.onnx (+ .labels.json),
+models/yolo11n.onnx and keeps the downloaded models/yolo11n.pt (for an NVIDIA GPU).
 Nothing is trained.
 """
 
@@ -45,7 +47,8 @@ def export_segformer(size: str, out: Path, width: int, height: int):
 def export_yolo(out: Path):
     from ultralytics import YOLO
 
-    path = YOLO("yolo11n.pt").export(format="onnx", imgsz=640)
+    # Ultralytics downloads the weights into the path given: keep them in models/, not the repo root
+    path = YOLO(str(out / "yolo11n.pt")).export(format="onnx", imgsz=640)
     target = out / Path(path).name
     Path(path).replace(target)
     print("wrote", target)
@@ -57,10 +60,12 @@ if __name__ == "__main__":
     ap.add_argument("--segformer", default="b0", choices=["b0", "b1", "b2"])
     ap.add_argument("--width", type=int, default=320)
     ap.add_argument("--height", type=int, default=180)
-    ap.add_argument("--skip-yolo", action="store_true")
+    ap.add_argument("--only", choices=["yolo", "segformer"], help="export just one model")
+    ap.add_argument("--skip-yolo", action="store_true", help="same as --only segformer")
     a = ap.parse_args()
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
-    export_segformer(a.segformer, out, a.width, a.height)
-    if not a.skip_yolo:
+    if a.only != "yolo":
+        export_segformer(a.segformer, out, a.width, a.height)
+    if a.only != "segformer" and not a.skip_yolo:
         export_yolo(out)

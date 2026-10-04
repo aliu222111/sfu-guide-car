@@ -30,14 +30,10 @@ class PersonNode(CameraNode):
         self.det_pub = self.create_publisher(String, "people/detections", 10)
 
     def process(self, bgr, header):
-        pose = self.camera_pose()
         people = self.det.detect(bgr)
-        if self.K is not None and pose is not None:
-            locate(people, self.K, *pose, bgr.shape[0])
-            d = nearest_ahead(people, self.half_width)
-        else:
-            # Cannot place people without calibration: any person counts as close.
-            d = 0.9 if people else math.inf
+        K, R, t, _ = self.geometry(bgr.shape)
+        locate(people, K, R, t, bgr.shape[0])
+        d = nearest_ahead(people, self.half_width)
         self.nearest_pub.publish(Float32(data=float(d)))
         self.det_pub.publish(
             String(data=json.dumps([{"id": p.track_id, "box": [round(v, 1) for v in p.box], "conf": round(p.conf, 2), "x": round(p.x, 2) if math.isfinite(p.x) else None, "y": round(p.y, 2)} for p in people]))
