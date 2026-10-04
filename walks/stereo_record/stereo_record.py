@@ -11,15 +11,14 @@ def cam(i):
     c.set(cv2.CAP_PROP_FPS, 15)
     return c
 cl, cr = cam(L), cam(R)
-# One auto exposure and white balance for both cameras (stereo_calibrate.py AutoMatch), so the two
-# pictures stay alike; the cameras' own auto modes are turned off.
+# The same fixed exposure, gain and white balance on both (stereo_calibrate.py match saves them).
 try:
     sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parents[2] / "ros2_ws/src/guide_bringup/scripts"))
-    from stereo_calibrate import AutoMatch
-    auto = AutoMatch((cl, cr))
+    import stereo_calibrate
+    stereo_calibrate.lock((cl, cr), stereo_calibrate.saved_settings())
+    print("camera settings:", stereo_calibrate.saved_settings())
 except ImportError as e:
-    auto = None
-    print("cameras left on their own auto modes:", e)
+    print("camera settings not locked:", e)
 four = cv2.VideoWriter_fourcc('M', 'J', 'P', 'G')
 wl = cv2.VideoWriter(name + "_left.avi", four, 15, (640, 360))
 wr = cv2.VideoWriter(name + "_right.avi", four, 15, (640, 360))
@@ -33,8 +32,6 @@ while True:
     ok2, b = cr.retrieve() if g2 else (False, None)
     if not (ok1 and ok2):
         print("a camera stopped at frame", n); break
-    if auto:
-        auto.step((a, b))
     wl.write(a); wr.write(b); ts.write(f"{n},{t:.3f}\n"); n += 1
     if n % 5 == 0:
         cv2.imshow("recording (q = stop)", cv2.resize(cv2.hconcat([a, b]), (640, 180)))
@@ -42,5 +39,3 @@ while True:
 for x in (cl, cr, wl, wr): x.release()
 ts.close(); cv2.destroyAllWindows()
 print(n, "frames saved")
-if auto:
-    print("camera settings at the end:", auto.status())
