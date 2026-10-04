@@ -26,7 +26,7 @@ from pathlib import Path
 
 import numpy as np
 
-from .cloud import VOICE_ID, ElevenLabsSpeaker, ElevenLabsTranscriber, Unheard
+from .cloud import VOICE_ID, ElevenLabsSpeaker, ElevenLabsTranscriber, Unheard, to_wav_bytes
 from .rooms import answer_in, spoken, suggestion, understand
 from .speech import SAMPLE_RATE, Recorder, Speaker, audio_device, read_wav, resample, trim_silence
 
@@ -93,15 +93,28 @@ def listen_auto(rec: Recorder, max_seconds: float = 10.0, quiet_end: float = 0.9
     return audio
 
 
-def hands_free(rec: Recorder, stt, speaker: Speaker, keys: dict) -> int:
+def louder(audio: np.ndarray, peak: float = 0.8) -> np.ndarray:
+    """Scale a clip so its loudest part reaches ``peak``: a laptop microphone often records
+    speech at 1-2 % of full scale, which Scribe can return as an empty transcript."""
+    top = float(np.max(np.abs(audio))) if audio.size else 0.0
+    return audio if top < 1e-4 else (audio * min(peak / top, 50.0)).astype(np.float32)
+
+
+def hands_free(rec: Recorder, stt, speaker: Speaker, keys: dict, save: Path | None = None) -> int:
     """Ask where to go, read the room back, and stop once the student says yes."""
     pending = None
     while True:
         audio = listen_auto(rec)
         if audio.size == 0:
             continue  # nobody spoke: keep waiting
+        clip = louder(trim_silence(audio))
+        if save is not None:
+            save.write_bytes(to_wav_bytes(clip))  # what was sent: play it to check the microphone
+        print(f"  sending {clip.size / SAMPLE_RATE:.1f} s to ElevenLabs" + (f" (saved to {save})" if save else ""))
+        if clip.size < SAMPLE_RATE * 0.3:
+            print("  too short after trimming: the microphone barely rose above the background")
         try:
-            text = stt(trim_silence(audio), (pending,) if pending else ())
+            text = stt(clip, (pending,) if pending else ())
         except Unheard:
             text = ""
         print(f"heard: {text!r}")
@@ -204,7 +217,13 @@ def main(argv=None):
             print("Hands-free listening needs ELEVENLABS_API_KEY.")
             return 1
         try:
-            return hands_free(rec, stt, speaker, keys)
+            try:
+                import sounddevice as sd
+
+                print(f"microphone: {sd.query_devices(rec.device, 'input')['name']}  (another: --mic <number> from --devices)")
+            except Exception:
+                pass
+            return hands_free(rec, stt, speaker, keys, Path("voice_last.wav"))
         except KeyboardInterrupt:
             return 0
         except Exception as e:
@@ -228,7 +247,7 @@ def main(argv=None):
                 return 1
             t = time.monotonic()
             try:
-                text = stt(trim_silence(audio))
+                text = stt(louder(trim_silence(audio)))
             except Unheard:
                 text = ""
             print(f"heard ({time.monotonic() - t:.1f} s): {text!r}")
