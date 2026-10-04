@@ -79,14 +79,28 @@ def capture(li: int, ri: int, out: Path, want: int = 40):
 
     out.mkdir(parents=True, exist_ok=True)
     cl, cr = cam(li), cam(ri)
+    for name, i, c in (("left", li, cl), ("right", ri, cr)):
+        if not c.isOpened():
+            found = [j for j in range(6) if j not in (li, ri) and cam(j).isOpened()]
+            print(f"the {name} camera ({i}) did not open: unplugged, or still open in another window "
+                  f"(close stereo_test / stereo_record / the Camera app). Other cameras that open: {found}")
+            return
     keys, n = [], len(list(out.glob("left_*.png")))
     print(f"saving to {out}; {n} pairs already there. s = save now, q = finish")
+    misses = 0
     while True:
         g1 = cl.grab(); g2 = cr.grab()  # both first: the two pictures are taken together
         ok1, a = cl.retrieve() if g1 else (False, None)
         ok2, b = cr.retrieve() if g2 else (False, None)
         if not (ok1 and ok2):
-            print("a camera stopped"); break
+            misses += 1  # a USB camera often drops the first frames, or one now and then
+            if misses < 30:
+                continue
+            bad = [f"{nm} ({i})" for nm, i, ok in (("left", li, ok1), ("right", ri, ok2)) if not ok]
+            print(f"no picture from the {' and '.join(bad)} camera for 30 frames: check the cable, "
+                  f"or plug the two cameras into different USB ports (one hub may not carry both)")
+            break
+        misses = 0
         ga, gb = cv2.cvtColor(a, cv2.COLOR_BGR2GRAY), cv2.cvtColor(b, cv2.COLOR_BGR2GRAY)
         ca, cb = find(ga), find(gb)
         sharp = min(cv2.Laplacian(ga, cv2.CV_64F).var(), cv2.Laplacian(gb, cv2.CV_64F).var())
