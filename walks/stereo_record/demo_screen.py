@@ -416,7 +416,8 @@ class Detector(threading.Thread):
             self.label = "YOLO" + self.label[4:]
         self.all_classes = all_classes
         self.model_path = Path(model_path)
-        if not self.model_path.exists():
+        downloadable = self.model_path.parent == Path(".") and self.model_path.suffix == ".pt"  # yolo11s.pt
+        if not self.model_path.exists() and not downloadable:
             self.label = "no detector"
             self.status = f"no detector: {self.model_path} not found (--model)"; return
         try:
@@ -801,8 +802,7 @@ class Screen:
     def right_panel(self, img):
         p, s, off = self.cam_panel(img)
         r, _ = self.det.get("right") if self.det.ok else (None, 0)
-        n = self.draw_boxes(p, r, s, off)
-        # stereo depth inset
+        # stereo depth inset (first, so the detection labels stay on top of it)
         d = self.vo.disp
         z = self.vo.fxB / np.maximum(d, 1e-3)              # colour by distance: 0.8 m red .. 10 m blue
         u8 = np.clip(255.0 * np.log(z / 0.8) / math.log(10.0 / 0.8), 0, 255).astype(np.uint8)
@@ -819,6 +819,7 @@ class Screen:
         p[y0 - 20:y0 - 10, bx:bx + bw] = bar
         self.T.put(p, "1 m", bx - 6, y0 - 27, 15, MUTED, False, "right")
         self.T.put(p, "10 m", bx + bw + 6, y0 - 27, 15, MUTED)
+        n = self.draw_boxes(p, r, s, off)
         self.panel_title(p, f"FRONT RIGHT  \u00b7  {self.det.label}")
         self.panel_stats(p, self.det_line("right", n))
         return p, n
@@ -1054,8 +1055,11 @@ def parse():
     ap.add_argument("--right", type=int, default=2, help="right camera index (default 2)")
     ap.add_argument("--rear", type=int, default=None, help="rear camera index (e.g. 1)")
     ap.add_argument("--left-file"); ap.add_argument("--right-file"); ap.add_argument("--rear-file")
-    ap.add_argument("--model", default=str(REPO / "models" / "yolo11n.onnx"))
-    ap.add_argument("--all-classes", action="store_true", help="show every COCO class, not just people + obstacles")
+    ap.add_argument("--model", default=str(REPO / "models" / "yolo11n.onnx"),
+                    help="detector: models/yolo11n.onnx (fast), yolo11s.pt or yolo11m.pt (more accurate, slower; "
+                         "downloaded on first use), models/yoloe-school.onnx (school objects)")
+    ap.add_argument("--obstacles-only", action="store_true",
+                    help="label only people and obstacles (default: every class the model knows)")
     ap.add_argument("--conf", type=float, default=0.35)
     ap.add_argument("--det-threads", type=int, default=0, help="CPU threads for YOLO (default: all but 2)")
     ap.add_argument("--calib-dir", default=str(CALIB))
@@ -1089,7 +1093,7 @@ def main():
     for n in notes:
         print("note:", n)
     vo = StereoVO(calib, rect, args)
-    det = Detector(args.model, args.all_classes, args.conf, args.det_threads)
+    det = Detector(args.model, not args.obstacles_only, args.conf, args.det_threads)
     if det.status and det.model is None:
         print(det.status)
     T = Text()
