@@ -122,6 +122,29 @@ def main(argv=None) -> int:
     print(f"offset: laptop time = phone time {offset:+.3f} s   (match {corr:.2f}; "
           f"{'good' if corr > 0.6 else 'weak: check the plot' if corr > 0.3 else 'poor: did the phone and video record the same walk?'})")
     (folder / "clock_offset.txt").write_text(f"{offset:.4f}\n")
+    # The phone turning on its own (slipping on the rig) shows as gyro turning the video does not
+    # see. Report where the two disagree for a second or more.
+    ph = np.interp(tv, tp + offset, sign * wp)
+    k = max(1, int(round(1.0 / np.median(np.diff(tv)))))
+    resid = np.convolve(ph - np.clip(wv, -3, 3), np.ones(k) / k, "same")
+    turned = np.cumsum(resid * np.diff(tv, prepend=tv[0]))
+    slips, i = [], 0
+    while i < len(tv):
+        if abs(resid[i]) > 0.35:
+            j = i
+            while j < len(tv) and abs(resid[j]) > 0.15:
+                j += 1
+            ang = np.degrees(turned[min(j, len(tv) - 1)] - turned[max(i - 1, 0)])
+            if abs(ang) > 15:
+                slips.append((tv[i] - tv[0], tv[min(j, len(tv) - 1)] - tv[0], ang))
+            i = j
+        else:
+            i += 1
+    for a, b, ang in slips:
+        print(f"phone turned {ang:+.0f} deg on its own at {a // 60:.0f}:{a % 60:04.1f}-{b // 60:.0f}:{b % 60:04.1f} into the video"
+              " (slipped on the rig?): phone heading after this differs from the rig's")
+    if not slips:
+        print("phone stayed put on the rig (no turning the video did not see)")
     # one row per frame
     ta, ac = read_csv(folder / "Accelerometer.csv", ("x", "y", "z"))
     tgv, gr = read_csv(folder / "Gravity.csv", ("x", "y", "z"))
