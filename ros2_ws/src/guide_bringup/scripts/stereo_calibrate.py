@@ -3,6 +3,7 @@
     py stereo_calibrate.py board                          # checkerboard.png: print at 100 %, check a square is 25 mm
     py stereo_calibrate.py capture 1 0 --out calib        # left and right camera index, as for stereo_record.py
     py stereo_calibrate.py solve calib                    # writes calib/left.yaml and calib/right.yaml
+    py stereo_calibrate.py solve calib --baseline 0.10 --skip 0 1 2   # scale to the ruler; leave pairs out
 
 capture: hold the board (taped flat to something stiff) in front of the rig. A pair is
 saved by itself whenever both cameras see the whole board, it is sharp, and it is in a
@@ -142,11 +143,13 @@ def camera_info(name, size, K, D, R, P) -> str:
             f"rectification_matrix:\n{mat(R, 3, 3)}projection_matrix:\n{mat(P, 3, 4)}")
 
 
-def solve(folder: Path) -> int:
+def solve(folder: Path, baseline: float | None = None, skip=frozenset()) -> int:
     obj = np.zeros((COLS * ROWS, 3), np.float32)
     obj[:, :2] = np.mgrid[0:COLS, 0:ROWS].T.reshape(-1, 2) * SQUARE
     objs, pl, pr, names, size = [], [], [], [], None
     for lf in sorted(folder.glob("left_*.png")):
+        if int(lf.stem.split("_")[1]) in skip:
+            continue
         rf = lf.with_name(lf.name.replace("left_", "right_"))
         a, b = cv2.imread(str(lf), 0), cv2.imread(str(rf), 0)
         if a is None or b is None:
@@ -178,6 +181,11 @@ def solve(folder: Path) -> int:
         print(f"  dropping {names[keep[worst]]}: {per[worst]:.1f} px (the rest: median {np.median(per):.2f})")
         keep.pop(worst)
     objs, pl, pr = o, a, b
+    solved = float(np.linalg.norm(T))
+    if baseline:
+        # The board's square size sets the scale of everything metric; a ruler across the two
+        # lenses is a surer scale than a printout that may not be exactly 100 %.
+        T = T * (baseline / solved)
     R1, R2, P1, P2, Q, _, _ = cv2.stereoRectify(K1, D1, K2, D2, size, R, T, alpha=0)
     # How well rectification lines rows up: the same corner should land on the same row.
     m1 = cv2.initUndistortRectifyMap(K1, D1, R1, P1, size, cv2.CV_32FC1)
@@ -188,11 +196,13 @@ def solve(folder: Path) -> int:
         ub = cv2.undistortPoints(cb, K2, D2, R=R2, P=P2).reshape(-1, 2)
         rows.append(np.abs(ua[:, 1] - ub[:, 1]))
     rows = np.concatenate(rows)
-    baseline = float(np.linalg.norm(T))
     fov = np.degrees(2 * np.arctan(size[0] / 2 / K1[0, 0]))
     print(f"{len(objs)} pairs used of {len(names)}, {size[0]}x{size[1]}")
     print(f"  reprojection error: left {e1:.2f} px, right {e2:.2f} px, stereo {e:.2f} px   (good: under 0.5)")
-    print(f"  baseline {baseline * 100:.1f} cm (the rig: about 10), horizontal field of view {fov:.0f} deg")
+    print(f"  baseline {solved * 100:.1f} cm from the board" + (f", set to the measured {baseline * 100:.1f} cm "
+          f"(the printed squares are then {SQUARE * 1000 * baseline / solved:.1f} mm)" if baseline else
+          " (measure the lens centres: if it differs, solve again with --baseline <metres>)")
+          + f", horizontal field of view {fov:.0f} deg")
     print(f"  after rectification, rows differ by {np.median(rows):.2f} px median, {np.percentile(rows, 95):.2f} px 95th   (good: under 1)")
     if T[0] > 0:
         print("  WARNING: the right camera is to the LEFT of the left one: swap the camera indices and capture again")
@@ -215,12 +225,14 @@ def main(argv=None) -> int:
     c = sub.add_parser("capture"); c.add_argument("left", type=int); c.add_argument("right", type=int)
     c.add_argument("--out", type=Path, default=Path("calib"))
     s = sub.add_parser("solve"); s.add_argument("folder", type=Path)
+    s.add_argument("--baseline", type=float, help="the measured distance between the lens centres, metres (0.10)")
+    s.add_argument("--skip", nargs="*", default=[], help="pair numbers to leave out (another board, say)")
     a = ap.parse_args(argv)
     if a.cmd == "board":
         board(a.out); return 0
     if a.cmd == "capture":
         capture(a.left, a.right, a.out); return 0
-    return solve(a.folder)
+    return solve(a.folder, a.baseline, {int(x) for x in a.skip})
 
 
 if __name__ == "__main__":
