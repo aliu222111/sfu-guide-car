@@ -8,6 +8,7 @@ looks at every --every'th frame (10 at 30 fps = 3 per second) and writes:
   <base>_yolo.csv   frame, unix_time, label, conf, box, x/y metres ahead/left (the car's nominal
                     camera: 28 cm up, 5 deg up, 70 deg lens; rough until the rig is calibrated)
   <base>_yolo.jpg   a contact sheet of the 12 frames with the most different things in them
+                    (red: people, orange: obstacles, blue: parts of the building)
 and prints how many of each thing it saw.
 """
 
@@ -25,7 +26,7 @@ import numpy as np
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "ros2_ws" / "src" / "guide_perception"))
 from guide_perception.ground import mount_pose, nominal_K  # noqa: E402
-from guide_perception.people import FLOOR_OBJECTS, SCHOOL_CLASSES, Person, carried, locate  # noqa: E402
+from guide_perception.people import FLOOR_OBJECTS, SCHOOL_CLASSES, Person, carried, kind_of, locate  # noqa: E402
 
 
 def load(kind: str):
@@ -70,7 +71,7 @@ def main(argv=None) -> int:
             locate(found, K, R, t, frame.shape[0])
             people = [p for p in found if p.label == "person"]
             for p in found:
-                if p.label != "person" and carried(p, people):
+                if kind_of(p.label) == "obstacle" and carried(p, people):
                     p.label = f"{p.label} (with a person)"  # worn, held or sat in: not a floor obstacle
                 counts[p.label] += 1
                 rows.append([n, f"{times[min(n, len(times) - 1)]:.3f}", p.label, f"{p.conf:.2f}", *(f"{v:.0f}" for v in p.box),
@@ -82,7 +83,7 @@ def main(argv=None) -> int:
                 g = frame.copy()
                 for p in found:
                     x1, y1, x2, y2 = map(int, p.box)
-                    col = (0, 0, 255) if p.label == "person" else (0, 170, 255) if p.label in FLOOR_OBJECTS else (200, 200, 0)
+                    col = {"person": (0, 0, 255), "obstacle": (0, 170, 255), "building": (230, 120, 0)}.get(kind_of(p.label), (200, 200, 0))
                     cv2.rectangle(g, (x1, y1), (x2, y2), col, 2)
                     d = f" {p.distance:.1f}m" if np.isfinite(p.x) else ""
                     cv2.putText(g, f"{p.label}{d}", (x1 + 2, max(12, y1 - 4)), 0, 0.45, col, 1)
@@ -104,8 +105,9 @@ def main(argv=None) -> int:
     looked = (n + every - 1) // every
     print(f"{base}: {n} frames, looked at {looked} ({time.time() - t0:.0f} s)")
     for lbl, c in counts.most_common():
-        print(f"  {lbl:16s} {c:5d} detections, in {100 * frames_with[lbl] / max(looked, 1):4.1f}% of frames"
-              + ("  (blocks the car: goes in the costmap)" if lbl in FLOOR_OBJECTS else ""))
+        note = ("  (not mapped: the person stops the car)" if "(with a person)" in lbl else
+                {"obstacle": "  (obstacle: goes in the costmap)", "building": "  (building landmark)"}.get(kind_of(lbl), ""))
+        print(f"  {lbl:24s} {c:5d} detections, in {100 * frames_with[lbl] / max(looked, 1):4.1f}% of frames{note}")
     print(f"wrote {base}_yolo.csv and {base}_yolo.jpg")
     return 0
 

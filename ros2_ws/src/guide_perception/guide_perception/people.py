@@ -99,6 +99,19 @@ FLOOR_OBJECTS = {
     "desk", "table", "stool", "trash can", "recycling bin", "wet floor sign", "traffic cone", "cart",
     "cardboard box", "bag", "scooter", "stroller", "wheelchair", "podium", "whiteboard", "easel",
     "sign board", "ladder", "vending machine", "water fountain", "fire extinguisher", "stairs",
+    # parts of the building the car must keep off: glass is what stereo depth misses (spec section 7)
+    "pillar", "column", "railing", "glass wall", "glass partition", "bollard", "turnstile", "escalator",
+}
+
+# Parts of the building worth knowing about but not obstacles: doors and lift doors are where the
+# car stops and asks for help (spec section 8), ramps change its speed, the rest are landmarks.
+BUILDING_FEATURES = {
+    "door", "glass door", "elevator door", "automatic door button", "ramp", "beam", "window",
+    "exit sign", "room number sign",
+    # overhead and wall landmarks: the cameras look a little up, and lights and beams are what they see
+    # best (walls themselves are in the map and stereo depth sees them: a whole-wall box would only
+    # draw false lines in the costmap)
+    "ceiling light", "light fixture", "light bulb", "wall",
 }
 
 # The school model: an open-vocabulary YOLOE exported with these names built in
@@ -109,7 +122,18 @@ SCHOOL_CLASSES = [
     "scooter", "skateboard", "stroller", "wheelchair", "potted plant", "podium", "whiteboard", "easel",
     "sign board", "ladder", "vending machine", "water fountain", "fire extinguisher", "stairs", "door",
     "elevator door", "dog",
+    # parts of the building
+    "glass door", "automatic door button", "ramp", "beam", "pillar", "column", "railing", "glass wall",
+    "glass partition", "bollard", "turnstile", "escalator", "window", "exit sign", "room number sign",
+    "ceiling light", "light fixture", "light bulb", "wall",
 ]
+
+
+def kind_of(label: str) -> str:
+    """person, obstacle (goes in the costmap), building (a landmark) or other."""
+    base = label.split(" (")[0]
+    return ("person" if base == "person" else "obstacle" if base in FLOOR_OBJECTS
+            else "building" if base in BUILDING_FEATURES else "other")
 
 
 def carried(obj: Person, people: list[Person], inside: float = 0.6) -> bool:

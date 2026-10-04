@@ -4,7 +4,9 @@
 (String, JSON) for debugging; with ``objects`` on, floor-standing objects (chairs, benches,
 bags, bikes, plants, ...: people.FLOOR_OBJECTS) go out as ``objects/obstacles`` (PointCloud2 in
 base_link, where they touch the floor, for Nav2's obstacle layer) and every detection as
-``objects/detections`` (String, JSON: label, conf, x, y)."""
+``objects/detections`` (String, JSON: label, kind, conf, x, y). With detector:=school that includes
+parts of the building: pillars, railings and glass walls as obstacles; doors, lift doors, door
+buttons, ramps, beams and signs as landmarks (people.BUILDING_FEATURES)."""
 
 from __future__ import annotations
 
@@ -18,7 +20,7 @@ from sensor_msgs_py import point_cloud2
 from std_msgs.msg import Float32, String
 
 from .base_node import CameraNode, spin
-from .people import FLOOR_OBJECTS, PersonDetector, carried, locate, nearest_ahead, object_footprint
+from .people import BUILDING_FEATURES, FLOOR_OBJECTS, PersonDetector, carried, kind_of, locate, nearest_ahead, object_footprint
 
 
 class PersonNode(CameraNode):
@@ -37,7 +39,7 @@ class PersonNode(CameraNode):
         self.det_pub = self.create_publisher(String, "people/detections", 10)
         self.objects = self.declare_parameter("objects", True).value
         self.object_range = self.declare_parameter("object_max_range", 5.0).value
-        self.classes = self.det.class_ids({"person"} | (FLOOR_OBJECTS if self.objects else set()))
+        self.classes = self.det.class_ids({"person"} | (FLOOR_OBJECTS | BUILDING_FEATURES if self.objects else set()))
         self.get_logger().info(f"detecting {sorted(self.det.model.names[k] for k in self.classes)}")
         self.obj_pub = self.create_publisher(PointCloud2, "objects/obstacles", 5)
         self.obj_det_pub = self.create_publisher(String, "objects/detections", 10)
@@ -60,7 +62,7 @@ class PersonNode(CameraNode):
             hdr.stamp, hdr.frame_id = header.stamp, self.base_frame
             self.obj_pub.publish(point_cloud2.create_cloud_xyz32(hdr, pts))
             self.obj_det_pub.publish(String(data=json.dumps(
-                [{"label": o.label, "conf": round(o.conf, 2), "x": round(o.x, 2) if math.isfinite(o.x) else None,
+                [{"label": o.label, "kind": kind_of(o.label), "conf": round(o.conf, 2), "x": round(o.x, 2) if math.isfinite(o.x) else None,
                   "y": round(o.y, 2)} for o in found])))
         self.det_pub.publish(
             String(data=json.dumps([{"id": p.track_id, "box": [round(v, 1) for v in p.box], "conf": round(p.conf, 2), "x": round(p.x, 2) if math.isfinite(p.x) else None, "y": round(p.y, 2)} for p in people]))

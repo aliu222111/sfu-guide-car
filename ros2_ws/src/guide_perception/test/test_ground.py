@@ -116,3 +116,12 @@ def test_carried_bags_are_not_floor_obstacles():
     on_floor = Person(None, (400, 250, 460, 330), 0.7, label="backpack")
     beside = Person(None, (280, 200, 380, 330), 0.7, label="chair")  # overlaps the walker a little
     assert carried(worn, [walker]) and not carried(on_floor, [walker]) and not carried(beside, [walker])
+
+
+def test_kinds_of_things():
+    from guide_perception.people import SCHOOL_CLASSES, kind_of
+
+    assert kind_of("person") == "person"
+    assert kind_of("glass wall") == kind_of("pillar") == kind_of("trash can") == "obstacle"
+    assert kind_of("door") == kind_of("automatic door button") == kind_of("ramp") == "building"
+    assert all(kind_of(c) != "other" for c in SCHOOL_CLASSES)  # every school class has a role
