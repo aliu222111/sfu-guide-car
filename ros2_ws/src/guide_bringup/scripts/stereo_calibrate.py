@@ -1,6 +1,6 @@
 """Calibrate the stereo pair with a printed checkerboard; no ROS, so it runs on Windows too.
 
-    py stereo_calibrate.py match 1 0                      # same exposure, gain and white balance on both cameras
+    py stereo_calibrate.py match 1 0                      # watch the pair's shared auto exposure and white balance
     py stereo_calibrate.py board                          # checkerboard.png: print at 100 %, check a square is 25 mm
     py stereo_calibrate.py capture 1 0 --out calib        # left and right camera index, as for stereo_record.py
     py stereo_calibrate.py solve calib                    # writes calib/left.yaml and calib/right.yaml
@@ -20,7 +20,6 @@ reads them from calibration_dir).
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from pathlib import Path
 
@@ -32,12 +31,11 @@ SQUARE = 0.025  # metres
 SIZE = (640, 360)  # what stereo_record.py and cameras.yaml capture
 
 
-# Fixed camera settings, the same on both cameras: written by `match`, applied by `capture` and
-# stereo_record.py. Values are DirectShow's (Windows): exposure is log2 seconds (-6 = 1/64 s).
-SETTINGS = Path(__file__).resolve().parent / "camera_settings.json"
-DEFAULTS = {"exposure": -6, "gain": 0, "wb_temperature": 4500, "brightness": 128, "contrast": 128, "focus": 0}
-PROPS = {"exposure": cv2.CAP_PROP_EXPOSURE, "gain": cv2.CAP_PROP_GAIN, "wb_temperature": cv2.CAP_PROP_WB_TEMPERATURE,
-         "brightness": cv2.CAP_PROP_BRIGHTNESS, "contrast": cv2.CAP_PROP_CONTRAST, "focus": cv2.CAP_PROP_FOCUS}
+# The cameras' own auto exposure and white balance run separately and drift apart, and the stereo
+# matcher compares the two pictures pixel by pixel. So both run manual, and AutoMatch is one auto
+# mode for the pair: the same exposure on both (same motion blur), and each camera's gain and white
+# balance steered until both pictures have the same brightness and the same neutral colour.
+# Values are DirectShow's on Windows: exposure is log2 seconds (-6 = 1/64 s).
 
 
 def open_camera(i: int):
@@ -48,60 +46,92 @@ def open_camera(i: int):
     return c
 
 
-def lock(cams, values: dict):
-    """Automatic exposure, white balance and focus off, then the same fixed values on every camera.
-    (Auto modes make the two cameras drift apart, and the stereo matcher compares pixel by pixel.)"""
-    for c in cams:
-        c.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.25 if sys.platform != "win32" else 0)  # 0.25: manual on V4L2
-        c.set(cv2.CAP_PROP_AUTO_WB, 0)
-        c.set(cv2.CAP_PROP_AUTOFOCUS, 0)
-        for k, v in values.items():
-            c.set(PROPS[k], v)
+class AutoMatch:
+    """Shared auto exposure and white balance for a camera pair. Call ``step`` with each pair of frames."""
 
+    TARGET = 115  # mean grey level aimed for (0..255): a little under the middle keeps ceiling lights in range
+    EXPOSURES = range(-11, -3)  # 1/2048 s .. 1/16 s; shorter than 1/16 s keeps walking blur down
+    GAIN = (0, 200)
+    WB = (2800, 6500)
 
-def saved_settings() -> dict:
-    try:
-        return {**DEFAULTS, **json.loads(SETTINGS.read_text())}
-    except (OSError, ValueError):
-        return dict(DEFAULTS)
+    def __init__(self, cams, every: int = 3):
+        self.cams, self.every, self.n = cams, every, 0
+        self.exposure = -6
+        self.gain = [60.0] * len(cams)
+        self.wb = [4500.0] * len(cams)
+        self.last = None
+        for c in cams:
+            c.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.25 if sys.platform != "win32" else 0)  # 0.25: manual on V4L2
+            c.set(cv2.CAP_PROP_AUTO_WB, 0)
+            c.set(cv2.CAP_PROP_AUTOFOCUS, 0)
+        self._apply()
+
+    def _apply(self):
+        for c, g, w in zip(self.cams, self.gain, self.wb):
+            c.set(cv2.CAP_PROP_EXPOSURE, self.exposure)
+            c.set(cv2.CAP_PROP_GAIN, round(g))
+            c.set(cv2.CAP_PROP_WB_TEMPERATURE, round(w / 50) * 50)
+
+    def step(self, frames):
+        self.n += 1
+        means = [f[::4, ::4].reshape(-1, 3).mean(0) for f in frames]  # BGR, every 4th pixel
+        self.last = means
+        if self.n % self.every:
+            return
+        lum = [float(m.mean()) for m in means]
+        # Exposure, shared: one step (twice or half the light) when a camera's gain runs out.
+        if any(g >= self.GAIN[1] - 1 and L < self.TARGET - 20 for g, L in zip(self.gain, lum)) and self.exposure < max(self.EXPOSURES):
+            self.exposure += 1; self.gain = [g / 2 for g in self.gain]
+        elif any(g <= self.GAIN[0] + 1 and L > self.TARGET + 20 for g, L in zip(self.gain, lum)) and self.exposure > min(self.EXPOSURES):
+            self.exposure -= 1; self.gain = [min(self.GAIN[1], g * 2 + 10) for g in self.gain]
+        # Matching each other comes first: a camera whose gain is at an end and still short of the
+        # target sets the brightness the other aims for.
+        target = self.TARGET
+        stuck_dark = [L for g, L in zip(self.gain, lum) if g >= self.GAIN[1] - 1 and L < target]
+        stuck_bright = [L for g, L in zip(self.gain, lum) if g <= self.GAIN[0] + 1 and L > target]
+        if stuck_dark:
+            target = min(stuck_dark)
+        elif stuck_bright:
+            target = max(stuck_bright)
+        for i, (m, L) in enumerate(zip(means, lum)):
+            if abs(L - target) > 2:  # gain: each camera to the same brightness
+                self.gain[i] = float(np.clip(self.gain[i] + 0.4 * (target - L), *self.GAIN))
+            ratio = m[0] / max(m[2], 1.0)  # blue / red: 1 is neutral grey
+            if abs(ratio - 1) > 0.03:  # white balance: bluer picture -> lower temperature
+                self.wb[i] = float(np.clip(self.wb[i] - 600 * (ratio - 1), *self.WB))
+        self._apply()
+
+    def status(self) -> str:
+        if not self.last:
+            return ""
+        lum = [m.mean() for m in self.last]
+        br = [m[0] / max(m[2], 1) for m in self.last]
+        return (f"exposure 2^{self.exposure} s  gain {' / '.join(f'{g:.0f}' for g in self.gain)}  "
+                f"brightness {' / '.join(f'{x:.0f}' for x in lum)}  B/R {' / '.join(f'{x:.2f}' for x in br)}")
 
 
 def match(li: int, ri: int):
-    """Sliders that set both cameras at once; s saves, q quits. d opens each camera's own driver
-    dialog for anything the sliders cannot reach (set both dialogs the same)."""
+    """Watch the shared auto mode settle: both brightness numbers and both B/R ratios should agree."""
     cl, cr = open_camera(li), open_camera(ri)
-    v = saved_settings()
-    win = "both cameras: match them (s save, d driver dialogs, q quit)"
-    cv2.namedWindow(win)
-    ranges = {"exposure": (-13, -1), "gain": (0, 255), "wb_temperature": (2800, 6500),
-              "brightness": (0, 255), "contrast": (0, 255), "focus": (0, 255)}
-    for k, (lo, hi) in ranges.items():
-        cv2.createTrackbar(k, win, int(v[k]) - lo, hi - lo, lambda _x: None)
-    lock((cl, cr), v)
+    auto = AutoMatch((cl, cr))
+    win = "shared auto exposure and white balance (d driver dialogs, q quit)"
     while True:
-        new = {k: cv2.getTrackbarPos(k, win) + lo for k, (lo, hi) in ranges.items()}
-        if new != v:
-            v = new; lock((cl, cr), v)
         cl.grab(); cr.grab()
         ok1, a = cl.retrieve(); ok2, b = cr.retrieve()
         if not (ok1 and ok2):
             print("a camera stopped"); break
-        ma, mb = a.reshape(-1, 3).mean(0), b.reshape(-1, 3).mean(0)  # BGR means
-        for img, m in ((a, ma), (b, mb)):
-            cv2.putText(img, f"brightness {m.mean():5.1f}  B/R {m[0] / max(m[2], 1):.2f}", (8, 20),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
-        diff = abs(ma.mean() - mb.mean())
-        bar = np.zeros((24, SIZE[0] * 2, 3), np.uint8)
-        cv2.putText(bar, f"brightness differs by {diff:.1f} (aim under 5); B/R ratios should match",
-                    (8, 17), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0) if diff < 5 else (0, 0, 255), 1)
+        auto.step((a, b))
+        lum = [m.mean() for m in auto.last]
+        good = abs(lum[0] - lum[1]) < 5
+        bar = np.zeros((24, a.shape[1] * 2, 3), np.uint8)
+        cv2.putText(bar, auto.status(), (8, 17), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 255, 0) if good else (0, 0, 255), 1)
         cv2.imshow(win, cv2.vconcat([cv2.hconcat([a, b]), bar]))
         k = cv2.waitKey(1) & 0xFF
-        if k == ord("s"):
-            SETTINGS.write_text(json.dumps(v, indent=1)); print(f"saved {v} to {SETTINGS}")
-        elif k == ord("d"):
+        if k == ord("d"):
             cl.set(cv2.CAP_PROP_SETTINGS, 1); cr.set(cv2.CAP_PROP_SETTINGS, 1)
         elif k == ord("q"):
             break
+    print(auto.status())
     cl.release(); cr.release(); cv2.destroyAllWindows()
 
 
@@ -147,7 +177,7 @@ def pose_key(c, shape):
 def capture(li: int, ri: int, out: Path, want: int = 40):
     out.mkdir(parents=True, exist_ok=True)
     cl, cr = open_camera(li), open_camera(ri)
-    lock((cl, cr), saved_settings())
+    auto = AutoMatch((cl, cr))
     keys, n = [], len(list(out.glob("left_*.png")))
     print(f"saving to {out}; {n} pairs already there. s = save now, q = finish")
     while True:
@@ -156,6 +186,7 @@ def capture(li: int, ri: int, out: Path, want: int = 40):
         ok2, b = cr.retrieve() if g2 else (False, None)
         if not (ok1 and ok2):
             print("a camera stopped"); break
+        auto.step((a, b))
         ga, gb = cv2.cvtColor(a, cv2.COLOR_BGR2GRAY), cv2.cvtColor(b, cv2.COLOR_BGR2GRAY)
         ca, cb = find(ga), find(gb)
         sharp = min(cv2.Laplacian(ga, cv2.CV_64F).var(), cv2.Laplacian(gb, cv2.CV_64F).var())
