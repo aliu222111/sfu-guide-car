@@ -1,7 +1,7 @@
 """Bench check of the car's voice, no ROS and no car needed (spec section 9).
 
     ros2 run guide_voice voice_check --devices          # list microphones and speakers
-    ros2 run guide_voice voice_check                    # speak, listen 4 s, transcribe (Scribe), ask Gemini, speak the reply
+    ros2 run guide_voice voice_check                    # hands-free: just talk; it confirms the room and stops
     ros2 run guide_voice voice_check --talk             # a conversation: Enter starts and stops each recording
     ros2 run guide_voice voice_check --text "take me to AQ 3046"   # skip the microphone
     ros2 run guide_voice voice_check --file question.wav           # transcribe a recording instead
@@ -59,6 +59,80 @@ def listen(rec: Recorder, seconds: float | None) -> np.ndarray:
     level = float(np.sqrt(np.mean(audio**2))) if audio.size else 0.0
     print(f"  {audio.size / SAMPLE_RATE:.1f} s recorded, level {level:.3f}" + ("  (silent: check the microphone)" if level < 0.003 else ""))
     return audio
+
+
+def listen_auto(rec: Recorder, max_seconds: float = 10.0, quiet_end: float = 0.9, wait: float = 30.0) -> np.ndarray:
+    """Record one utterance with no keys: starts when the voice rises above the room's
+    background, ends after ``quiet_end`` s of quiet (or ``max_seconds``)."""
+    rec.start()
+    try:
+        time.sleep(0.5)
+        floor = max(rec.level(0.5), 0.0005)  # the room before anyone speaks
+        on = max(3.0 * floor, 0.004)
+        print(f"  listening (background {floor:.4f}, speech above {on:.4f})...", flush=True)
+        t0 = time.monotonic()
+        while rec.level(0.15) < on:
+            if time.monotonic() - t0 > wait:
+                return rec.stop()[:0]
+            time.sleep(0.05)
+        print("  hearing you...", flush=True)
+        start = time.monotonic()
+        last_loud = start
+        while time.monotonic() - start < max_seconds:
+            time.sleep(0.05)
+            if rec.level(0.15) >= 0.6 * on:
+                last_loud = time.monotonic()
+            elif time.monotonic() - last_loud > quiet_end:
+                break
+    except BaseException:
+        rec.stop()
+        raise
+    audio = rec.stop()
+    level = float(np.sqrt(np.mean(audio**2))) if audio.size else 0.0
+    print(f"  {audio.size / SAMPLE_RATE:.1f} s recorded, level {level:.3f}")
+    return audio
+
+
+def hands_free(rec: Recorder, stt, speaker: Speaker, keys: dict) -> int:
+    """Ask where to go, read the room back, and stop once the student says yes."""
+    pending = None
+    while True:
+        audio = listen_auto(rec)
+        if audio.size == 0:
+            continue  # nobody spoke: keep waiting
+        try:
+            text = stt(trim_silence(audio), (pending,) if pending else ())
+        except Unheard:
+            text = ""
+        print(f"heard: {text!r}")
+        if not text:
+            say(speaker, "Sorry, I didn't catch that. Where would you like to go?")
+            continue
+        answer = answer_in(text)
+        if pending and answer == "yes":
+            say(speaker, f"Great. Follow me to {spoken(pending, keys.get(pending))}.")
+            print(f"confirmed: {pending}")
+            return 0
+        if answer == "stop":
+            say(speaker, "Okay, stopping.")
+            return 0
+        if pending and answer == "no":
+            pending = None
+            say(speaker, "Okay. Where would you like to go?")
+            continue
+        heard = understand(text, keys) if keys else None
+        if heard is not None:
+            print(f"  rooms on the map: {heard.rooms or 'none'}"
+                  + (f"; not on the map: {heard.missing}" if heard.missing else "")
+                  + (f"; suggested: {heard.suggestions}" if heard.suggestions else ""))
+        if heard is not None and heard.rooms:
+            pending = heard.rooms[0]
+            say(speaker, f"{spoken(pending, keys.get(pending))}. Is that right?")
+            continue
+        said, key = suggestion(heard, keys) if heard is not None else ("", None)
+        if key:
+            pending = key  # "Do you mean AQ 3005?": a yes takes that room
+        say(speaker, said or "Which room would you like? For example, A Q 3 1 2 8.")
 
 
 def make_agent(model: str):
@@ -125,6 +199,17 @@ def main(argv=None):
 
         keys = RouteGraph.load("maps/route_graph.json").destinations
     rec = Recorder(audio_device(args.mic))
+    if not (args.talk or args.text or args.file or args.echo):
+        if stt is None:
+            print("Hands-free listening needs ELEVENLABS_API_KEY.")
+            return 1
+        try:
+            return hands_free(rec, stt, speaker, keys)
+        except KeyboardInterrupt:
+            return 0
+        except Exception as e:
+            print(f"Microphone failed: {e}\nPick a device with input channels from --devices and pass --mic <number>.")
+            return 1
     while True:
         if args.text:
             text = args.text

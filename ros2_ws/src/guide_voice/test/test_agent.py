@@ -93,7 +93,16 @@ def test_trim_silence():
     a = quiet.copy()
     a[8000:9000] = 0.5
     out = trim_silence(a)
-    assert 1000 <= out.size < 8000
+    assert 1000 <= out.size < 1000 + 2 * int(0.3 * SAMPLE_RATE) + 1000  # the speech plus its padding
+
+
+def test_trim_silence_keeps_a_quiet_microphone():
+    # A laptop microphone: hiss at 0.0005, speech at 0.006, under the old fixed 0.01 cut.
+    rng = np.random.default_rng(0)
+    a = (rng.standard_normal(SAMPLE_RATE * 2) * 0.0005).astype(np.float32)
+    a[16000:24000] += (np.sin(np.arange(8000) / 5) * 0.0085).astype(np.float32)
+    out = trim_silence(a)
+    assert 8000 <= out.size < 16000
 
 
 def test_truncated_tool_call_does_not_poison_history():
