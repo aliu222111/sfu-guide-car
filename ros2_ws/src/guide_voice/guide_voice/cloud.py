@@ -23,6 +23,8 @@ import numpy as np
 from .speech import SAMPLE_RATE, Speaker
 
 TTS_MODEL = "eleven_flash_v2_5"  # the low-latency model
+NATURAL_MODEL = "eleven_multilingual_v2"  # slower (about 1 s more) but the most natural voice
+RATE = 24000  # pcm_24000: every plan and model offers it
 STT_MODEL = "scribe_v1"
 VOICE_ID = "21m00Tcm4TlvDq8ikWAM"  # "Rachel", a stock voice; any voice id from the ElevenLabs library works
 ROOM_TERMS = ["AQ", "WMC", "MBC", "ASB", "Academic Quadrangle", "West Mall Centre", "Maggie Benston Centre",
@@ -36,6 +38,22 @@ def _client(timeout: float, client=None):
     from elevenlabs.client import ElevenLabs
 
     return ElevenLabs(timeout=timeout)  # reads ELEVENLABS_API_KEY
+
+
+_CODES = {"AQ": "A Q", "ASB": "A S B", "WMC": "W M C", "MBC": "M B C", "SCK": "S C K", "TASC": "TASC"}
+
+
+def for_speech(text: str) -> str:
+    """Room codes as people say them: "AQ 3128" -> "A Q 31 28" ("thirty-one twenty-eight"),
+    not "ack three thousand one hundred and twenty-eight"; levels ("the 3000 level") stay."""
+    import re
+
+    def room(m):
+        code, num = m.group(1), m.group(2)
+        said = num if len(num) != 4 else f"{num[:2]} {num[2:]}" if num[2] != "0" else f"{num[:2]} oh {num[3]}"
+        return f"{_CODES.get(code, code)} {said}"
+
+    return re.sub(r"\b(AQ|ASB|WMC|MBC|SCK|TASC)\s?(\d{3,4})\b", room, text)
 
 
 class ElevenLabsSpeaker(Speaker):
@@ -52,9 +70,9 @@ class ElevenLabsSpeaker(Speaker):
         super().__init__(voice_model, device)
 
     def _fetch(self, text: str) -> bytes:
-        # Raw 16-bit PCM at 22.05 kHz (every ElevenLabs model offers it), wrapped as WAV here.
+        # Raw 16-bit PCM at 24 kHz (every ElevenLabs plan and model offers it), wrapped as WAV here.
         chunks = self.client.text_to_speech.convert(
-            self.voice_id, text=text, model_id=self.model, output_format="pcm_22050",
+            self.voice_id, text=for_speech(text), model_id=self.model, output_format=f"pcm_{RATE}",
             request_options={"timeout_in_seconds": int(max(1, round(self.timeout))), "max_retries": 0},
         )
         pcm = b"".join(chunks)
@@ -64,7 +82,7 @@ class ElevenLabsSpeaker(Speaker):
         with wave.open(buf, "wb") as w:
             w.setnchannels(1)
             w.setsampwidth(2)
-            w.setframerate(22050)
+            w.setframerate(RATE)
             w.writeframes(pcm)
         return buf.getvalue()
 

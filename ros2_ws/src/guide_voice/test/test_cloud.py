@@ -39,10 +39,18 @@ def test_elevenlabs_voice_cached_and_piper_fallback(tmp_path, monkeypatch):
     sp.synthesize("In 5 metres, turn right.", out)
     sp.synthesize("In 5 metres, turn right.", out)  # repeated announcement: from the cache
     assert out.read_bytes().startswith(b"RIFF") and len(tts.calls) == 1
-    assert tts.calls[0][1]["model_id"] == "eleven_flash_v2_5" and tts.calls[0][1]["output_format"] == "pcm_22050"
+    assert tts.calls[0][1]["model_id"] == "eleven_flash_v2_5" and tts.calls[0][1]["output_format"] == "pcm_24000"
     tts.fail = True
     sp.synthesize("We've arrived.", tmp_path / "b.wav")  # WiFi gone: Piper speaks
     assert piper == ["We've arrived."]
+
+
+def test_room_codes_read_as_people_say_them():
+    from guide_voice.cloud import for_speech
+
+    assert for_speech("AQ 3128, on the 3000 level") == "A Q 31 28, on the 3000 level"
+    assert for_speech("ASB 9815 and AQ 3005") == "A S B 98 15 and A Q 30 oh 5"
+    assert for_speech("room 101") == "room 101"
 
 
 def test_wav_bytes_round_trip():

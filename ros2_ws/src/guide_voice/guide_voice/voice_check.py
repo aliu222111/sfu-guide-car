@@ -27,7 +27,7 @@ from pathlib import Path
 
 import numpy as np
 
-from .cloud import VOICE_ID, ElevenLabsSpeaker, ElevenLabsTranscriber, Unheard, to_wav_bytes
+from .cloud import NATURAL_MODEL, TTS_MODEL, VOICE_ID, ElevenLabsSpeaker, ElevenLabsTranscriber, Unheard, to_wav_bytes
 from .rooms import answer_in, spoken, suggestion, understand
 from .speech import SAMPLE_RATE, Recorder, Speaker, audio_device, read_wav, resample, trim_silence
 
@@ -196,6 +196,8 @@ def main(argv=None):
     ap.add_argument("--echo", action="store_true", help="say back what was heard instead of asking Gemini")
     ap.add_argument("--say", help="speak this and exit (tests the speaker and the ElevenLabs voice)")
     ap.add_argument("--voice-id", default=VOICE_ID, help="ElevenLabs voice id (from its voice library)")
+    ap.add_argument("--fast", action="store_true", help=f"the low-latency voice model ({TTS_MODEL}) the car uses, "
+                    f"instead of the more natural {NATURAL_MODEL}")
     ap.add_argument("--seconds", type=float, default=4.0)
     ap.add_argument("--voice", default="voices/en_US-lessac-medium.onnx")
     ap.add_argument("--gemini-model", default=None)
@@ -227,7 +229,8 @@ def main(argv=None):
     eleven = bool(os.environ.get("ELEVENLABS_API_KEY"))
     if not eleven:
         print("No ELEVENLABS_API_KEY: Piper speaks, and nothing can be heard.")
-    speaker = (ElevenLabsSpeaker(args.voice, audio_device(args.speaker), voice_id=args.voice_id, log=print) if eleven
+    speaker = (ElevenLabsSpeaker(args.voice, audio_device(args.speaker), voice_id=args.voice_id,
+                                     model=TTS_MODEL if args.fast else NATURAL_MODEL, timeout=10.0, log=print) if eleven
                else Speaker(args.voice, audio_device(args.speaker)))
     if not Path(args.voice).exists():
         print(f"No Piper voice at {args.voice}: run ros2_ws/src/guide_bringup/scripts/setup_voice.sh")
