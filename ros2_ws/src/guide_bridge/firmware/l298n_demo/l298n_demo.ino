@@ -12,11 +12,14 @@
 // motors from the battery, not the ESP32. Arduino IDE: board "ESP32 Dev Module".
 
 // ---- Configure ---------------------------------------------------------------
-const int ENA = 32, IN1 = 33, IN2 = 25;  // motor A: speed (PWM) and direction
-const int ENB = 26, IN3 = 27, IN4 = 13;  // motor B
+// The car's wiring (ENA/ENB jumpers off, L298N GND to ESP32 GND):
+const int ENA = 25, IN1 = 26, IN2 = 27;  // motor A (OUT1/OUT2): speed (PWM) and direction
+const int ENB = 13, IN3 = 33, IN4 = 32;  // motor B (OUT3/OUT4)
 const int MIN_PWM = 90;          // below this the motors hum but do not turn: start here
 const float STEER_MIX = 0.0;     // 0: steering ignored (straight only); 0.5: turn by slowing one side
-const bool FLIP_A = false, FLIP_B = false;  // a motor running backwards: set true
+// Forward on this car is IN1 high (26) and IN4 high (32), as the motor test drove it:
+// motor B is wired the other way round, so it is flipped. A motor running backwards: toggle.
+const bool FLIP_A = false, FLIP_B = true;
 const unsigned long WATCHDOG_MS = 300;
 // -----------------------------------------------------------------------------
 
