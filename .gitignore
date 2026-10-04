@@ -12,3 +12,4 @@ models/
 *.pt
 mobileclip*.ts
 voice_last.wav
+.env

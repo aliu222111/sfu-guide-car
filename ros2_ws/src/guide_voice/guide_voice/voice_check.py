@@ -169,6 +169,18 @@ def make_agent(model: str):
     return GeminiVoiceAgent(client, actions, model=model)
 
 
+def load_env(path: Path = Path(".env")):
+    """KEY=value lines from .env (repository root, git-ignored) into the environment, so API keys
+    need not be retyped in every new terminal. Variables already set win."""
+    try:
+        for line in path.read_text(encoding="utf-8-sig").splitlines():
+            key, sep, value = line.strip().partition("=")
+            if sep and key and not key.startswith("#"):
+                os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+    except OSError:
+        pass
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--devices", action="store_true", help="list audio devices and exit")
@@ -184,6 +196,7 @@ def main(argv=None):
     ap.add_argument("--mic", default="", help="device name or index (see --devices)")
     ap.add_argument("--speaker", default="")
     args = ap.parse_args(argv)
+    load_env()
 
     if args.devices:
         import sounddevice as sd
