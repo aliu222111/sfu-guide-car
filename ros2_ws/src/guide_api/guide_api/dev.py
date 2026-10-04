@@ -17,6 +17,7 @@ from pathlib import Path
 
 from .fake_car import FakeCar
 from .frames import AppFrames
+from .chat import Concierge
 from .http_api import serve
 from .rooms import gis_rooms
 from .service import ScoutService
@@ -62,7 +63,9 @@ def main(argv=None) -> int:
     car = FakeCar(locate, start=locate(args.start) or ("ASB-09", 0.0, 0.0), door=args.door)
     service = ScoutService(car, rooms, AppFrames.load(CONFIG / "app_frames.json"), car_id="fake-car", car_name="Scout (fake)")
     car.attach(service)
-    serve(service, args.port, token=args.token)
+    chat = Concierge.from_env(rooms)
+    serve(service, args.port, token=args.token, chat=chat)
+    print("Chat with ElevenLabs: " + ("on" if chat else "off (set GEMINI_API_KEY and ELEVENLABS_API_KEY to turn it on)"))
     print(f"rider API with a fake car on http://localhost:{args.port}/  ({len(rooms)} rooms; Ctrl-C to stop)")
     try:
         last, since_tick = time.monotonic(), 0.0

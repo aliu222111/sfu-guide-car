@@ -25,6 +25,7 @@ Logic is in plain modules with tests that need no ROS; `api_node.py` is the thin
 | `api_node.py` | ROS node `scout_api`: publishers, subscribers, the server |
 | `fake_car.py`, `dev.py` | a stand-in mission, to work on the app with no car and no ROS |
 | `planner.py`, `straight_car.py`, `car.py` | the car with no steering: straight legs on the app's floor plan, driven through the ESP32 + L298N board, no ROS |
+| `chat.py` | "Chat with ElevenLabs": the rider talks to the guide from the app (Scribe hears, Gemini answers, an ElevenLabs voice replies) |
 | `web/scout-api.js` | browser client with the method names the app already uses |
 | `web/index.html` | a test page that drives the API by hand |
 
@@ -56,6 +57,9 @@ at `http://<laptop>:8090` on the same WiFi.
 | `POST /api/trips/<id>/cancel` | end the trip |
 | `GET /api/trips/<id>/events` | server-sent events, one JSON document per change |
 | `GET /api/trips/current` | the trip under way, for a reloaded page |
+| `GET /api/chat/status` | is the chat set up: `enabled`, `canHear`, `canSpeak` |
+| `POST /api/chat` `{"session": "abc", "text": "..."}` | a typed question |
+| `POST /api/chat/audio?session=abc` (body: the recording) | a spoken question |
 | `POST /api/car/position` `{"room": "ASB 970.7", "headingDeg": 90}` | only for the straight-driving car: where it is standing |
 
 Errors are `{"error": code, "message": text}`: `unknown_room` (404), `busy` (409), `offline` (503),
@@ -84,6 +88,33 @@ How a trip maps onto the mission:
   `waiting_for_student` (`still_with_me`) become a `prompt`; `confirm` publishes `/guide/confirm`.
 - While an app is listening to a trip's events, `/guide/heartbeat` goes out once a second.
 - A trip the mission does not take up within 8 s ends as `failed`, with the car's last spoken line as the reason.
+
+## Chat with ElevenLabs
+
+The rider can talk to the guide in the app before the car arrives: ask for food or coffee nearby, a
+washroom, a room. ElevenLabs Scribe writes down the recording, Gemini answers, and an ElevenLabs voice
+reads the answer back. When the answer is a room on the map the reply carries it (`room`), and the app
+shows a button to go there. The car's own microphone agent (`guide_voice`) only talks about rooms; this
+one is allowed general questions, and is told to say when it cannot check something.
+
+```bash
+export ELEVENLABS_API_KEY=...     # hearing and voice
+export GEMINI_API_KEY=...         # the answers (use a paid key, as for the car's voice)
+python -m guide_api.dev           # or guide_api.car, or the ROS node: all three pick the keys up
+```
+
+Without `GEMINI_API_KEY` the chat is off and `/api/chat` answers 503; with it but without the
+ElevenLabs key, typed questions work and nothing is spoken. An answer:
+
+```json
+{"heard": "where is the nearest washroom", "reply": "The nearest washroom is ASB 990, just past the elevator.",
+ "audio": "<base64 MP3>", "audioType": "audio/mpeg", "room": {"key": "ASB 990", "type": "washroom", "floor": "ASB-09"}}
+```
+
+Not checked against the live services: the requests follow ElevenLabs' and Gemini's HTTP APIs and are
+tested with stand-ins, but no key was available where this was written. A phone's browser only gives
+the microphone to pages on `https://` or `localhost`, so over plain `http://<laptop>` the chat is typed only.
+The rider's voice goes to ElevenLabs and the words to Google: tell riders.
 
 ## The straight-driving car (ESP32 + L298N, no steering, no ROS)
 

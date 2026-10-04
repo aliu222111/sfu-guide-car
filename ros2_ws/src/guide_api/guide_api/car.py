@@ -17,6 +17,7 @@ import time
 from pathlib import Path
 
 from .frames import AppFrames
+from .chat import Concierge
 from .http_api import serve
 from .planner import Planner
 from .service import ScoutService
@@ -72,7 +73,9 @@ def main(argv=None) -> int:
     service = ScoutService(car, planner.destinations(), AppFrames.load(CONFIG / "app_frames.json"),
                            speed=args.speed, car_id="scout-01", car_name="Scout")
     car.attach(service)
-    serve(service, args.http, token=args.token)
+    chat = Concierge.from_env(planner.destinations())
+    serve(service, args.http, token=args.token, chat=chat)
+    print("Chat with ElevenLabs: " + ("on" if chat else "off (set GEMINI_API_KEY and ELEVENLABS_API_KEY to turn it on)"))
     print(f"car at {args.start}; rider API on http://localhost:{args.http}/  (Ctrl-C to stop)")
     try:
         last, since_tick = time.monotonic(), 0.0

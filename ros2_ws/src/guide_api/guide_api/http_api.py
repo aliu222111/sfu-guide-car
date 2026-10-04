@@ -11,6 +11,9 @@ Standard library only (like guide_ui's server), so it runs anywhere Python does.
   POST /api/trips/<id>/confirm    the rider did what the car asked
   POST /api/trips/<id>/pause      {"paused": true}
   POST /api/trips/<id>/cancel
+  GET  /api/chat/status           is "Chat with ElevenLabs" set up (keys present)
+  POST /api/chat                  {"session": "abc", "text": "any good Chinese food nearby?"}
+  POST /api/chat/audio?session=abc   body: the recording (audio/webm ...), up to 6 MB
   POST /api/car/position          {"room": "ASB 970.7", "headingDeg": 90}   only for a car that cannot localize
   GET  /api/trips/<id>/events     text/event-stream, one JSON event per change
 
@@ -28,6 +31,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+from .chat import ChatError
 from .service import ENDED, ApiError, ScoutService
 
 WEB = Path(__file__).resolve().parent / "web"
@@ -35,9 +39,28 @@ TRIP = re.compile(r"^/api/trips/([\w-]+)/(start|confirm|pause|cancel|events)$")
 KEEPALIVE_S = 10.0
 
 
-def make_handler(service: ScoutService, token: str = ""):
+def chat_context(service: ScoutService) -> str:
+    """One line for the chat's model about the car, so "how long until you get here?" has an answer."""
+    car, trip = service.car(), service.trip
+    text = f"the car is {car['status']}" + (f" on {car['floor']}" if car.get("floor") else "")
+    if trip and trip.phase not in ENDED:
+        text += f"; this rider's trip to {trip.destination} is at '{trip.phase}'"
+        if trip.eta_s is not None:
+            text += f", about {int(trip.eta_s)} seconds left"
+    return text
+
+
+def make_handler(service: ScoutService, token: str = "", chat=None):
     class Handler(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
+
+        def _chat(self, fn):
+            if chat is None:
+                return self._json({"error": "chat_off", "message": "Chat is not set up: GEMINI_API_KEY and ELEVENLABS_API_KEY are needed where the API runs."}, 503)
+            try:
+                return self._json(fn())
+            except ChatError as e:
+                return self._json({"error": "chat_failed", "message": f"The chat service did not answer: {e}"}, 502)
 
         # The app may be served from somewhere else (a dev server, a phone wrapper).
         def _cors(self):
@@ -94,6 +117,8 @@ def make_handler(service: ScoutService, token: str = ""):
                     return self._json(service.health())
                 if path == "/api/car":
                     return self._json(service.car())
+                if path == "/api/chat/status":
+                    return self._json(chat.status() if chat else {"enabled": False, "canHear": False, "canSpeak": False})
                 if path == "/api/destinations":
                     q = parse_qs(url.query)
                     return self._json(service.destination_list(q.get("q", [""])[0], int(q.get("limit", ["40"])[0])))
@@ -117,11 +142,22 @@ def make_handler(service: ScoutService, token: str = ""):
             return self._send(200, target.read_bytes(), mimetypes.guess_type(str(target))[0] or "application/octet-stream")
 
         def do_POST(self):
-            path = urlparse(self.path).path
+            url = urlparse(self.path)
+            path = url.path
             if not self._allowed():
                 return None
             try:
+                if path == "/api/chat/audio":
+                    n = int(self.headers.get("Content-Length") or 0)
+                    if n <= 0 or n > 6 * 1024 * 1024:
+                        raise ApiError(413 if n > 0 else 400, "bad_audio", "send one recording of up to 6 MB")
+                    audio = self.rfile.read(n)
+                    session = parse_qs(url.query).get("session", ["default"])[0]
+                    mime = self.headers.get("Content-Type", "audio/webm")
+                    return self._chat(lambda: chat.ask_audio(session, audio, mime, chat_context(service)))
                 body = self._body()
+                if path == "/api/chat":
+                    return self._chat(lambda: chat.ask(str(body.get("session") or "default"), str(body.get("text") or ""), chat_context(service)))
                 if path == "/api/car/position":
                     return self._json(service.relocate(body.get("room", ""), body.get("headingDeg")))
                 if path == "/api/trips":
@@ -175,9 +211,9 @@ def make_handler(service: ScoutService, token: str = ""):
     return Handler
 
 
-def serve(service: ScoutService, port: int = 8090, host: str = "0.0.0.0", token: str = "") -> ThreadingHTTPServer:
+def serve(service: ScoutService, port: int = 8090, host: str = "0.0.0.0", token: str = "", chat=None) -> ThreadingHTTPServer:
     """Start the server on a daemon thread and return it (``.shutdown()`` to stop)."""
-    server = ThreadingHTTPServer((host, port), make_handler(service, token))
+    server = ThreadingHTTPServer((host, port), make_handler(service, token, chat))
     server.daemon_threads = True
     threading.Thread(target=server.serve_forever, daemon=True).start()
     return server

@@ -72,6 +72,24 @@
         return () => es.close();
       },
 
+      // Chat with ElevenLabs. Each answer: { heard, reply, audio (base64 MP3 or null), audioType, room: { key, ... } | null }
+      chatStatus: () => call("GET", "/api/chat/status"),
+      chat: (text, session) => call("POST", "/api/chat", { text: text, session: session || "default" }),
+      async chatAudio(blob, session) {
+        const headers = { "Content-Type": blob.type || "audio/webm" };
+        if (token) headers.Authorization = "Bearer " + token;
+        const res = await fetch(base + "/api/chat/audio?session=" + encodeURIComponent(session || "default"), { method: "POST", headers, body: blob });
+        const doc = await res.json().catch(() => null);
+        if (!res.ok) throw new Error((doc && doc.message) || "The chat did not answer (" + res.status + ").");
+        return doc;
+      },
+      // Plays an answer's audio; resolves when it has finished (or at once if there is none).
+      playReply(answer) {
+        if (!answer || !answer.audio) return Promise.resolve();
+        const a = new Audio("data:" + (answer.audioType || "audio/mpeg") + ";base64," + answer.audio);
+        return new Promise((done) => { a.onended = a.onerror = done; a.play().catch(done); });
+      },
+
       startGuiding: (tripId) => call("POST", "/api/trips/" + tripId + "/start"),
       // Answers whatever the car is asking for: door held, elevator called, "still with me".
       confirm: (tripId) => call("POST", "/api/trips/" + tripId + "/confirm"),

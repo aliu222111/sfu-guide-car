@@ -17,6 +17,7 @@ from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile
 from std_msgs.msg import Bool, Empty, String
 
+from .chat import Concierge
 from .frames import AppFrames
 from .http_api import serve
 from .service import CarLink, ScoutService
@@ -57,7 +58,10 @@ class ApiNode(Node, CarLink):
         self.create_subscription(String, "guide/speech", lambda m: self.service.on_speech(m.data), 10)
         self.create_timer(1.0, self.service.tick)
 
-        self.server = serve(self.service, port, token=token)
+        chat = Concierge.from_env(destinations)   # needs GEMINI_API_KEY and ELEVENLABS_API_KEY, as the voice node does
+        if chat is None:
+            self.get_logger().info("Chat with ElevenLabs is off: no GEMINI_API_KEY")
+        self.server = serve(self.service, port, token=token, chat=chat)
         self.get_logger().info(f"rider API on http://<this laptop>:{port}/")
 
     def _json(self, msg: String, sink):

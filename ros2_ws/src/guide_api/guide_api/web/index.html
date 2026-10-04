@@ -38,6 +38,15 @@
   <button id="cancel" class="plain" disabled>Cancel</button>
 </div>
 <div id="trip">No trip.</div>
+
+<h1 style="margin-top: 24px">Chat with ElevenLabs</h1>
+<p id="chatstate">Checking…</p>
+<div class="row" style="margin-top: 0">
+  <input id="say" placeholder="Any good Chinese food nearby?" autocomplete="off" style="flex: 1 1 200px; width: auto">
+  <button id="ask">Ask</button>
+  <button id="talk" class="plain">Hold to talk</button>
+</div>
+<div id="chat" style="margin-top: 12px"></div>
 <div id="log"></div>
 
 <script src="scout-api.js"></script>
@@ -89,6 +98,58 @@ $("go").onclick = run(async () => {
   const u = await api.requestTrip($("pickup").value.trim() || null, $("dest").value.trim());
   log("trip " + u.tripId + " requested"); follow(u);
 });
+// Chat with ElevenLabs: typed, or hold the button and speak.
+const session = Math.random().toString(36).slice(2);
+function bubble(who, text) {
+  const d = document.createElement("div");
+  d.style.cssText = "margin: 6px 0; padding: 10px 12px; border-radius: 12px; max-width: 85%; " +
+    (who === "you" ? "background: #111; color: #fff; margin-left: auto" : "background: #f3f3f3");
+  d.textContent = text;
+  $("chat").appendChild(d);
+  return d;
+}
+function answer(a) {
+  const d = bubble("scout", a.reply);
+  if (a.room) {
+    const b = document.createElement("button");
+    b.textContent = "Go to " + a.room.key; b.style.cssText = "display: block; margin-top: 8px";
+    b.onclick = () => { $("dest").value = a.room.key; $("dest").scrollIntoView({ behavior: "smooth", block: "center" }); };
+    d.appendChild(b);
+  }
+  api.playReply(a);
+}
+api.chatStatus().then((s) => {
+  $("chatstate").textContent = !s.enabled ? "Off: set GEMINI_API_KEY and ELEVENLABS_API_KEY where the API runs, then restart it."
+    : "On." + (s.canHear ? "" : " No ElevenLabs key: typed questions only, no voice.");
+  $("ask").disabled = !s.enabled; $("talk").disabled = !s.enabled || !s.canHear || !navigator.mediaDevices;
+  if (s.enabled && s.canHear && !navigator.mediaDevices) $("chatstate").textContent += " The microphone needs https or localhost.";
+}).catch(() => { $("chatstate").textContent = "No answer from the API."; });
+$("ask").onclick = run(async () => {
+  const text = $("say").value.trim(); if (!text) return;
+  $("say").value = ""; bubble("you", text); answer(await api.chat(text, session));
+});
+$("say").addEventListener("keydown", (e) => { if (e.key === "Enter") $("ask").click(); });
+let recorder = null;
+const startTalk = run(async () => {
+  if (recorder) return;
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  const chunks = [];
+  recorder = new MediaRecorder(stream);
+  recorder.ondataavailable = (e) => chunks.push(e.data);
+  recorder.onstop = run(async () => {
+    stream.getTracks().forEach((t) => t.stop());
+    const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" }); recorder = null;
+    $("talk").textContent = "Hold to talk";
+    const a = await api.chatAudio(blob, session);
+    bubble("you", a.heard || "(nothing heard)"); answer(a);
+  });
+  recorder.start(); $("talk").textContent = "Listening… release to send";
+});
+const stopTalk = () => { if (recorder && recorder.state === "recording") recorder.stop(); };
+$("talk").addEventListener("pointerdown", startTalk);
+$("talk").addEventListener("pointerup", stopTalk);
+$("talk").addEventListener("pointerleave", stopTalk);
+
 // A trip already under way (started from another phone, or before a reload): pick it up.
 fetch("api/trips/current").then((r) => r.json()).then((u) => {
   if (u && !["done", "aborted", "cancelled", "failed"].includes(u.phase)) { log("joined " + u.tripId); follow(u); }
