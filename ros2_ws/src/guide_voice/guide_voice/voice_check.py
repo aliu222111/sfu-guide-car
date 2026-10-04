@@ -160,7 +160,13 @@ def hands_free(rec: Recorder, stt, speaker: Speaker, keys: dict, save: Path | No
             say(speaker, f"Great. Follow me to {spoken(pending, keys.get(pending))}.")
             print(f"confirmed: {pending}")
             if go is not None:
-                go()
+                try:
+                    go()
+                except ImportError:
+                    print("Driving needs pyserial: py -m pip install pyserial")
+                except Exception as e:  # port busy or wrong: say so, not "microphone failed"
+                    print(f"Driving failed: {type(e).__name__}: {e}\n"
+                          "Check the ESP32's COM port (Device Manager) and close the Arduino Serial Monitor.")
             return 0
         if answer == "stop":
             say(speaker, "Okay, stopping.")
