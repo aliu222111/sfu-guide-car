@@ -55,7 +55,7 @@ def nav2_params(src: str, cameras: str, depth_period: str = "") -> str:
     if cameras == "mono":
         local["plugins"] = [x for x in local["plugins"] if x != "voxel_layer"]
         local.pop("voxel_layer", None)
-        obstacle["observation_sources"] = "floor_obstacles floor_free"
+        obstacle["observation_sources"] = "floor_obstacles floor_free yolo_objects"
         obstacle.pop("stereo", None)
     elif cameras == "iphone":
         local["voxel_layer"]["stereo"]["topic"] = "/front/points"

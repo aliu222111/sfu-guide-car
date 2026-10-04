@@ -88,3 +88,31 @@ def test_rear_camera_mount_faces_backwards():
     R, t = mount_pose(-0.12, 0.0, 0.28, 0.1, math.pi)
     pts, ok = project_to_ground(K, R, t, np.array([320.0]), np.array([300.0]))
     assert ok[0] and pts[0, 0] < -0.5 and abs(pts[0, 1]) < 0.01  # behind the car, on its centre line
+
+
+def test_object_footprint_spans_its_width_where_it_stands():
+    from guide_perception.ground import mount_pose, nominal_K
+    from guide_perception.people import Person, locate, object_footprint
+
+    K = nominal_K(640, 360, 70.0)
+    R, t = mount_pose(0.50, 0.0, 0.28, -0.09, 0.0)
+    # a chair 0.5 m wide standing 3 m ahead, 0.4 m left
+    ahead, left, width = 3.0, 0.4, 0.5
+    cam = R.T @ (np.array([ahead, left, 0.0]) - t)
+    u, v = (K @ cam)[:2] / cam[2]
+    half_px = width / 2 * K[0, 0] / cam[2]
+    chair = locate([Person(None, (u - half_px, v - 60, u + half_px, v), 0.8, cls=56, label="chair")], K, R, t, 360)[0]
+    pts = np.array(object_footprint(chair, K, t[:2]))
+    assert abs(pts[:, 0].mean() - ahead) < 0.1 and abs(pts[:, 1].mean() - left) < 0.05
+    assert abs((pts[:, 1].max() - pts[:, 1].min()) - width) < 0.08
+    assert object_footprint(Person(None, (0, 0, 1, 1), 0.5), K) == []  # not placed: nothing
+
+
+def test_carried_bags_are_not_floor_obstacles():
+    from guide_perception.people import Person, carried
+
+    walker = Person(1, (200, 40, 300, 340), 0.9)
+    worn = Person(None, (230, 90, 290, 200), 0.7, label="backpack")
+    on_floor = Person(None, (400, 250, 460, 330), 0.7, label="backpack")
+    beside = Person(None, (280, 200, 380, 330), 0.7, label="chair")  # overlaps the walker a little
+    assert carried(worn, [walker]) and not carried(on_floor, [walker]) and not carried(beside, [walker])
