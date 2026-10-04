@@ -25,7 +25,8 @@ from .speech import SAMPLE_RATE, Speaker
 TTS_MODEL = "eleven_flash_v2_5"  # the low-latency model
 STT_MODEL = "scribe_v1"
 VOICE_ID = "21m00Tcm4TlvDq8ikWAM"  # "Rachel", a stock voice; any voice id from the ElevenLabs library works
-ROOM_TERMS = ["AQ", "WMC", "MBC", "Academic Quadrangle", "West Mall Centre", "Maggie Benston Centre", "room",
+ROOM_TERMS = ["AQ", "WMC", "MBC", "ASB", "Academic Quadrangle", "West Mall Centre", "Maggie Benston Centre",
+              "Applied Science Building", "room",
               "elevator", "door"]
 
 

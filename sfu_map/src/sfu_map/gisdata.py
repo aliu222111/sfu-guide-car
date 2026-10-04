@@ -92,12 +92,23 @@ def floor_id(building: str, fl_id: str) -> str:
     return f"{building}-{fl_id}"
 
 
+def room_files(path: Path | str = DEFAULT_ROOMS) -> list[Path]:
+    """The room GeoJSON to load: ``path``, and with the default also every other building
+    downloaded beside it (``python -m sfu_map.fetch ASB`` writes sfu_rooms_ASB.geojson)."""
+    path = Path(path)
+    if path != DEFAULT_ROOMS:
+        return [path]
+    return [path] + sorted(p for p in path.parent.glob("sfu_rooms_*.geojson") if p != path)
+
+
 def load_floors(path: Path | str = DEFAULT_ROOMS) -> dict[str, Floor]:
     """Return floors keyed by floor id (for example ``AQ-03``), in level order."""
-    with open(path) as f:
-        data = json.load(f)
+    features = []
+    for p in room_files(path):
+        with open(p) as f:
+            features += json.load(f)["features"]
     floors: dict[str, Floor] = {}
-    for feat in data["features"]:
+    for feat in features:
         p = feat["properties"]
         fid = floor_id(p["bl_abbr"], p["fl_id"])
         fl = floors.get(fid)

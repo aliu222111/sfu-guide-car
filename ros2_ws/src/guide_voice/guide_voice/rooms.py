@@ -23,9 +23,10 @@ from dataclasses import dataclass, field
 BUILDINGS = {
     "AQ": ("aq", "a q", "a cue", "a queue", "8q", "8 q", "eight q", "academic quadrangle", "academic quad", "the quad"),
     "WMC": ("wmc", "w m c", "west mall centre", "west mall center", "west mall complex", "west mall"),
+    "ASB": ("asb", "a s b", "applied science building", "applied sciences building", "applied science", "applied sciences"),
     "MBC": ("mbc", "m b c", "nbc", "maggie benston centre", "maggie benston center", "maggie benston", "benston"),
 }
-NAMES = {"AQ": "the Academic Quadrangle", "WMC": "the West Mall Centre", "MBC": "the Maggie Benston Centre"}
+NAMES = {"AQ": "the Academic Quadrangle", "ASB": "the Applied Science Building", "WMC": "the West Mall Centre", "MBC": "the Maggie Benston Centre"}
 
 UNITS = {"zero": 0, "oh": 0, "o": 0, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7,
          "eight": 8, "nine": 9}

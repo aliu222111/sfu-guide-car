@@ -168,7 +168,7 @@ class RouteGraph:
         return legs
 
 
-BUILDINGS = ("WMC", "MBC", "AQ")  # longest first
+BUILDINGS = ("WMC", "MBC", "ASB", "AQ")  # longest first
 _ROOM_RE = re.compile(r"^\s*([A-Za-z]+?)[\s-]*([0-9A-Za-z][0-9A-Za-z.\-]*)\s*$")
 
 
