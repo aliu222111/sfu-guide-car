@@ -2,6 +2,7 @@
 
     ros2 run guide_voice voice_check --devices          # list microphones and speakers
     ros2 run guide_voice voice_check --meter            # the microphone's live level: does it hear you?
+    ros2 run guide_voice voice_check --drive COM4       # demo: once the room is confirmed, run the motors 5 s
     ros2 run guide_voice voice_check                    # hands-free: just talk; it confirms the room and stops
     ros2 run guide_voice voice_check --talk             # a conversation: Enter starts and stops each recording
     ros2 run guide_voice voice_check --text "take me to AQ 3046"   # skip the microphone
@@ -105,7 +106,35 @@ def louder(audio: np.ndarray, peak: float = 0.8) -> np.ndarray:
     return audio if top < 1e-4 else (audio * min(peak / top, 50.0)).astype(np.float32)
 
 
-def hands_free(rec: Recorder, stt, speaker: Speaker, keys: dict, save: Path | None = None) -> int:
+def drive(port: str, throttle: float, seconds: float, steering: float = 0.0):
+    """Demo: drive the ESP32 (guide_motor.ino, or l298n_demo.ino) for ``seconds``, as the car's
+    serial bridge does: "C <steering> <throttle>" 20 times a second, then stop. The firmware also
+    stops by itself 300 ms after the last line (a crash, a pulled cable)."""
+    import serial
+
+    s = serial.Serial()
+    s.port, s.baudrate, s.timeout = port, 115200, 0
+    s.dtr = s.rts = False  # opening must not reset the ESP32
+    s.open()
+    try:
+        time.sleep(0.3)
+        print(f"  driving: throttle {throttle:+.2f} for {seconds:.0f} s on {port}")
+        end = time.monotonic() + seconds
+        while time.monotonic() < end:
+            s.write(f"C {steering:.3f} {throttle:.3f}\n".encode())
+            reply = s.read(256).decode(errors="replace").strip()
+            if reply.startswith("E"):
+                print(f"  ESP32: {reply}")
+            time.sleep(0.05)
+    finally:
+        for _ in range(5):
+            s.write(b"C 0.000 0.000\n")
+            time.sleep(0.05)
+        s.close()
+        print("  stopped")
+
+
+def hands_free(rec: Recorder, stt, speaker: Speaker, keys: dict, save: Path | None = None, go=None) -> int:
     """Ask where to go, read the room back, and stop once the student says yes."""
     pending = None
     while True:
@@ -130,6 +159,8 @@ def hands_free(rec: Recorder, stt, speaker: Speaker, keys: dict, save: Path | No
         if pending and answer == "yes":
             say(speaker, f"Great. Follow me to {spoken(pending, keys.get(pending))}.")
             print(f"confirmed: {pending}")
+            if go is not None:
+                go()
             return 0
         if answer == "stop":
             say(speaker, "Okay, stopping.")
@@ -189,6 +220,9 @@ def load_env(path: Path = Path(".env")):
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--devices", action="store_true", help="list audio devices and exit")
+    ap.add_argument("--drive", metavar="PORT", help="demo: run the motors on this serial port (COM4) once a room is confirmed")
+    ap.add_argument("--throttle", type=float, default=0.3, help="--drive throttle, -1..1 (default 0.3)")
+    ap.add_argument("--drive-seconds", type=float, default=5.0)
     ap.add_argument("--meter", action="store_true", help="show the microphone's live level for 15 s (talk and watch it move)")
     ap.add_argument("--talk", action="store_true", help="keep talking: Enter starts and stops each recording")
     ap.add_argument("--text", help="what the student says, instead of the microphone")
@@ -260,7 +294,8 @@ def main(argv=None):
                 print(f"microphone: {sd.query_devices(rec.device, 'input')['name']}  (another: --mic <number> from --devices)")
             except Exception:
                 pass
-            return hands_free(rec, stt, speaker, keys, Path("voice_last.wav"))
+            go = (lambda: drive(args.drive, args.throttle, args.drive_seconds)) if args.drive else None
+            return hands_free(rec, stt, speaker, keys, Path("voice_last.wav"), go)
         except KeyboardInterrupt:
             return 0
         except Exception as e:
