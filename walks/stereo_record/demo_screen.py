@@ -715,7 +715,10 @@ class Screen:
         self.lut = cv2.applyColorMap(ramp, getattr(cv2, "COLORMAP_TURBO", cv2.COLORMAP_JET)).reshape(256, 3)
         self.bg_canvas = np.empty((SCREEN_H, SCREEN_W, 3), np.uint8); self.bg_canvas[:] = BG
         self.bg_rear = np.empty((PANEL_H, PANEL_W, 3), np.uint8); self.bg_rear[:] = PANEL_BG
-        self.bg_map = np.empty((PANEL_H, PANEL_W, 3), np.uint8); self.bg_map[:] = rgb(12, 18, 26)
+        # No rear camera: the point map takes the whole bottom row instead of an empty panel.
+        self.has_rear = args.rear is not None or args.rear_file is not None
+        self.map_w = PANEL_W if self.has_rear else SCREEN_W
+        self.bg_map = np.empty((PANEL_H, self.map_w, 3), np.uint8); self.bg_map[:] = rgb(12, 18, 26)
 
     # camera panel: 640x360 picture filling 960 wide, cropped top and bottom to the panel height
     def cam_panel(self, img):
@@ -871,11 +874,12 @@ class Screen:
 
     # top-down map
     def map_panel(self):
+        MW = self.map_w                                    # half the screen, or all of it with no rear camera
         vo, s = self.vo, self.scale
         p = self.bg_map.copy()
         car = vo.T[:3, 3]
         hd = vo.heading()
-        cxp, cyp = PANEL_W * 0.5, PANEL_H * 0.5
+        cxp, cyp = MW * 0.5, PANEL_H * 0.5
         look = 2.5                                         # keep what is ahead of the car in view
         cx, cz = car[0] + look * math.sin(hd), car[2] + look * math.cos(hd)
 
@@ -883,26 +887,26 @@ class Screen:
             return cxp + (x - cx) * s, cyp - (z - cz) * s
 
         # grid
-        x_lo, x_hi = cx - cxp / s, cx + (PANEL_W - cxp) / s
+        x_lo, x_hi = cx - cxp / s, cx + (MW - cxp) / s
         z_lo, z_hi = cz - (PANEL_H - cyp) / s, cz + cyp / s
         grid_labels = []
         for m in range(int(math.floor(x_lo)), int(math.ceil(x_hi)) + 1):
             u = int(round(px(m, 0)[0]))
             major = m % 5 == 0
             cv2.line(p, (u, 0), (u, PANEL_H), rgb(40, 52, 66) if major else rgb(24, 32, 42), 1)
-            if major and 20 < u < PANEL_W - 60:
+            if major and 20 < u < MW - 60:
                 grid_labels.append((f"{m} m", u + 4, PANEL_H - 62, "left"))
         for m in range(int(math.floor(z_lo)), int(math.ceil(z_hi)) + 1):
             v = int(round(px(0, m)[1]))
             major = m % 5 == 0
-            cv2.line(p, (0, v), (PANEL_W, v), rgb(40, 52, 66) if major else rgb(24, 32, 42), 1)
+            cv2.line(p, (0, v), (MW, v), rgb(40, 52, 66) if major else rgb(24, 32, 42), 1)
             if major and 90 < v < PANEL_H - 90:
-                grid_labels.append((f"{m} m", PANEL_W - 10, v + 3, "right"))
+                grid_labels.append((f"{m} m", MW - 10, v + 3, "right"))
         # accumulated points (warp the grid straight into panel pixels)
         g = vo.grid
         k = s * g.res
         M = np.float32([[k, 0, cxp - (g.n // 2) * k - cx * s], [0, -k, cyp + (g.n // 2) * k + cz * s]])
-        cnt = cv2.warpAffine(g.counts, M, (PANEL_W, PANEL_H), flags=cv2.INTER_NEAREST, borderValue=0)
+        cnt = cv2.warpAffine(g.counts, M, (MW, PANEL_H), flags=cv2.INTER_NEAREST, borderValue=0)
         occ = cnt >= 2
         if occ.any():
             t = np.clip((np.log1p(cnt[occ]) - np.log1p(2.0)) / (np.log1p(25.0) - np.log1p(2.0)), 0.0, 1.0)[:, None]
@@ -928,7 +932,7 @@ class Screen:
         if len(vo.scan):
             u = (cxp + (vo.scan[:, 0] - cx) * s).astype(int)
             v = (cyp - (vo.scan[:, 1] - cz) * s).astype(int)
-            ok = (u >= 1) & (u < PANEL_W - 1) & (v >= 1) & (v < PANEL_H - 1)
+            ok = (u >= 1) & (u < MW - 1) & (v >= 1) & (v < PANEL_H - 1)
             u, v = u[ok], v[ok]
             for du, dv in ((0, 0), (1, 0), (0, 1), (1, 1)):
                 p[v + dv, u + du] = SCAN_C
@@ -943,7 +947,7 @@ class Screen:
         placed = []
         marks = [(px(x, z), name, r, front) for x, z, name, r, front in self.objects["left"] + self.objects["rear"]]
         for (u, v), name, r, front in sorted(marks, key=lambda m: m[0][1]):
-            if not (0 <= u < PANEL_W and 0 <= v < PANEL_H):
+            if not (0 <= u < MW and 0 <= v < PANEL_H):
                 continue
             col = class_color(name)
             if front:
@@ -953,7 +957,7 @@ class Screen:
                 cv2.circle(p, (int(u), int(v)), 11, col, 3, cv2.LINE_AA)
             label = f"{name} {r:.1f} m" + ("" if front else " (rear, est.)")
             tw, th = self.T.size(label, 17, True)
-            lx = u + 19 if u + 27 + tw < PANEL_W else u - 23 - tw
+            lx = u + 19 if u + 27 + tw < MW else u - 23 - tw
             ly = v - th / 2
             for _ in range(6):
                 if not any(abs(ly - py) < th + 6 and lx < qx + qw and qx < lx + tw for qx, py, qw in placed):
@@ -973,7 +977,7 @@ class Screen:
         tip = rot(0, 1.3)
         cv2.arrowedLine(p, (int(c0[0]), int(c0[1])), (int(tip[0]), int(tip[1])), ACCENT, 3, cv2.LINE_AA, tipLength=0.3)
         # scale bar
-        bx, by = PANEL_W - 30 - int(2 * s), 80
+        bx, by = MW - 30 - int(2 * s), 80
         cv2.line(p, (bx, by), (bx + int(2 * s), by), TEXT, 2)
         cv2.line(p, (bx, by - 5), (bx, by + 5), TEXT, 2); cv2.line(p, (bx + int(2 * s), by - 5), (bx + int(2 * s), by + 5), TEXT, 2)
         self.T.put(p, "2 m", bx + int(s), by - 26, 16, TEXT, False, "center")
@@ -981,12 +985,12 @@ class Screen:
         items = [(SCAN_C, "depth now"), (rgb(255, 214, 140), "map"), (TRAJ_C, "path"),
                  (rgb(255, 72, 96), "person")]
         x = 14; y = PANEL_H - 34
-        shade(p, 0, y - 10, PANEL_W, PANEL_H, (0, 0, 0), 0.55)
+        shade(p, 0, y - 10, MW, PANEL_H, (0, 0, 0), 0.55)
         for col, name in items:
             cv2.circle(p, (x + 7, y + 11), 7, col, -1, cv2.LINE_AA)
             x += 20 + self.T.put(p, name, x + 20, y, 17, MUTED) + 22
         keys = "q quit \u00b7 f fullscreen \u00b7 space pause \u00b7 r reset \u00b7 +/- zoom"
-        self.T.put(p, keys, PANEL_W - 14, y + 1, 16, rgb(120, 130, 145), False, "right")
+        self.T.put(p, keys, MW - 14, y + 1, 16, rgb(120, 130, 145), False, "right")
         st_col = OK_C if vo.status == "tracking" else BAD_C if vo.status == "lost" else MUTED
         self.panel_title(p, "POINT MAP  \u00b7  stereo VO", "top-down, start heading up")
         chip(p, self.T, f"VO {vo.status}  \u00b7  {vo.n_inliers} inliers  \u00b7  {g.cells():,} map cells (10 cm)",
@@ -1022,14 +1026,18 @@ class Screen:
         self.front_objects()
         pl, n1 = self.left_panel(left)
         pr, n2 = self.right_panel(right)
-        pb, n3 = self.rear_panel(rear)
+        pb, n3 = self.rear_panel(rear) if self.has_rear else (None, 0)
         pm = self.map_panel()
         y0 = HEADER_H
         canvas[y0:y0 + PANEL_H, :PANEL_W] = pl
         canvas[y0:y0 + PANEL_H, PANEL_W:] = pr
-        canvas[y0 + PANEL_H:y0 + 2 * PANEL_H, :PANEL_W] = pb
-        canvas[y0 + PANEL_H:y0 + 2 * PANEL_H, PANEL_W:] = pm
-        cv2.line(canvas, (PANEL_W, y0), (PANEL_W, SCREEN_H), BG, 4)
+        if self.has_rear:
+            canvas[y0 + PANEL_H:y0 + 2 * PANEL_H, :PANEL_W] = pb
+            canvas[y0 + PANEL_H:y0 + 2 * PANEL_H, PANEL_W:] = pm
+            cv2.line(canvas, (PANEL_W, y0), (PANEL_W, SCREEN_H), BG, 4)
+        else:
+            canvas[y0 + PANEL_H:y0 + 2 * PANEL_H, :] = pm
+            cv2.line(canvas, (PANEL_W, y0), (PANEL_W, y0 + PANEL_H), BG, 4)
         cv2.line(canvas, (0, y0 + PANEL_H), (SCREEN_W, y0 + PANEL_H), BG, 4)
         if not self.det.ok and self.det.status:
             w, h = self.T.size(self.det.status, 20, True)
