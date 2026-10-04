@@ -87,7 +87,7 @@ def capture(li: int, ri: int, out: Path, want: int = 40):
             return
     keys, n = [], len(list(out.glob("left_*.png")))
     print(f"saving to {out}; {n} pairs already there. s = save now, q = finish")
-    misses = 0
+    misses, prev = 0, None
     while True:
         g1 = cl.grab(); g2 = cr.grab()  # both first: the two pictures are taken together
         ok1, a = cl.retrieve() if g1 else (False, None)
@@ -111,14 +111,20 @@ def capture(li: int, ri: int, out: Path, want: int = 40):
             if c is not None:
                 cv2.drawChessboardCorners(v, (COLS, ROWS), c, True)
         k = cv2.waitKey(1) & 0xFF
-        auto = ca is not None and cb is not None and new and sharp > 60
+        # The two webcams are not shutter-synced (up to a frame apart), so a moving board is in
+        # a different place in each picture: save only once it has been still for a frame.
+        still = (ca is not None and cb is not None and prev is not None
+                 and max(np.abs(ca - prev[0]).max(), np.abs(cb - prev[1]).max()) < 1.0)
+        prev = (ca, cb) if ca is not None and cb is not None else None
+        auto = still and new and sharp > 60
         if auto or (k == ord("s") and ca is not None and cb is not None):
             cv2.imwrite(str(out / f"left_{n:03d}.png"), a); cv2.imwrite(str(out / f"right_{n:03d}.png"), b)
             keys.append(key); n += 1
             print(f"  pair {n}" + ("" if n < want else "  (enough: q to finish, or keep adding tilted views)"))
             for v in view:
                 v[:] = 255 - v  # flash
-        msg = f"{n} saved | " + ("both see it" if ca is not None and cb is not None else "board not in both")
+        msg = f"{n} saved | " + (("hold still" if not still else "both see it") if ca is not None and cb is not None
+                                 else "board not in both")
         cv2.putText(view[0], msg, (8, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
         cv2.imshow("left | right  (s save, q quit)", cv2.hconcat(view))
         if k == ord("q"):
@@ -139,7 +145,7 @@ def camera_info(name, size, K, D, R, P) -> str:
 def solve(folder: Path) -> int:
     obj = np.zeros((COLS * ROWS, 3), np.float32)
     obj[:, :2] = np.mgrid[0:COLS, 0:ROWS].T.reshape(-1, 2) * SQUARE
-    objs, pl, pr, size = [], [], [], None
+    objs, pl, pr, names, size = [], [], [], [], None
     for lf in sorted(folder.glob("left_*.png")):
         rf = lf.with_name(lf.name.replace("left_", "right_"))
         a, b = cv2.imread(str(lf), 0), cv2.imread(str(rf), 0)
@@ -149,14 +155,29 @@ def solve(folder: Path) -> int:
         ca, cb = find(a), find(b)
         if ca is None or cb is None:
             continue
-        objs.append(obj); pl.append(ca); pr.append(cb)
+        if np.linalg.norm(ca[0] - cb[0]) > np.linalg.norm(ca[0] - cb[-1]):
+            cb = cb[::-1].copy()  # the detector numbered the right view from the other end
+        objs.append(obj); pl.append(ca); pr.append(cb); names.append(lf.name)
     if len(objs) < 10:
         print(f"only {len(objs)} usable pairs in {folder}: capture at least 20"); return 1
-    e1, K1, D1, _, _ = cv2.calibrateCamera(objs, pl, size, None, None)
-    e2, K2, D2, _, _ = cv2.calibrateCamera(objs, pr, size, None, None)
     crit = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 1e-6)
-    e, K1, D1, K2, D2, R, T, _, _ = cv2.stereoCalibrate(objs, pl, pr, K1, D1, K2, D2, size,
-                                                        flags=cv2.CALIB_USE_INTRINSIC_GUESS, criteria=crit)
+    # Drop the pairs that disagree with the rest (board moving between the two unsynced
+    # pictures, motion blur, a bent sheet), worst first, and solve again until none stand out.
+    keep = list(range(len(objs)))
+    while True:
+        o = [objs[i] for i in keep]; a = [pl[i] for i in keep]; b = [pr[i] for i in keep]
+        e1, K1, D1, _, _, _, _, v1 = cv2.calibrateCameraExtended(o, a, size, None, None)
+        e2, K2, D2, _, _, _, _, v2 = cv2.calibrateCameraExtended(o, b, size, None, None)
+        e, K1, D1, K2, D2, R, T, _, _, _, _, vs = cv2.stereoCalibrateExtended(
+            o, a, b, K1, D1, K2, D2, size, None, None, flags=cv2.CALIB_USE_INTRINSIC_GUESS, criteria=crit)
+        per = np.maximum(np.maximum(v1.ravel(), v2.ravel()), vs.max(axis=1))
+        limit = max(0.6, 2.5 * float(np.median(per)))
+        worst = int(np.argmax(per))
+        if per[worst] <= limit or len(keep) <= 15:
+            break
+        print(f"  dropping {names[keep[worst]]}: {per[worst]:.1f} px (the rest: median {np.median(per):.2f})")
+        keep.pop(worst)
+    objs, pl, pr = o, a, b
     R1, R2, P1, P2, Q, _, _ = cv2.stereoRectify(K1, D1, K2, D2, size, R, T, alpha=0)
     # How well rectification lines rows up: the same corner should land on the same row.
     m1 = cv2.initUndistortRectifyMap(K1, D1, R1, P1, size, cv2.CV_32FC1)
@@ -169,7 +190,7 @@ def solve(folder: Path) -> int:
     rows = np.concatenate(rows)
     baseline = float(np.linalg.norm(T))
     fov = np.degrees(2 * np.arctan(size[0] / 2 / K1[0, 0]))
-    print(f"{len(objs)} pairs, {size[0]}x{size[1]}")
+    print(f"{len(objs)} pairs used of {len(names)}, {size[0]}x{size[1]}")
     print(f"  reprojection error: left {e1:.2f} px, right {e2:.2f} px, stereo {e:.2f} px   (good: under 0.5)")
     print(f"  baseline {baseline * 100:.1f} cm (the rig: about 10), horizontal field of view {fov:.0f} deg")
     print(f"  after rectification, rows differ by {np.median(rows):.2f} px median, {np.percentile(rows, 95):.2f} px 95th   (good: under 1)")
